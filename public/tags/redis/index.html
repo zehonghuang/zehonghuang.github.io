@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+  <title>redis - 作为客体的类库</title>
+  <meta property="og:title" content="redis - 作为客体的类库" />
+  <meta name="twitter:title" content="redis - 作为客体的类库" />
+  <meta name="author" content="金汤力"/>
+  <meta property="og:site_name" content="作为客体的类库" />
+  <meta property="og:url" content="https://example.com/tags/redis/" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="generator" content="Hugo 0.122.0">
+  <link href="/tags/redis/index.xml" rel="alternate" type="application/rss+xml" title="作为客体的类库" />
+  <link href="/tags/redis/index.xml" rel="feed" type="application/rss+xml" title="作为客体的类库" />
+  <link rel="stylesheet" href="/css/style.css" media="all" />
+  <link rel="stylesheet" href="/css/style-dark.css" media="all and (prefers-color-scheme: dark)" />
+
+  <link rel="stylesheet" href="/css/syntax.css" media="all" />
+  <link rel="stylesheet" href="/css/custom.css" media="all" />
+
+  <script src="/js/script.js"></script>
+  <script src="/js/custom.js"></script>
+  <script defer src="/fontawesome/all.min.js"></script>
+</head>
+
+<body>
+
+<header class="site-header">
+  <nav class="site-navi">
+    <h1 class="site-title"><a href="/">作为客体的类库</a></h1>
+    <ul class="site-navi-items">
+      <li class="site-navi-item-categories"><a href="/categories/" title="Categories">Categories</a></li>
+      <li class="site-navi-item-tags"><a href="/tags/" title="Tags">Tags</a></li>
+      <li class="site-navi-item-archives"><a href="/archives/" title="Archives">Archives</a></li>
+      <li class="site-navi-item-about"><a href="/about/" title="About">About</a></li>
+    </ul>
+  </nav>
+</header>
+<hr class="site-header-bottom">
+
+  <div class="main" role="main">
+    <section class="list term-list">
+      <article class="article">
+        <a href="/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E7%9C%9F%E7%9A%84%E4%B8%8D%E6%98%AF%E5%8D%95%E7%BA%BF%E7%A8%8B%E5%90%8E%E5%8F%B0io%E6%9C%8D%E5%8A%A1-bio/" class="article-titles">
+          <h2 class="article-title">【Redis源码分析】Redis真的不是单线程，后台IO服务 BIO</h2>
+          
+        </a>
+        <ul class="article-meta">
+          <li class="article-meta-date"><time>July 24, 2020</time></li>
+          <li class="article-meta-categories">
+            <a href="/categories/c/c&#43;&#43;/">
+              <i class="fa-solid fa-folder"></i>
+              C/C&#43;&#43;
+            </a>&nbsp;
+          </li>
+          <li class="article-meta-tags">
+            <a href="/tags/redis/">
+              <i class="fa-solid fa-tag"></i>
+              redis
+            </a>&nbsp;
+          </li>
+          <li class="article-meta-tags">
+            <a href="/tags/linux%E5%86%85%E6%A0%B8/">
+              <i class="fa-solid fa-tag"></i>
+              Linux内核
+            </a>&nbsp;
+          </li>
+          <li class="article-meta-tags">
+            <a href="/tags/linux%E7%BC%96%E7%A8%8B/">
+              <i class="fa-solid fa-tag"></i>
+              Linux编程
+            </a>&nbsp;
+          </li>
+        </ul>
+        <div class="article-content">
+          <p>面试总喜欢被问Redis是单线程还是多线程，千篇一律的回答单线程却不知所以然，严格来说Redis是多线程多进程、单线程处理请求，本文说的就是多线程下的BIO(Background I/O service)。</p>
+        </div>
+        <div class="article-readmore"><a href="/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E7%9C%9F%E7%9A%84%E4%B8%8D%E6%98%AF%E5%8D%95%E7%BA%BF%E7%A8%8B%E5%90%8E%E5%8F%B0io%E6%9C%8D%E5%8A%A1-bio/">Read more...</a></div>
+        <div class="article-floatclear"></div>
+      </article>
+      <article class="article">
+        <a href="/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B%E6%98%AF%E8%BF%99%E6%A0%B7%E7%9A%84/" class="article-titles">
+          <h2 class="article-title">【Redis源码分析】Redis启动过程是这样的！</h2>
+          
+        </a>
+        <ul class="article-meta">
+          <li class="article-meta-date"><time>July 21, 2020</time></li>
+          <li class="article-meta-categories">
+            <a href="/categories/c/c&#43;&#43;/">
+              <i class="fa-solid fa-folder"></i>
+              C/C&#43;&#43;
+            </a>&nbsp;
+          </li>
+          <li class="article-meta-tags">
+            <a href="/tags/redis/">
+              <i class="fa-solid fa-tag"></i>
+              redis
+            </a>&nbsp;
+          </li>
+          <li class="article-meta-tags">
+            <a href="/tags/linux%E5%86%85%E6%A0%B8/">
+              <i class="fa-solid fa-tag"></i>
+              Linux内核
+            </a>&nbsp;
+          </li>
+          <li class="article-meta-tags">
+            <a href="/tags/linux%E7%BC%96%E7%A8%8B/">
+              <i class="fa-solid fa-tag"></i>
+              Linux编程
+            </a>&nbsp;
+          </li>
+        </ul>
+        <div class="article-content">
+          <p>redis的源码确实是比我想象中要好读，本身是过程式编程，所以很多核心逻辑已经包含在main函数的调用链，流程非常长，耐心看下去还是能get到些东西的。</p>
+        </div>
+        <div class="article-readmore"><a href="/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B%E6%98%AF%E8%BF%99%E6%A0%B7%E7%9A%84/">Read more...</a></div>
+        <div class="article-floatclear"></div>
+      </article>
+    </section>
+    
+  </div>
+
+
+
+<div class="site-footer">
+  <div class="copyright">&copy; Copyright 2017 Foo Bar</div>
+  <ul class="site-footer-items">
+    <li class="site-footer-item-rsslink">
+      <a href="/tags/redis/index.xml" type="application/rss+xml" target="_blank" title="RSS">
+        <i class="fa-solid fa-rss"></i>
+      </a>
+    </li>
+    <li class="site-footer-item-about"><a href="/about/" title="About">About</a></li>
+  </ul>
+  <div class="powerdby">
+    Powered by <a href="https://gohugo.io/">Hugo</a> and <a href="https://github.com/taikii/whiteplain">Whiteplain</a>
+  </div>
+</div>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-16F0MHER15', { 'anonymize_ip': false });
+}
+</script>
+
+
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+  <title>网络编程 - 作为客体的类库</title>
+  <meta property="og:title" content="网络编程 - 作为客体的类库" />
+  <meta name="twitter:title" content="网络编程 - 作为客体的类库" />
+  <meta name="author" content="金汤力"/>
+  <meta property="og:site_name" content="作为客体的类库" />
+  <meta property="og:url" content="https://example.com/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="generator" content="Hugo 0.122.0">
+  <link href="/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/index.xml" rel="alternate" type="application/rss+xml" title="作为客体的类库" />
+  <link href="/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/index.xml" rel="feed" type="application/rss+xml" title="作为客体的类库" />
+  <link rel="stylesheet" href="/css/style.css" media="all" />
+  <link rel="stylesheet" href="/css/style-dark.css" media="all and (prefers-color-scheme: dark)" />
+
+  <link rel="stylesheet" href="/css/syntax.css" media="all" />
+  <link rel="stylesheet" href="/css/custom.css" media="all" />
+
+  <script src="/js/script.js"></script>
+  <script src="/js/custom.js"></script>
+  <script defer src="/fontawesome/all.min.js"></script>
+</head>
+
+<body>
+
+<header class="site-header">
+  <nav class="site-navi">
+    <h1 class="site-title"><a href="/">作为客体的类库</a></h1>
+    <ul class="site-navi-items">
+      <li class="site-navi-item-categories"><a href="/categories/" title="Categories">Categories</a></li>
+      <li class="site-navi-item-tags"><a href="/tags/" title="Tags">Tags</a></li>
+      <li class="site-navi-item-archives"><a href="/archives/" title="Archives">Archives</a></li>
+      <li class="site-navi-item-about"><a href="/about/" title="About">About</a></li>
+    </ul>
+  </nav>
+</header>
+<hr class="site-header-bottom">
+
+  <div class="main" role="main">
+    <section class="list term-list">
+      <article class="article">
+        <a href="/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B%E4%BB%8Elinux%E8%A7%92%E5%BA%A6%E4%BB%A5%E5%8F%8Ajvm%E6%BA%90%E7%A0%81%E6%B7%B1%E5%85%A5nio%E7%9A%84%E7%BB%86%E8%8A%82/" class="article-titles">
+          <h2 class="article-title">【网络编程】从Linux角度以及JVM源码，深入NIO的细节</h2>
+          
+        </a>
+        <ul class="article-meta">
+          <li class="article-meta-date"><time>January 7, 2020</time></li>
+          <li class="article-meta-categories">
+            <a href="/categories/java/">
+              <i class="fa-solid fa-folder"></i>
+              Java
+            </a>&nbsp;
+          </li>
+          <li class="article-meta-tags">
+            <a href="/tags/nio/">
+              <i class="fa-solid fa-tag"></i>
+              NIO
+            </a>&nbsp;
+          </li>
+          <li class="article-meta-tags">
+            <a href="/tags/c/c&#43;&#43;/">
+              <i class="fa-solid fa-tag"></i>
+              C/C&#43;&#43;
+            </a>&nbsp;
+          </li>
+          <li class="article-meta-tags">
+            <a href="/tags/linux%E5%86%85%E6%A0%B8/">
+              <i class="fa-solid fa-tag"></i>
+              Linux内核
+            </a>&nbsp;
+          </li>
+          <li class="article-meta-tags">
+            <a href="/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/">
+              <i class="fa-solid fa-tag"></i>
+              网络编程
+            </a>&nbsp;
+          </li>
+        </ul>
+        <div class="article-content">
+          <p>最近一段时间都在啃Linux内核， 也给了自己机会再度深入理解Java的NIO实现，希望能获得更多东西，尝试理解以前未能理解的，会涉及少量OpenJDK源码。</p>
+<p>因为NIO本身的实现很多牵扯到操作系统，所以需要先稍微过一下，有理解不对的地方，请指出。</p>
+<h2 id="1涉及的linux知识">1、涉及的Linux知识</h2>
+<h3 id="11文件描述符">1.1、文件描述符</h3>
+<p>对于Linux来说，一切皆为文件，设备文件、IO文件还是普通文件，都可以通过一个叫做文件描述符（FileDescriptor）的东西来进行操作，其涉及的数据结构可以自行了解VFS。</p>
+<h4 id="111设备阻塞与非阻塞">1.1.1、设备阻塞与非阻塞</h4>
+<p>任意对设备的操作都是默认为阻塞的，如果没有或有不可操作的资源，会被添加到<code>wait_queue_head_t</code>中进行等待，直到被<code>semaphore</code>通知允许执行。此时可以通过<code>fcntl()</code>函数将文件描述符设置为非阻塞，若没有或有不可操作的资源，立即返回错误信息。</p>
+<h3 id="12jvm内存结构--虚拟地址空间">1.2、JVM内存结构 &amp; 虚拟地址空间</h3>
+<p>众所周知，Linux下的每一进程都有自己的虚拟内存地址，而JVM也是一个进程，且JVM有自己的内存结构。既然如此，两者之间必有对应关系，OracleJDK7提供了NMT，用<code>jcmd pid VM.native_memory detail</code>可以查看各类区域的reserved，被committed的内存大小及其地址区间，再通过<code>pmap -p</code>可以看到进程内存信息。</p>
+<p>肉眼对比地址区间可以发现，JVM heap是通过mmap分配内存的，位于进程的映射区内，而进程堆区可以被malloc进行分配，对应关系如图。
+<img src="https://raw.githubusercontent.com/zehonghuang/github_blog_bak/master/source/image/jvm%E8%99%9A%E6%8B%9F%E5%86%85%E5%AD%98%E5%9C%B0%E5%9D%80.png" alt="jvm内存虚拟地址"></p>
+        </div>
+        <div class="article-readmore"><a href="/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B%E4%BB%8Elinux%E8%A7%92%E5%BA%A6%E4%BB%A5%E5%8F%8Ajvm%E6%BA%90%E7%A0%81%E6%B7%B1%E5%85%A5nio%E7%9A%84%E7%BB%86%E8%8A%82/">Read more...</a></div>
+        <div class="article-floatclear"></div>
+      </article>
+    </section>
+    
+  </div>
+
+
+
+<div class="site-footer">
+  <div class="copyright">&copy; Copyright 2017 Foo Bar</div>
+  <ul class="site-footer-items">
+    <li class="site-footer-item-rsslink">
+      <a href="/tags/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/index.xml" type="application/rss+xml" target="_blank" title="RSS">
+        <i class="fa-solid fa-rss"></i>
+      </a>
+    </li>
+    <li class="site-footer-item-about"><a href="/about/" title="About">About</a></li>
+  </ul>
+  <div class="powerdby">
+    Powered by <a href="https://gohugo.io/">Hugo</a> and <a href="https://github.com/taikii/whiteplain">Whiteplain</a>
+  </div>
+</div>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-16F0MHER15', { 'anonymize_ip': false });
+}
+</script>
+
+
+</body>
+</html>

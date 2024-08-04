@@ -1,0 +1,7 @@
+baseURL = 'https://example.org/'
+languageCode = 'en-us'
+title = 'My New Hugo Site'
+
+[services]
+  [services.googleAnalytics]
+    ID = 'G-MEASUREMENT_ID'
