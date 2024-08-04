@@ -83,13 +83,13 @@ NIC statistics:
 sudo ip link add name br0 type bridge
 sudo ip link set br0 up
 
-## 类似 calico 这种，放在网桥的设备名称通常是 caXXXXXXX，而在 Pod 或者容器中的设备名称被命名为 eth0
-sudo ip link add veth1 type veth peer name br-veth1
-sudo ip link set br-veth1 master br0
-sudo ip link set br-veth1 up
+## 类似 calico 这种，放在网桥的设备名称通常是 caliXXXXXXX，而在 Pod 或者容器中的设备名称被命名为 eth0
+sudo ip link add veth0 type veth peer name br-veth0
+sudo ip link set br-veth0 master br0
+sudo ip link set br-veth0 up
 
-sudo ip link set veth1 netns ns1
-sudo ip netns exec ns1 ip link set veth1 up
+sudo ip link set veth0 netns ns1
+sudo ip netns exec ns1 ip link set veth0 up
 ```
 
 #### 4. iptables转发功能
@@ -97,6 +97,10 @@ sudo ip netns exec ns1 ip link set veth1 up
 多个命名空间的 veth 设备通用网桥相互访问的时候，需要用到 iptables 进行转发。
 
 ```shell
+## 开启 IP 转发功能
+sudo sysctl -w net.ipv4.ip_forward=1
+
+## 开启iptables支持对brigde的转发 
 sudo sysctl net.bridge.bridge-nf-call-iptables=1
 sudo sysctl net.bridge.bridge-nf-call-ip6tables=1
 ```
