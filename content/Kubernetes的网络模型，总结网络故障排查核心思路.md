@@ -24,7 +24,7 @@ categories = [
 
 这里只会提及相关的Linux指令，不深入技术原理，只会一笔带过。
 
-#### 1. Network namespace
+### 1. Network namespace
 
 我们知道两个POD的网络相互隔离，实际在操作系统中是通过命名空间实现的。
 
@@ -38,7 +38,7 @@ sudo ip netns add my_namespace
 sudo ip netns exec my_namespace bash
 ```
 
-#### 2. veth设备对
+### 2. veth设备对
 
 那如何我们如何为两个不同命名空间下的进程之间实现通信呢？
 
@@ -76,7 +76,7 @@ NIC statistics:
      peer_ifindex: 3
 ```
 
-#### 3. 网桥bridge
+### 3. 网桥bridge
 
 在有多个网络命名空间和多个veth设备对的情况下，即在本机有多个POD，使用网桥（bridge）可以提供更好的管理和网络连通性，它充当一个虚拟的交换机，可以将多个网络接口连接在一起，使它们在同一个网络层次中互相通信。
 
@@ -104,7 +104,7 @@ blackhole 192.168.1.123/26 proto bird
 10.244.166.168 dev calie8098ed1v42d scope link
 ```
 
-#### 4. iptables转发功能
+### 4. iptables转发功能
 
 Kubernetes中通常不直接访问Pod IP，而是通过Service的ClusterIP访问，ClusterIP是一个虚拟的逻辑IP，通过iptables进行负载均衡+转发
 
@@ -117,7 +117,7 @@ sudo sysctl net.bridge.bridge-nf-call-iptables=1
 sudo sysctl net.bridge.bridge-nf-call-ip6tables=1
 ```
 
-#### 5. VxLan、IP-in-IP
+### 5. VxLan、IP-in-IP
 
 - VxLan
 
