@@ -22,6 +22,8 @@ categories = [
 
 ## 一、Linux中的基础网络技术
 
+这里只会提及相关的Linux指令，不深入技术原理，只会一笔带过。
+
 #### 1. Network namespace
 
 我们知道两个POD的网络相互隔离，实际在操作系统中是通过命名空间实现的。
@@ -89,12 +91,22 @@ sudo ip link set br-veth0 master br0
 sudo ip link set br-veth0 up
 
 sudo ip link set veth0 netns ns1
+sudo ip netns exec ns1 ip addr add 192.168.1.123/24 dev veth0
 sudo ip netns exec ns1 ip link set veth0 up
+```
+
+经过以上创建veth设备和网桥后，执行`ip route`可以看到以下这行记录。calico为容器创建网络环境后，也会有类似的记录。
+```shell
+blackhole 192.168.1.123/26 proto bird
+192.168.1.123 dev br-veth0 scope link
+
+## 你在Kubernetes集群的节点执行同样的命令，能看到类似的记录
+10.244.166.168 dev calie8098ed1v42d scope link
 ```
 
 #### 4. iptables转发功能
 
-多个命名空间的 veth 设备通用网桥相互访问的时候，需要用到 iptables 进行转发。
+Kubernetes中通常不直接访问Pod IP，而是通过Service的ClusterIP访问，ClusterIP是一个虚拟的逻辑IP，通过iptables进行负载均衡+转发
 
 ```shell
 ## 开启 IP 转发功能
@@ -104,3 +116,51 @@ sudo sysctl -w net.ipv4.ip_forward=1
 sudo sysctl net.bridge.bridge-nf-call-iptables=1
 sudo sysctl net.bridge.bridge-nf-call-ip6tables=1
 ```
+
+#### 5. VxLan、IP-in-IP
+
+- VxLan
+
+目前主流CNI中，Flannel支持该模式
+
+```shell
+sudo modprobe vxlan
+
+## 对点对可以用以下方式，比如仅有两个host分别是192.168.1.1和192.168.1.2
+## sudo ip link add vxlan0 type vxlan id 42 dev eth0 remote 192.168.1.2 dstport 4789
+
+## 如果有多台机器，可以基于交换机自持的多播组，这里指定多播组239.1.1.1
+## 在每台机器执行该指令
+## 需要注意一点，Flannel是通过监听etcd的Node资源变化来在本机添加的，并不是通用交换机的多播组，这是为了兼顾更多的集群网络场景
+sudo ip link add vxlan0 type vxlan id 42 group 239.1.1.1 dev eth0 dstport 4789
+## 启动
+sudo ip link set vxlan0 up
+## 在每台host添加属于自己的虚拟IP范围
+sudo ip addr add 10.0.0.1/24 dev vxlan0
+```
+
+- IP-in-IP
+
+Kubernetes的默认CNI calico的默认模式，另外一种叫BGP
+
+```shell
+sudo modprobe ipip
+
+## 为每台机器创建有个ipip隧道，并且启动
+sudo ip tunnel add tunl0 mode ipip local 192.168.1.1 ttl 255
+sudo ip link set tunl0 up
+
+## 为每段子网以及对应的宿主机添加记录
+sudo ip route add 10.0.0.2/24 via 192.168.1.2 dev tunl0 proto bird
+sudo ip route add 10.0.0.3/24 via 192.168.1.3 dev tunl0 proto bird
+```
+- 两种的区别
+
+就我个人所遇到的使用场景来说，我会觉得VxLan更适合大规模集群，因为本身支持多层的网络拓扑（IP-in-IP不支持），但是不断的解析报头封装报头也带来了额外网络开销，会带来不必要的延迟。
+
+
+## 二、POD之间通信
+
+### 同一个节点的Pod之间
+
+### 跨节点的Pod之间
