@@ -161,6 +161,8 @@ sudo ip route add 10.0.0.3/24 via 192.168.1.3 dev tunl0 proto bird
 
 ## 二、POD之间通信
 
+![dfsdf](../images/基础网络模型.png)
+
 ### 同一个节点的Pod之间
 
 ### 跨节点的Pod之间

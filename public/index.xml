@@ -7,8 +7,15 @@
     <generator>Hugo -- gohugo.io</generator>
     <language>ja</language>
     <copyright>&amp;copy; Copyright 2017 Foo Bar</copyright>
-    <lastBuildDate>Wed, 17 Mar 2021 10:14:50 +0800</lastBuildDate>
+    <lastBuildDate>Fri, 03 Jun 2022 14:26:11 +0800</lastBuildDate>
     <atom:link href="https://example.com/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Kubernetes的网络模型，总结网络故障排查核心思路</title>
+      <link>https://example.com/kubernetes%E7%9A%84%E7%BD%91%E7%BB%9C%E6%A8%A1%E5%9E%8B%E6%80%BB%E7%BB%93%E7%BD%91%E7%BB%9C%E6%95%85%E9%9A%9C%E6%8E%92%E6%9F%A5%E6%A0%B8%E5%BF%83%E6%80%9D%E8%B7%AF/</link>
+      <pubDate>Fri, 03 Jun 2022 14:26:11 +0800</pubDate>
+      <guid>https://example.com/kubernetes%E7%9A%84%E7%BD%91%E7%BB%9C%E6%A8%A1%E5%9E%8B%E6%80%BB%E7%BB%93%E7%BD%91%E7%BB%9C%E6%95%85%E9%9A%9C%E6%8E%92%E6%9F%A5%E6%A0%B8%E5%BF%83%E6%80%9D%E8%B7%AF/</guid>
+      <description>&lt;p&gt;本文旨在梳理网络模型，总结出通用并且高可行性的故障排查思路，并且能通过自动化检测减少中大规模集群的手动排查工作。&lt;/p&gt;&#xA;&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;&#xA;&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;&#xA;&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1&#xA;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&#xA;&lt;td class=&#34;lntd&#34;&gt;&#xA;&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-text&#34; data-lang=&#34;text&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;默认读者已熟悉四层/七层网络模型，相关概念不再赘述&#xA;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&lt;h2 id=&#34;一linux中的基础网络技术&#34;&gt;一、Linux中的基础网络技术&lt;/h2&gt;&#xA;&lt;p&gt;这里只会提及相关的Linux指令，不深入技术原理，只会一笔带过。&lt;/p&gt;&#xA;&lt;h3 id=&#34;1-network-namespace&#34;&gt;1. Network namespace&lt;/h3&gt;&#xA;&lt;p&gt;我们知道两个POD的网络相互隔离，实际在操作系统中是通过命名空间实现的。&lt;/p&gt;&#xA;&lt;p&gt;Network namespace用于支持网络协议栈的多个实例。通过对网络资源的隔离，就能在一个宿主机上虚拟出多个不同的网络环境。docker利用NS实现了不同容器的网络隔离。&#xA;Network namespace可以提供独立的路由表和iptables来设置包转发、nat以及ip包过滤等功能，提供完整且独立的协议栈。&lt;/p&gt;&#xA;&lt;div class=&#34;highlight&#34;&gt;&lt;div class=&#34;chroma&#34;&gt;&#xA;&lt;table class=&#34;lntable&#34;&gt;&lt;tr&gt;&lt;td class=&#34;lntd&#34;&gt;&#xA;&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code&gt;&lt;span class=&#34;lnt&#34;&gt;1&#xA;&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;2&#xA;&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;3&#xA;&lt;/span&gt;&lt;span class=&#34;lnt&#34;&gt;4&#xA;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&#xA;&lt;td class=&#34;lntd&#34;&gt;&#xA;&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;## 创建一个新的网络命名空间&lt;/span&gt;&#xA;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;sudo ip netns add my_namespace&#xA;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;## 进入my_namespace的内部 shell 界面&lt;/span&gt;&#xA;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;sudo ip netns &lt;span class=&#34;nb&#34;&gt;exec&lt;/span&gt; my_namespace bash&#xA;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&lt;h3 id=&#34;2-veth设备对&#34;&gt;2. veth设备对&lt;/h3&gt;&#xA;&lt;p&gt;那如何我们如何为两个不同命名空间下的进程之间实现通信呢？&lt;/p&gt;&#xA;&lt;p&gt;可以通过引入Veth设备对，Veth设备都是成对出现的，其中一端成为另一端的peer，在Veth设备的一端发送数据时，会将数据发送到另一端，并触发接收数据的操作。&lt;/p&gt;</description>
+    </item>
     <item>
       <title>【JRaft源码分析03】成员变化</title>
       <link>https://example.com/jraft%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%9003%E6%88%90%E5%91%98%E5%8F%98%E5%8C%96/</link>
@@ -50,13 +57,6 @@
       <pubDate>Tue, 07 Jan 2020 10:51:17 +0800</pubDate>
       <guid>https://example.com/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B%E4%BB%8Elinux%E8%A7%92%E5%BA%A6%E4%BB%A5%E5%8F%8Ajvm%E6%BA%90%E7%A0%81%E6%B7%B1%E5%85%A5nio%E7%9A%84%E7%BB%86%E8%8A%82/</guid>
       <description>&lt;p&gt;最近一段时间都在啃Linux内核， 也给了自己机会再度深入理解Java的NIO实现，希望能获得更多东西，尝试理解以前未能理解的，会涉及少量OpenJDK源码。&lt;/p&gt;&#xA;&lt;p&gt;因为NIO本身的实现很多牵扯到操作系统，所以需要先稍微过一下，有理解不对的地方，请指出。&lt;/p&gt;&#xA;&lt;h2 id=&#34;1涉及的linux知识&#34;&gt;1、涉及的Linux知识&lt;/h2&gt;&#xA;&lt;h3 id=&#34;11文件描述符&#34;&gt;1.1、文件描述符&lt;/h3&gt;&#xA;&lt;p&gt;对于Linux来说，一切皆为文件，设备文件、IO文件还是普通文件，都可以通过一个叫做文件描述符（FileDescriptor）的东西来进行操作，其涉及的数据结构可以自行了解VFS。&lt;/p&gt;&#xA;&lt;h4 id=&#34;111设备阻塞与非阻塞&#34;&gt;1.1.1、设备阻塞与非阻塞&lt;/h4&gt;&#xA;&lt;p&gt;任意对设备的操作都是默认为阻塞的，如果没有或有不可操作的资源，会被添加到&lt;code&gt;wait_queue_head_t&lt;/code&gt;中进行等待，直到被&lt;code&gt;semaphore&lt;/code&gt;通知允许执行。此时可以通过&lt;code&gt;fcntl()&lt;/code&gt;函数将文件描述符设置为非阻塞，若没有或有不可操作的资源，立即返回错误信息。&lt;/p&gt;&#xA;&lt;h3 id=&#34;12jvm内存结构--虚拟地址空间&#34;&gt;1.2、JVM内存结构 &amp;amp; 虚拟地址空间&lt;/h3&gt;&#xA;&lt;p&gt;众所周知，Linux下的每一进程都有自己的虚拟内存地址，而JVM也是一个进程，且JVM有自己的内存结构。既然如此，两者之间必有对应关系，OracleJDK7提供了NMT，用&lt;code&gt;jcmd pid VM.native_memory detail&lt;/code&gt;可以查看各类区域的reserved，被committed的内存大小及其地址区间，再通过&lt;code&gt;pmap -p&lt;/code&gt;可以看到进程内存信息。&lt;/p&gt;&#xA;&lt;p&gt;肉眼对比地址区间可以发现，JVM heap是通过mmap分配内存的，位于进程的映射区内，而进程堆区可以被malloc进行分配，对应关系如图。&#xA;&lt;img src=&#34;https://raw.githubusercontent.com/zehonghuang/github_blog_bak/master/source/image/jvm%E8%99%9A%E6%8B%9F%E5%86%85%E5%AD%98%E5%9C%B0%E5%9D%80.png&#34; alt=&#34;jvm内存虚拟地址&#34;&gt;&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>【Java并发】new Thread时JVM做了什么？</title>
-      <link>https://example.com/java%E5%B9%B6%E5%8F%91new-thread%E6%97%B6jvm%E5%81%9A%E4%BA%86%E4%BB%80%E4%B9%88/</link>
-      <pubDate>Wed, 11 Dec 2019 10:50:17 +0800</pubDate>
-      <guid>https://example.com/java%E5%B9%B6%E5%8F%91new-thread%E6%97%B6jvm%E5%81%9A%E4%BA%86%E4%BB%80%E4%B9%88/</guid>
-      <description></description>
     </item>
   </channel>
 </rss>
