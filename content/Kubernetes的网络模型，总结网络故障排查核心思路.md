@@ -164,6 +164,16 @@ sudo ip route add 10.0.0.3/24 via 192.168.1.3 dev tunl0 proto bird
 
 ![dfsdf](../images/基础网络模型.png)
 
+### 0. 同一个 Pod 中容器间的网络环境
+
+很多文章都讲过 Kubernetes 都会为每个 Pod 创建一个sanxbox或者叫pause的基础容器，Pod 中的其他 container 加入 cri/cni 为该基础容器所创建的网络命名空间，达到同一个 Pod 中容器间共享网络环境的效果。
+
+事实上 Docker 有container网络模式，该模式允许一个容器共享另一个容器的网络命名空间
+
+``` shell
+docker run -d --name nginx -v `pwd`/nginx.conf:/etc/nginx/nginx.conf --net=container:pause --ipc=container:pause --pid=container:pause --ipc=shareable nginx
+```
+
 ### 1. 同一个节点的Pod之间
 
 ```shell
