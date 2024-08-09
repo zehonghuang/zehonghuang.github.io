@@ -22,7 +22,7 @@ categories = [
 
 ## 一、Linux中的基础网络技术
 
-这里只会提及相关的Linux指令，不深入技术原理，只会一笔带过。
+这里只会提及相关的Linux指令，不深入技术原理，只会一笔带过，不然文章会很冗长。
 
 ### 1. Network namespace
 
@@ -160,28 +160,93 @@ sudo ip route add 10.0.0.3/24 via 192.168.1.3 dev tunl0 proto bird
 
 
 ## 二、POD之间通信
-下图基本上展示了 Kubernetes 的容器基础网络模型
+下图基本上展示了 Kubernetes 的容器基础网络模型，下图中的所有接口设备容器的eth0、网桥的calixxxx、宿主机eth0等都可以被tcpdump监听，我们可以通过它探索整个通讯流程。
 
-![dfsdf](../images/基础网络模型.png)
+![基础网络模型](../images/基础网络模型.png)
 
-### 0. 同一个 Pod 中容器间的网络环境
+### 0. 同一个Pod中容器间的网络环境
 
 很多文章都讲过 Kubernetes 都会为每个 Pod 创建一个sanxbox或者叫pause的基础容器，Pod 中的其他 container 加入 cri/cni 为该基础容器所创建的网络命名空间，达到同一个 Pod 中容器间共享网络环境的效果。
 
 事实上 Docker 有container网络模式，该模式允许一个容器共享另一个容器的网络命名空间
 
-``` shell
+```shell
+## 我们可以通过Docker命令手动创建一个基于pause基础容器实现多容器共享某个网络命名空间 
 docker run -d --name nginx -v `pwd`/nginx.conf:/etc/nginx/nginx.conf --net=container:pause --ipc=container:pause --pid=container:pause --ipc=shareable nginx
+
+##  --net=container:pause 让nginx与pause共享命名空间
+##  --ipc=container:pause 允许在两个容器之间进行进程间通信
+##  --pid=container:pause 多个容器可以看到彼此的进程，并可以互相影响进程
+##  --ipc=shareable  设置 IPC 命名空间为可共享的
 ```
 
 ### 1. 同一个节点的Pod之间
 
-```shell
-kubectl get pod <pod-name> -n <namespace> -o jsonpath='{.metadata.uid}'
 
-sudo nsenter -t <pid> -n
-ß
+<details>
+    <summary>shushu</summary>
+    <pre><code>
+        dedsdfdsdf
+    </code></pre>>
+</details>
+
+
+
+```shell
+kubectl get pod <pod-name> -n <namespace> -o jsonpath='{.status.containerStatuses[0].containerID}'
+## containerd://722bc322872c8830b30839dbac81bb8e0300724896945edeea29118f9a01b8de
+
+crictl inspect --output go-template --template '{{.info.pid}}' 722bc322872c8830b30839dbac81bb8e0300724896945edeea29118f9a01b8de
+## 28983
+
+sudo nsenter -t 28983 -n
+
 tcpdump -i eth0 -w /tmp/capture.pcap
+```
+
+```shell
+[root@k8s-node01 ~]# ip addr show
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+2: ens160: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+    link/ether 00:50:56:88:f6:f3 brd ff:ff:ff:ff:ff:ff
+    inet 10.0.17.6/24 brd 10.0.17.255 scope global noprefixroute dynamic ens160
+       valid_lft 86007sec preferred_lft 86007sec
+    inet6 fe80::e586:7bc2:9f70:3350/64 scope link noprefixroute 
+       valid_lft forever preferred_lft forever
+4: calia983649d74b@if3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1450 qdisc noqueue state UP group default qlen 1000
+    link/ether ee:ee:ee:ee:ee:ee brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet6 fe80::ecee:eeff:feee:eeee/64 scope link 
+       valid_lft forever preferred_lft forever
+5: tunl0@NONE: <NOARP,UP,LOWER_UP> mtu 1480 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/ipip 0.0.0.0 brd 0.0.0.0
+    inet 10.100.85.194/32 scope global tunl0
+       valid_lft forever preferred_lft forever
+11: calic501d8ca8fd@if4: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1480 qdisc noqueue state UP group default qlen 1000
+    link/ether ee:ee:ee:ee:ee:ee brd ff:ff:ff:ff:ff:ff link-netnsid 2
+    inet6 fe80::ecee:eeff:feee:eeee/64 scope link 
+       valid_lft forever preferred_lft forever
+12: calib2c8968c876@if4: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1480 qdisc noqueue state UP group default qlen 1000
+    link/ether ee:ee:ee:ee:ee:ee brd ff:ff:ff:ff:ff:ff link-netnsid 3
+    inet6 fe80::ecee:eeff:feee:eeee/64 scope link 
+       valid_lft forever preferred_lft forever
+13: cali6391f1a60bd@if4: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1480 qdisc noqueue state UP group default qlen 1000
+    link/ether ee:ee:ee:ee:ee:ee brd ff:ff:ff:ff:ff:ff link-netnsid 4
+    inet6 fe80::ecee:eeff:feee:eeee/64 scope link 
+       valid_lft forever preferred_lft forever
+[root@k8s-node01 ~]# nsenter -t 31885 -n
+[root@k8s-node01 ~]# ip link show
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2: tunl0@NONE: <NOARP> mtu 1480 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/ipip 0.0.0.0 brd 0.0.0.0
+4: eth0@if13: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1480 qdisc noqueue state UP mode DEFAULT group default qlen 1000
+    link/ether 72:13:7d:48:a5:d6 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+
 ```
 
 ### 2. 跨节点的Pod之间
