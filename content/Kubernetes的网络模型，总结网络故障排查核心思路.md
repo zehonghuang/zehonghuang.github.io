@@ -106,12 +106,13 @@ blackhole 192.168.1.123/26 proto bird
 
 ### 4. iptables转发功能
 
-Kubernetes中通常不直接访问Pod IP，而是通过Service的ClusterIP访问，ClusterIP是一个虚拟的逻辑IP，通过iptables进行负载均衡+转发
+Kubernetes中通常不直接访问Pod IP，而是通过Service的ClusterIP访问，ClusterIP是一个虚拟的逻辑IP，通过iptables进行负载均衡+转发。
 
 ```shell
 ## 开启 IP 转发功能
 sudo sysctl -w net.ipv4.ip_forward=1
 
+## 这里关系到为什么PodIP报文都需要发至网关，后面会说明。
 ## 开启iptables支持对brigde的转发 
 sudo sysctl net.bridge.bridge-nf-call-iptables=1
 sudo sysctl net.bridge.bridge-nf-call-ip6tables=1
@@ -177,20 +178,46 @@ docker run -d --name nginx -v `pwd`/nginx.conf:/etc/nginx/nginx.conf --net=conta
 ##  --net=container:pause 让nginx与pause共享命名空间
 ##  --ipc=container:pause 允许在两个容器之间进行进程间通信
 ##  --pid=container:pause 多个容器可以看到彼此的进程，并可以互相影响进程
-##  --ipc=shareable  设置 IPC 命名空间为可共享的
+##  --ipc=shareable       设置 IPC 命名空间为可共享的
 ```
 
 ### 1. 同一个节点的Pod之间
 
+我们需要确认一点就是 calico 为例，默认在同一个节点 Pod 都在同一个网段，通过`ip route show`可以看出来。
+```shell
 
-<details>
-    <summary>shushu</summary>
-    <pre><code>
-        dedsdfdsdf
-    </code></pre>>
-</details>
+```
+
+同一个网段的设备可以通过网关ARP获取到目标MAC地址，原设备不在需要网关而是直接通过链路层从端口将报文发送至目标设备。
+
+但对于 Kubernetes 来说，当CNI，尤其是calico这种基于 iptables/route 实现了策略规则功能，并不希望任何PodIP走链路层而绕过iptables等路由规则，都属于网络层，需要让报文至少经过一次IP层，才能使策略生效。
+
+```shell
+## 在每个容器中执行该命令，都能看到以下输出
+sudo route -n
+
+Destination     Gateway         Genmask         Flags   Metric  Ref  Use  Iface 
+0.0.0.0         169.254.1.1     0.0.0.0         UG      0       0    0    eth0 
+169.254.1.1     0.0.0.0         255.255.255.255 UH      0       0    0    eth0
+```
 
 
+
+```shell
+
+Ethernet II, Src: 72:13:7d:48:a5:d6 (72:13:7d:48:a5:d6), Dst: ee:ee:ee:ee:ee:ee (ee:ee:ee:ee:ee:ee)
+    Destination: ee:ee:ee:ee:ee:ee (ee:ee:ee:ee:ee:ee)
+        Address: ee:ee:ee:ee:ee:ee (ee:ee:ee:ee:ee:ee)
+        .... ..1. .... .... .... .... = LG bit: Locally administered address (this is NOT the factory default)
+        .... ...0 .... .... .... .... = IG bit: Individual address (unicast)
+    Source: 72:13:7d:48:a5:d6 (72:13:7d:48:a5:d6)
+        Address: 72:13:7d:48:a5:d6 (72:13:7d:48:a5:d6)
+        .... ..1. .... .... .... .... = LG bit: Locally administered address (this is NOT the factory default)
+        .... ...0 .... .... .... .... = IG bit: Individual address (unicast)
+    Type: IPv4 (0x0800)
+
+
+```
 
 ```shell
 kubectl get pod <pod-name> -n <namespace> -o jsonpath='{.status.containerStatuses[0].containerID}'
