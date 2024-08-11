@@ -244,6 +244,8 @@ tcpdump -i eth0 -w /tmp/capture.pcap
 
 测试环境只开启了 IPIP 模式，所以这里暂时讨论这一种模式。
 
+通过抓取宿主机网卡的报文，可以看到有两层 IPV4 的报头，其中一个为`Protocol: IPIP (4)`，目标主机接到报文后，会先进入IPIP隧道解包再进入iptables。
+
 ```shell
 Internet Protocol Version 4, Src: 10.0.17.6, Dst: 10.0.17.7
     0100 .... = Version: 4
@@ -285,18 +287,38 @@ Internet Protocol Version 4, Src: 10.100.85.207, Dst: 10.100.58.221
     Destination Address: 10.100.58.221
 ```
 
-
+可以通用下面命令查看宿主机有多少 IPIP 规则。
 ```shell
 sudo ip tunnel show | grep ipip
 
 ```
 
-## 三、需要负载均衡
+## 三、域名访问、负载均衡
 
-![alt text](../images/dump_dns.png)
+一般情况下，我们不会直接获取PodIP进行网络通信，因为PodIP一样不被持久化，restart Pod后会重新分配。
+我们需要通过Service进行访问，可以请求Service提供的Cluster，也能通过它的域名。
 
 ### 0. ClusterIP和Headless
 
-### 1. kube-proxy
+ClusterIP就是vip，Headless没有负载均衡和vip，而是直接返回PodIP列表。对于开发来说，客户端负载均衡更多使用后者，下图是一个headless Service。
+就不需要多说了，相当于直接访问POD。
 
-### 2. iptables如何路由ClusterIP
+可以抓取容器中 eth0 网卡看到 dns 请求报文
+![alt text](../images/dump_dns.png)
+
+### 1. iptables如何路由ClusterIP
+
+
+### 2. kube-proxy和CoreDNS
+
+#### kube-proxy
+
+#### CoreDNS
+
+集群内域名解析就不说了，很简单。
+
+这里梳理一下对集群外域名的请求流程是怎么样的。
+
+
+
+## 四、常见的非硬件的网络问题
