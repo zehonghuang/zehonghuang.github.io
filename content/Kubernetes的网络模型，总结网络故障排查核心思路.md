@@ -294,3 +294,9 @@ sudo ip tunnel show | grep ipip
 ## 三、需要负载均衡
 
 ![alt text](../images/dump_dns.png)
+
+### 0. ClusterIP和Headless
+
+### 1. kube-proxy
+
+### 2. iptables如何路由ClusterIP
