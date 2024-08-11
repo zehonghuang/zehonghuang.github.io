@@ -201,7 +201,8 @@ Destination     Gateway         Genmask         Flags   Metric  Ref  Use  Iface
 169.254.1.1     0.0.0.0         255.255.255.255 UH      0       0    0    eth0
 ```
 
-
+calico会将 brigde 的 ip 和 mac 分别设置为`169.254.1.1`和`ee:ee:ee:ee:ee:ee`，并且通过以上配置，强制所有 IP 都需要经过作为网关的网桥。
+网桥作为网关转发给其他设备接口，也就需要配置`net.bridge.bridge-nf-call-iptables=1`。下面是某个 http 请求的抓包数据
 
 ```shell
 
@@ -215,9 +216,9 @@ Ethernet II, Src: 72:13:7d:48:a5:d6 (72:13:7d:48:a5:d6), Dst: ee:ee:ee:ee:ee:ee 
         .... ..1. .... .... .... .... = LG bit: Locally administered address (this is NOT the factory default)
         .... ...0 .... .... .... .... = IG bit: Individual address (unicast)
     Type: IPv4 (0x0800)
-
-
 ```
+
+如何抓 container 的请求报文，具体命令如下：
 
 ```shell
 kubectl get pod <pod-name> -n <namespace> -o jsonpath='{.status.containerStatuses[0].containerID}'
@@ -228,44 +229,6 @@ crictl inspect --output go-template --template '{{.info.pid}}' 722bc322872c8830b
 
 sudo nsenter -t 28983 -n
 
-tcpdump -i eth0 -w /tmp/capture.pcap
-```
-
-```shell
-[root@k8s-node01 ~]# ip addr show
-1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
-    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
-    inet 127.0.0.1/8 scope host lo
-       valid_lft forever preferred_lft forever
-    inet6 ::1/128 scope host 
-       valid_lft forever preferred_lft forever
-2: ens160: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
-    link/ether 00:50:56:88:f6:f3 brd ff:ff:ff:ff:ff:ff
-    inet 10.0.17.6/24 brd 10.0.17.255 scope global noprefixroute dynamic ens160
-       valid_lft 86007sec preferred_lft 86007sec
-    inet6 fe80::e586:7bc2:9f70:3350/64 scope link noprefixroute 
-       valid_lft forever preferred_lft forever
-4: calia983649d74b@if3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1450 qdisc noqueue state UP group default qlen 1000
-    link/ether ee:ee:ee:ee:ee:ee brd ff:ff:ff:ff:ff:ff link-netnsid 0
-    inet6 fe80::ecee:eeff:feee:eeee/64 scope link 
-       valid_lft forever preferred_lft forever
-5: tunl0@NONE: <NOARP,UP,LOWER_UP> mtu 1480 qdisc noqueue state UNKNOWN group default qlen 1000
-    link/ipip 0.0.0.0 brd 0.0.0.0
-    inet 10.100.85.194/32 scope global tunl0
-       valid_lft forever preferred_lft forever
-11: calic501d8ca8fd@if4: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1480 qdisc noqueue state UP group default qlen 1000
-    link/ether ee:ee:ee:ee:ee:ee brd ff:ff:ff:ff:ff:ff link-netnsid 2
-    inet6 fe80::ecee:eeff:feee:eeee/64 scope link 
-       valid_lft forever preferred_lft forever
-12: calib2c8968c876@if4: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1480 qdisc noqueue state UP group default qlen 1000
-    link/ether ee:ee:ee:ee:ee:ee brd ff:ff:ff:ff:ff:ff link-netnsid 3
-    inet6 fe80::ecee:eeff:feee:eeee/64 scope link 
-       valid_lft forever preferred_lft forever
-13: cali6391f1a60bd@if4: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1480 qdisc noqueue state UP group default qlen 1000
-    link/ether ee:ee:ee:ee:ee:ee brd ff:ff:ff:ff:ff:ff link-netnsid 4
-    inet6 fe80::ecee:eeff:feee:eeee/64 scope link 
-       valid_lft forever preferred_lft forever
-[root@k8s-node01 ~]# nsenter -t 31885 -n
 [root@k8s-node01 ~]# ip link show
 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
@@ -274,9 +237,60 @@ tcpdump -i eth0 -w /tmp/capture.pcap
 4: eth0@if13: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1480 qdisc noqueue state UP mode DEFAULT group default qlen 1000
     link/ether 72:13:7d:48:a5:d6 brd ff:ff:ff:ff:ff:ff link-netnsid 0
 
+tcpdump -i eth0 -w /tmp/capture.pcap
 ```
 
 ### 2. 跨节点的Pod之间
 
+测试环境只开启了 IPIP 模式，所以这里暂时讨论这一种模式。
+
+```shell
+Internet Protocol Version 4, Src: 10.0.17.6, Dst: 10.0.17.7
+    0100 .... = Version: 4
+    .... 0101 = Header Length: 20 bytes (5)
+    Differentiated Services Field: 0x00 (DSCP: CS0, ECN: Not-ECT)
+        0000 00.. = Differentiated Services Codepoint: Default (0)
+        .... ..00 = Explicit Congestion Notification: Not ECN-Capable Transport (0)
+    Total Length: 221
+    Identification: 0xf398 (62360)
+    010. .... = Flags: 0x2, Don't fragment
+        0... .... = Reserved bit: Not set
+        .1.. .... = Don't fragment: Set
+        ..0. .... = More fragments: Not set
+    ...0 0000 0000 0000 = Fragment Offset: 0
+    Time to Live: 63
+    Protocol: IPIP (4)
+    Header Checksum: 0x1178 [validation disabled]
+    [Header checksum status: Unverified]
+    Source Address: 10.0.17.6
+    Destination Address: 10.0.17.7
+Internet Protocol Version 4, Src: 10.100.85.207, Dst: 10.100.58.221
+    0100 .... = Version: 4
+    .... 0101 = Header Length: 20 bytes (5)
+    Differentiated Services Field: 0x00 (DSCP: CS0, ECN: Not-ECT)
+        0000 00.. = Differentiated Services Codepoint: Default (0)
+        .... ..00 = Explicit Congestion Notification: Not ECN-Capable Transport (0)
+    Total Length: 201
+    Identification: 0x2d0d (11533)
+    010. .... = Flags: 0x2, Don't fragment
+        0... .... = Reserved bit: Not set
+        .1.. .... = Don't fragment: Set
+        ..0. .... = More fragments: Not set
+    ...0 0000 0000 0000 = Fragment Offset: 0
+    Time to Live: 63
+    Protocol: TCP (6)
+    Header Checksum: 0x68ae [validation disabled]
+    [Header checksum status: Unverified]
+    Source Address: 10.100.85.207
+    Destination Address: 10.100.58.221
+```
+
+
+```shell
+sudo ip tunnel show | grep ipip
+
+```
 
 ## 三、需要负载均衡
+
+![alt text](../images/dump_dns.png)
