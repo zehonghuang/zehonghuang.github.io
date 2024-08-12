@@ -317,25 +317,23 @@ ClusterIP就是vip，Headless没有负载均衡和vip，而是直接返回PodIP�
 ```shell
 ## 这是NAT OUTPUT链的一部分
 *nat
+## 因为是请求ClusterIP，所以从OUTPUT链为开始
 -A OUTPUT -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
-
--A KUBE-SERVICES -d 10.96.0.10/32 -p tcp -m comment --comment "kube-system/kube-dns:metrics cluster IP" -m tcp --dport 9153 -j KUBE-SVC-JD5MR3NA4I4DYORP
+## 对CoreDNS的是两个端口两种协议做规则匹配
 -A KUBE-SERVICES -d 10.96.0.10/32 -p tcp -m comment --comment "kube-system/kube-dns:dns-tcp cluster IP" -m tcp --dport 53 -j KUBE-SVC-ERIFXISQEP7F7OF4
 -A KUBE-SERVICES -d 10.96.0.10/32 -p udp -m comment --comment "kube-system/kube-dns:dns cluster IP" -m udp --dport 53 -j KUBE-SVC-TCOU7JCQXEZGVUNU
-
--A KUBE-SVC-JD5MR3NA4I4DYORP ! -s 10.100.0.0/16 -d 10.96.0.10/32 -p tcp -m comment --comment "kube-system/kube-dns:metrics cluster IP" -m tcp --dport 9153 -j KUBE-MARK-MASQ
--A KUBE-SVC-JD5MR3NA4I4DYORP -m comment --comment "kube-system/kube-dns:metrics -> 10.100.32.131:9153" -m statistic --mode random --probability 0.50000000000 -j KUBE-SEP-HSXNI65L5G6ROKM2
--A KUBE-SVC-JD5MR3NA4I4DYORP -m comment --comment "kube-system/kube-dns:metrics -> 10.100.32.134:9153" -j KUBE-SEP-FYCEL5PE65U3XGWB
-
+## 源IP非CIDR池里的IP，跳转至KUBE-MARK-MASQ
 -A KUBE-SVC-ERIFXISQEP7F7OF4 ! -s 10.100.0.0/16 -d 10.96.0.10/32 -p tcp -m comment --comment "kube-system/kube-dns:dns-tcp cluster IP" -m tcp --dport 53 -j KUBE-MARK-MASQ
+## 5050随机负载均衡
 -A KUBE-SVC-ERIFXISQEP7F7OF4 -m comment --comment "kube-system/kube-dns:dns-tcp -> 10.100.32.131:53" -m statistic --mode random --probability 0.50000000000 -j KUBE-SEP-APPOXWYHNPQM3A5Z
 -A KUBE-SVC-ERIFXISQEP7F7OF4 -m comment --comment "kube-system/kube-dns:dns-tcp -> 10.100.32.134:53" -j KUBE-SEP-S5GWZTRHIEZICHHY
 
 -A KUBE-SVC-TCOU7JCQXEZGVUNU ! -s 10.100.0.0/16 -d 10.96.0.10/32 -p udp -m comment --comment "kube-system/kube-dns:dns cluster IP" -m udp --dport 53 -j KUBE-MARK-MASQ
 -A KUBE-SVC-TCOU7JCQXEZGVUNU -m comment --comment "kube-system/kube-dns:dns -> 10.100.32.131:53" -m statistic --mode random --probability 0.50000000000 -j KUBE-SEP-7J3PXXC746AAT6A4
 -A KUBE-SVC-TCOU7JCQXEZGVUNU -m comment --comment "kube-system/kube-dns:dns -> 10.100.32.134:53" -j KUBE-SEP-WSVKKSCEUEP4LICT
-
+## 先排除掉源IP为自己的请求，跳转至KUBE-MARK-MASQ
 -A KUBE-SEP-7J3PXXC746AAT6A4 -s 10.100.32.131/32 -m comment --comment "kube-system/kube-dns:dns" -j KUBE-MARK-MASQ
+## 最后匹配成功，进行NAT跳转至真实的PodIP，完成请求
 -A KUBE-SEP-7J3PXXC746AAT6A4 -p udp -m comment --comment "kube-system/kube-dns:dns" -m udp -j DNAT --to-destination 10.100.32.131:53
 -A KUBE-SEP-APPOXWYHNPQM3A5Z -s 10.100.32.131/32 -m comment --comment "kube-system/kube-dns:dns-tcp" -j KUBE-MARK-MASQ
 -A KUBE-SEP-APPOXWYHNPQM3A5Z -p tcp -m comment --comment "kube-system/kube-dns:dns-tcp" -m tcp -j DNAT --to-destination 10.100.32.131:53
@@ -347,6 +345,8 @@ ClusterIP就是vip，Headless没有负载均衡和vip，而是直接返回PodIP�
 
 -A KUBE-MARK-MASQ -j MARK --set-xmark 0x4000/0x4000
 
+## 路由出口，结束规则匹配
+-A KUBE-POSTROUTING -m mark ! --mark 0x4000/0x4000 -j RETURN
 ```
 
 ### 2. kube-proxy和CoreDNS
