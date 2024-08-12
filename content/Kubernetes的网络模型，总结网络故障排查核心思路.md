@@ -290,7 +290,8 @@ Internet Protocol Version 4, Src: 10.100.85.207, Dst: 10.100.58.221
 可以通用下面命令查看宿主机有多少 IPIP 规则。
 ```shell
 sudo ip tunnel show | grep ipip
-
+## 一般来说，calico的IPIP模式下都会得到下面的输出，不限制tunl0两端的IP，任意IP都走IPIP隧道
+tunl0: ip/ip remote any local any ttl inherit nopmtudisc
 ```
 
 ## 三、域名访问、负载均衡
@@ -304,6 +305,7 @@ ClusterIP就是vip，Headless没有负载均衡和vip，而是直接返回PodIP�
 就不需要多说了，相当于直接访问POD。
 
 可以抓取容器中 eth0 网卡看到 dns 请求报文
+
 ![alt text](../images/dump_dns.png)
 
 ### 1. iptables如何路由ClusterIP
@@ -319,6 +321,11 @@ ClusterIP就是vip，Headless没有负载均衡和vip，而是直接返回PodIP�
 
 这里梳理一下对集群外域名的请求流程是怎么样的。
 
-
+```shell
+droot@python-server-65b886d59c-5gz2g:/app# cat /etc/resolv.conf
+search net-test.svc.cluster.local svc.cluster.local cluster.local
+nameserver 10.96.0.10
+options ndots:5
+```
 
 ## 四、常见的非硬件的网络问题
