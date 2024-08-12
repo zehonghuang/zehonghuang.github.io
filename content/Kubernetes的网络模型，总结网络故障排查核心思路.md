@@ -310,12 +310,53 @@ ClusterIP就是vip，Headless没有负载均衡和vip，而是直接返回PodIP�
 
 ### 1. iptables如何路由ClusterIP
 
+这里就直接用CoreDNS的Service来举例了
+
+![img.png](../images/dns-service.png)
+
+```shell
+## 这是NAT OUTPUT链的一部分
+*nat
+-A OUTPUT -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
+
+-A KUBE-SERVICES -d 10.96.0.10/32 -p tcp -m comment --comment "kube-system/kube-dns:metrics cluster IP" -m tcp --dport 9153 -j KUBE-SVC-JD5MR3NA4I4DYORP
+-A KUBE-SERVICES -d 10.96.0.10/32 -p tcp -m comment --comment "kube-system/kube-dns:dns-tcp cluster IP" -m tcp --dport 53 -j KUBE-SVC-ERIFXISQEP7F7OF4
+-A KUBE-SERVICES -d 10.96.0.10/32 -p udp -m comment --comment "kube-system/kube-dns:dns cluster IP" -m udp --dport 53 -j KUBE-SVC-TCOU7JCQXEZGVUNU
+
+-A KUBE-SVC-JD5MR3NA4I4DYORP ! -s 10.100.0.0/16 -d 10.96.0.10/32 -p tcp -m comment --comment "kube-system/kube-dns:metrics cluster IP" -m tcp --dport 9153 -j KUBE-MARK-MASQ
+-A KUBE-SVC-JD5MR3NA4I4DYORP -m comment --comment "kube-system/kube-dns:metrics -> 10.100.32.131:9153" -m statistic --mode random --probability 0.50000000000 -j KUBE-SEP-HSXNI65L5G6ROKM2
+-A KUBE-SVC-JD5MR3NA4I4DYORP -m comment --comment "kube-system/kube-dns:metrics -> 10.100.32.134:9153" -j KUBE-SEP-FYCEL5PE65U3XGWB
+
+-A KUBE-SVC-ERIFXISQEP7F7OF4 ! -s 10.100.0.0/16 -d 10.96.0.10/32 -p tcp -m comment --comment "kube-system/kube-dns:dns-tcp cluster IP" -m tcp --dport 53 -j KUBE-MARK-MASQ
+-A KUBE-SVC-ERIFXISQEP7F7OF4 -m comment --comment "kube-system/kube-dns:dns-tcp -> 10.100.32.131:53" -m statistic --mode random --probability 0.50000000000 -j KUBE-SEP-APPOXWYHNPQM3A5Z
+-A KUBE-SVC-ERIFXISQEP7F7OF4 -m comment --comment "kube-system/kube-dns:dns-tcp -> 10.100.32.134:53" -j KUBE-SEP-S5GWZTRHIEZICHHY
+
+-A KUBE-SVC-TCOU7JCQXEZGVUNU ! -s 10.100.0.0/16 -d 10.96.0.10/32 -p udp -m comment --comment "kube-system/kube-dns:dns cluster IP" -m udp --dport 53 -j KUBE-MARK-MASQ
+-A KUBE-SVC-TCOU7JCQXEZGVUNU -m comment --comment "kube-system/kube-dns:dns -> 10.100.32.131:53" -m statistic --mode random --probability 0.50000000000 -j KUBE-SEP-7J3PXXC746AAT6A4
+-A KUBE-SVC-TCOU7JCQXEZGVUNU -m comment --comment "kube-system/kube-dns:dns -> 10.100.32.134:53" -j KUBE-SEP-WSVKKSCEUEP4LICT
+
+-A KUBE-SEP-7J3PXXC746AAT6A4 -s 10.100.32.131/32 -m comment --comment "kube-system/kube-dns:dns" -j KUBE-MARK-MASQ
+-A KUBE-SEP-7J3PXXC746AAT6A4 -p udp -m comment --comment "kube-system/kube-dns:dns" -m udp -j DNAT --to-destination 10.100.32.131:53
+-A KUBE-SEP-APPOXWYHNPQM3A5Z -s 10.100.32.131/32 -m comment --comment "kube-system/kube-dns:dns-tcp" -j KUBE-MARK-MASQ
+-A KUBE-SEP-APPOXWYHNPQM3A5Z -p tcp -m comment --comment "kube-system/kube-dns:dns-tcp" -m tcp -j DNAT --to-destination 10.100.32.131:53
+
+-A KUBE-SEP-WSVKKSCEUEP4LICT -s 10.100.32.134/32 -m comment --comment "kube-system/kube-dns:dns" -j KUBE-MARK-MASQ
+-A KUBE-SEP-WSVKKSCEUEP4LICT -p udp -m comment --comment "kube-system/kube-dns:dns" -m udp -j DNAT --to-destination 10.100.32.134:53
+-A KUBE-SEP-S5GWZTRHIEZICHHY -s 10.100.32.134/32 -m comment --comment "kube-system/kube-dns:dns-tcp" -j KUBE-MARK-MASQ
+-A KUBE-SEP-S5GWZTRHIEZICHHY -p tcp -m comment --comment "kube-system/kube-dns:dns-tcp" -m tcp -j DNAT --to-destination 10.100.32.134:53
+
+-A KUBE-MARK-MASQ -j MARK --set-xmark 0x4000/0x4000
+
+```
 
 ### 2. kube-proxy和CoreDNS
 
 #### kube-proxy
 
-#### CoreDNS
+我们知道Kube-Proxy实际上就是监听每个Service及其EndPoint列表，但出现变化的时候，都会更新至iptables/ipset。
+
+
+#### CoreDNS/Kube-DNS
 
 集群内域名解析就不说了，很简单。
 
