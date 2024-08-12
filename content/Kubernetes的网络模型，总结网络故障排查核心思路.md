@@ -314,6 +314,9 @@ ClusterIP就是vip，Headless没有负载均衡和vip，而是直接返回PodIP�
 
 ![img.png](../images/dns-service.png)
 
+下面是一个Service所生成的iptables完整链路，ClusterIP只是一个逻辑目标IP，在Pod对ClusterIP进行请求是，
+brigde会将报文转发至iptables并进行过滤和NAT，最后回到Pod之间的网络通信。
+
 ```shell
 ## 这是NAT OUTPUT链的一部分
 *nat
@@ -342,7 +345,7 @@ ClusterIP就是vip，Headless没有负载均衡和vip，而是直接返回PodIP�
 -A KUBE-SEP-WSVKKSCEUEP4LICT -p udp -m comment --comment "kube-system/kube-dns:dns" -m udp -j DNAT --to-destination 10.100.32.134:53
 -A KUBE-SEP-S5GWZTRHIEZICHHY -s 10.100.32.134/32 -m comment --comment "kube-system/kube-dns:dns-tcp" -j KUBE-MARK-MASQ
 -A KUBE-SEP-S5GWZTRHIEZICHHY -p tcp -m comment --comment "kube-system/kube-dns:dns-tcp" -m tcp -j DNAT --to-destination 10.100.32.134:53
-
+## 所有不被匹配的源IP，都被打上标签，在POSTROUTING会直接退出Kubernetes集群的规则匹配
 -A KUBE-MARK-MASQ -j MARK --set-xmark 0x4000/0x4000
 
 ## 路由出口，结束规则匹配
