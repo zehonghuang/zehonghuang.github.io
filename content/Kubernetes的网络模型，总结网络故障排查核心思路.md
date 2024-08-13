@@ -356,8 +356,9 @@ brigde会将报文转发至iptables并进行过滤和NAT，最后回到Pod之间
 
 #### kube-proxy
 
-我们知道Kube-Proxy实际上就是监听每个Service及其EndPoint列表，但出现变化的时候，都会更新至iptables/ipset。
+我们知道Kube-Proxy实际上就是监听每个Service及其EndPoint列表，当出现变化的时候，都会更新至iptables/ipset。
 
+上面已经有说到kube-proxy所生成的iptables规则的链，会有一篇专门的文章讲kube-proxy如何监听和更新规则的，暂时就说这么多。
 
 #### CoreDNS/Kube-DNS
 
@@ -372,4 +373,47 @@ nameserver 10.96.0.10
 options ndots:5
 ```
 
+可以查看CoreDNS所用的配置，有个forward插件。
+```shell
+[root@k8s-master01 ~]# kubectl get cm coredns -n kube-system -o yaml
+apiVersion: v1
+data:
+  Corefile: |
+    .:53 {
+        errors
+        health {
+           lameduck 5s
+        }
+        ready
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+           pods insecure
+           fallthrough in-addr.arpa ip6.arpa
+           ttl 30
+        }
+        prometheus :9153
+        forward . /etc/resolv.conf {
+           max_concurrent 1000
+        }
+        cache 30
+        loop
+        reload
+        loadbalance
+    }
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
+  resourceVersion: "281"
+  uid: bf0f0e56-fb2c-4392-9d42-1a55a127ecf2
+
+```
+
 ## 四、常见的非硬件的网络问题
+
+暂不考虑南北向的外网访问集群这种情况，因为涉及CDN之类的复杂环境，所以只讨论东西向网络。
+
+1. 域名访问超时、解析失效，时不时出现前面所说
+   1. 如果是外网域名，由本文3.2可知，集群内找不到域名会forward到宿主机，对齐集群服务器的`resolv.conf`文件。曾出现过部分服务器DNS配置更新滞后，导致部分第三方支付API请求不通的情况。
+   2. 集群内域名解析慢，在Service配置正确的情况下，有可能CoreDNS的Pod负载过大，挖个坑会讨论如何看Linux的网络负载监控
+2. 
+
