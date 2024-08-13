@@ -1,5 +1,5 @@
 +++
-title = 'Kubernetes的网络模型，总结网络故障排查核心思路'
+title = '详细梳理Kubernetes的网络模型，总结网络故障排查核心思路'
 date = 2022-06-03T14:26:11+08:00
 draft = false
 tags = [
