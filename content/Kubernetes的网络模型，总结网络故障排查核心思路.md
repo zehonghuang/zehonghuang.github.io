@@ -185,7 +185,18 @@ docker run -d --name nginx -v `pwd`/nginx.conf:/etc/nginx/nginx.conf --net=conta
 
 我们需要确认一点就是 calico 为例，默认在同一个节点 Pod 都在同一个网段，通过`ip route show`可以看出来。
 ```shell
-
+[root@k8s-master01 ~]# ip route show
+default via 10.0.17.1 dev ens160 proto dhcp metric 100 
+10.0.17.0/24 dev ens160 proto kernel scope link src 10.0.17.5 metric 100 
+blackhole 10.100.32.128/26 proto bird 
+10.100.32.129 dev calib8398c29e44 scope link 
+10.100.32.130 dev cali8f0eab1f8f3 scope link 
+10.100.32.131 dev cali264ca4ab91d scope link 
+10.100.32.132 dev calie82e19a348e scope link 
+10.100.32.133 dev califd92bc1f55b scope link 
+10.100.32.134 dev calibf639a2fbff scope link 
+10.100.58.192/26 via 10.0.17.7 dev tunl0 proto bird onlink 
+10.100.85.192/26 via 10.0.17.6 dev tunl0 proto bird onlink 
 ```
 
 同一个网段的设备可以通过网关ARP获取到目标MAC地址，原设备不在需要网关而是直接通过链路层从端口将报文发送至目标设备。
