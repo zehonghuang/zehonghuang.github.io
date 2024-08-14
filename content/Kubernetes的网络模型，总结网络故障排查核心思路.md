@@ -384,7 +384,7 @@ nameserver 10.96.0.10
 options ndots:5
 ```
 
-可以查看CoreDNS所用的配置，有个forward插件。
+可以查看CoreDNS所用的配置，有个forward插件，具体用途在这 [DoreDNS-plugin/forward](https://coredns.io/plugins/forward/)，其实就是将dns请求转发至上游dns。
 ```shell
 [root@k8s-master01 ~]# kubectl get cm coredns -n kube-system -o yaml
 apiVersion: v1
@@ -402,6 +402,8 @@ data:
            ttl 30
         }
         prometheus :9153
+        ## 这里的文件就是宿主机的文件，个别系统该文件受systemd-resolved管理，无法直接改动
+        ## 
         forward . /etc/resolv.conf {
            max_concurrent 1000
         }

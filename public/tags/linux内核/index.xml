@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Linux内核 on 作为客体的类库</title>
+    <link>http://localhost:1313/tags/linux%E5%86%85%E6%A0%B8/</link>
+    <description>Recent content in Linux内核 on 作为客体的类库</description>
+    <generator>Hugo</generator>
+    <language>ja</language>
+    <copyright>&amp;copy; Copyright 2017 Foo Bar</copyright>
+    <lastBuildDate>Fri, 24 Jul 2020 10:18:33 +0800</lastBuildDate>
+    <atom:link href="http://localhost:1313/tags/linux%E5%86%85%E6%A0%B8/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>【Redis源码分析】Redis真的不是单线程，后台IO服务 BIO</title>
+      <link>http://localhost:1313/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E7%9C%9F%E7%9A%84%E4%B8%8D%E6%98%AF%E5%8D%95%E7%BA%BF%E7%A8%8B%E5%90%8E%E5%8F%B0io%E6%9C%8D%E5%8A%A1-bio/</link>
+      <pubDate>Fri, 24 Jul 2020 10:18:33 +0800</pubDate>
+      <guid>http://localhost:1313/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E7%9C%9F%E7%9A%84%E4%B8%8D%E6%98%AF%E5%8D%95%E7%BA%BF%E7%A8%8B%E5%90%8E%E5%8F%B0io%E6%9C%8D%E5%8A%A1-bio/</guid>
+      <description>&lt;p&gt;面试总喜欢被问Redis是单线程还是多线程，千篇一律的回答单线程却不知所以然，严格来说Redis是多线程多进程、单线程处理请求，本文说的就是多线程下的BIO(Background I/O service)。&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>【Redis源码分析】Redis启动过程是这样的！</title>
+      <link>http://localhost:1313/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B%E6%98%AF%E8%BF%99%E6%A0%B7%E7%9A%84/</link>
+      <pubDate>Tue, 21 Jul 2020 10:18:45 +0800</pubDate>
+      <guid>http://localhost:1313/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B%E6%98%AF%E8%BF%99%E6%A0%B7%E7%9A%84/</guid>
+      <description>&lt;p&gt;redis的源码确实是比我想象中要好读，本身是过程式编程，所以很多核心逻辑已经包含在main函数的调用链，流程非常长，耐心看下去还是能get到些东西的。&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>【网络编程】从Linux角度以及JVM源码，深入NIO的细节</title>
+      <link>http://localhost:1313/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B%E4%BB%8Elinux%E8%A7%92%E5%BA%A6%E4%BB%A5%E5%8F%8Ajvm%E6%BA%90%E7%A0%81%E6%B7%B1%E5%85%A5nio%E7%9A%84%E7%BB%86%E8%8A%82/</link>
+      <pubDate>Tue, 07 Jan 2020 10:51:17 +0800</pubDate>
+      <guid>http://localhost:1313/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B%E4%BB%8Elinux%E8%A7%92%E5%BA%A6%E4%BB%A5%E5%8F%8Ajvm%E6%BA%90%E7%A0%81%E6%B7%B1%E5%85%A5nio%E7%9A%84%E7%BB%86%E8%8A%82/</guid>
+      <description>&lt;p&gt;最近一段时间都在啃Linux内核， 也给了自己机会再度深入理解Java的NIO实现，希望能获得更多东西，尝试理解以前未能理解的，会涉及少量OpenJDK源码。&lt;/p&gt;&#xA;&lt;p&gt;因为NIO本身的实现很多牵扯到操作系统，所以需要先稍微过一下，有理解不对的地方，请指出。&lt;/p&gt;&#xA;&lt;h2 id=&#34;1涉及的linux知识&#34;&gt;1、涉及的Linux知识&lt;/h2&gt;&#xA;&lt;h3 id=&#34;11文件描述符&#34;&gt;1.1、文件描述符&lt;/h3&gt;&#xA;&lt;p&gt;对于Linux来说，一切皆为文件，设备文件、IO文件还是普通文件，都可以通过一个叫做文件描述符（FileDescriptor）的东西来进行操作，其涉及的数据结构可以自行了解VFS。&lt;/p&gt;&#xA;&lt;h4 id=&#34;111设备阻塞与非阻塞&#34;&gt;1.1.1、设备阻塞与非阻塞&lt;/h4&gt;&#xA;&lt;p&gt;任意对设备的操作都是默认为阻塞的，如果没有或有不可操作的资源，会被添加到&lt;code&gt;wait_queue_head_t&lt;/code&gt;中进行等待，直到被&lt;code&gt;semaphore&lt;/code&gt;通知允许执行。此时可以通过&lt;code&gt;fcntl()&lt;/code&gt;函数将文件描述符设置为非阻塞，若没有或有不可操作的资源，立即返回错误信息。&lt;/p&gt;&#xA;&lt;h3 id=&#34;12jvm内存结构--虚拟地址空间&#34;&gt;1.2、JVM内存结构 &amp;amp; 虚拟地址空间&lt;/h3&gt;&#xA;&lt;p&gt;众所周知，Linux下的每一进程都有自己的虚拟内存地址，而JVM也是一个进程，且JVM有自己的内存结构。既然如此，两者之间必有对应关系，OracleJDK7提供了NMT，用&lt;code&gt;jcmd pid VM.native_memory detail&lt;/code&gt;可以查看各类区域的reserved，被committed的内存大小及其地址区间，再通过&lt;code&gt;pmap -p&lt;/code&gt;可以看到进程内存信息。&lt;/p&gt;&#xA;&lt;p&gt;肉眼对比地址区间可以发现，JVM heap是通过mmap分配内存的，位于进程的映射区内，而进程堆区可以被malloc进行分配，对应关系如图。&#xA;&lt;img src=&#34;https://raw.githubusercontent.com/zehonghuang/github_blog_bak/master/source/image/jvm%E8%99%9A%E6%8B%9F%E5%86%85%E5%AD%98%E5%9C%B0%E5%9D%80.png&#34; alt=&#34;jvm内存虚拟地址&#34;&gt;&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>
