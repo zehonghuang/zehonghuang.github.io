@@ -2,25 +2,24 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>C/C&#43;&#43; on 作为客体的类库</title>
-    <link>http://localhost:1313/categories/c/c&#43;&#43;/</link>
+    <link>https://example.com/categories/c/c&#43;&#43;/</link>
     <description>Recent content in C/C&#43;&#43; on 作为客体的类库</description>
-    <generator>Hugo</generator>
+    <generator>Hugo -- gohugo.io</generator>
     <language>ja</language>
     <copyright>&amp;copy; Copyright 2017 Foo Bar</copyright>
-    <lastBuildDate>Fri, 24 Jul 2020 10:18:33 +0800</lastBuildDate>
-    <atom:link href="http://localhost:1313/categories/c/c++/index.xml" rel="self" type="application/rss+xml" />
+    <atom:link href="https://example.com/categories/c/c++/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>【Redis源码分析】Redis真的不是单线程，后台IO服务 BIO</title>
-      <link>http://localhost:1313/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E7%9C%9F%E7%9A%84%E4%B8%8D%E6%98%AF%E5%8D%95%E7%BA%BF%E7%A8%8B%E5%90%8E%E5%8F%B0io%E6%9C%8D%E5%8A%A1-bio/</link>
+      <link>https://example.com/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E7%9C%9F%E7%9A%84%E4%B8%8D%E6%98%AF%E5%8D%95%E7%BA%BF%E7%A8%8B%E5%90%8E%E5%8F%B0io%E6%9C%8D%E5%8A%A1-bio/</link>
       <pubDate>Fri, 24 Jul 2020 10:18:33 +0800</pubDate>
-      <guid>http://localhost:1313/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E7%9C%9F%E7%9A%84%E4%B8%8D%E6%98%AF%E5%8D%95%E7%BA%BF%E7%A8%8B%E5%90%8E%E5%8F%B0io%E6%9C%8D%E5%8A%A1-bio/</guid>
+      <guid>https://example.com/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E7%9C%9F%E7%9A%84%E4%B8%8D%E6%98%AF%E5%8D%95%E7%BA%BF%E7%A8%8B%E5%90%8E%E5%8F%B0io%E6%9C%8D%E5%8A%A1-bio/</guid>
       <description>&lt;p&gt;面试总喜欢被问Redis是单线程还是多线程，千篇一律的回答单线程却不知所以然，严格来说Redis是多线程多进程、单线程处理请求，本文说的就是多线程下的BIO(Background I/O service)。&lt;/p&gt;</description>
     </item>
     <item>
       <title>【Redis源码分析】Redis启动过程是这样的！</title>
-      <link>http://localhost:1313/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B%E6%98%AF%E8%BF%99%E6%A0%B7%E7%9A%84/</link>
+      <link>https://example.com/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B%E6%98%AF%E8%BF%99%E6%A0%B7%E7%9A%84/</link>
       <pubDate>Tue, 21 Jul 2020 10:18:45 +0800</pubDate>
-      <guid>http://localhost:1313/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B%E6%98%AF%E8%BF%99%E6%A0%B7%E7%9A%84/</guid>
+      <guid>https://example.com/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B%E6%98%AF%E8%BF%99%E6%A0%B7%E7%9A%84/</guid>
       <description>&lt;p&gt;redis的源码确实是比我想象中要好读，本身是过程式编程，所以很多核心逻辑已经包含在main函数的调用链，流程非常长，耐心看下去还是能get到些东西的。&lt;/p&gt;</description>
     </item>
   </channel>
