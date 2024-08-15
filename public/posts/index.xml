@@ -7,6 +7,7 @@
     <generator>Hugo</generator>
     <language>ja</language>
     <copyright>&amp;copy; Copyright 2017 Foo Bar</copyright>
+    <lastBuildDate></lastBuildDate>
     <atom:link href="http://localhost:1313/posts/index.xml" rel="self" type="application/rss+xml" />
   </channel>
 </rss>

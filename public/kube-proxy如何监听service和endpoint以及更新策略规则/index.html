@@ -6,6 +6,27 @@
   <title>Kube Proxy如何监听Service和Endpoint以及更新策略规则 - 作为客体的类库</title>
   <meta property="og:title" content="Kube Proxy如何监听Service和Endpoint以及更新策略规则 - 作为客体的类库" />
   <meta name="twitter:title" content="Kube Proxy如何监听Service和Endpoint以及更新策略规则 - 作为客体的类库" />
+  <meta name="description" content="本文会探讨Kubernetes另一个核心网络组件Kube-Proxy，它承担着Service及其后端Pod对宿主机配置的影响。
+一、 先聊一下三个核心API
+这三个API在不同版本下的Kube-Proxy发挥着主要作用，尤其是后两者。
+1. Service
+2. Endpoint、EndpointSlice
+EndpointSlice是在k8s 1.9版本开始支持的
+二、Kube-Proxy的源码分析">
+  <meta property="og:description" content="本文会探讨Kubernetes另一个核心网络组件Kube-Proxy，它承担着Service及其后端Pod对宿主机配置的影响。
+一、 先聊一下三个核心API
+这三个API在不同版本下的Kube-Proxy发挥着主要作用，尤其是后两者。
+1. Service
+2. Endpoint、EndpointSlice
+EndpointSlice是在k8s 1.9版本开始支持的
+二、Kube-Proxy的源码分析">
+  <meta name="twitter:description" content="本文会探讨Kubernetes另一个核心网络组件Kube-Proxy，它承担着Service及其后端Pod对宿主机配置的影响。
+一、 先聊一下三个核心API
+这三个API在不同版本下的Kube-Proxy发挥着主要作用，尤其是后两者。
+1. Service
+2. Endpoint、EndpointSlice
+EndpointSlice是在k8s 1.9版本开始支持的
+二、Kube-Proxy的源码 …">
   <meta name="author" content="金汤力"/>
   <meta property="og:site_name" content="作为客体的类库" />
   <meta property="og:url" content="http://localhost:1313/kube-proxy%E5%A6%82%E4%BD%95%E7%9B%91%E5%90%ACservice%E5%92%8Cendpoint%E4%BB%A5%E5%8F%8A%E6%9B%B4%E6%96%B0%E7%AD%96%E7%95%A5%E8%A7%84%E5%88%99/" />
@@ -79,7 +100,289 @@
         </li>
       </ul>
       
-      
+<aside class="toc">
+  <nav id="TableOfContents">
+  <ul>
+    <li><a href="#一-先聊一下三个核心api">一、 先聊一下三个核心API</a>
+      <ul>
+        <li><a href="#1-service">1. Service</a></li>
+        <li><a href="#2-endpointendpointslice">2. Endpoint、EndpointSlice</a></li>
+      </ul>
+    </li>
+    <li><a href="#二kube-proxy的源码分析">二、Kube-Proxy的源码分析</a>
+      <ul>
+        <li><a href="#1-kube-proxy的相关配置">1. Kube-Proxy的相关配置</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+</aside>
+      <p>本文会探讨Kubernetes另一个核心网络组件Kube-Proxy，它承担着Service及其后端Pod对宿主机配置的影响。</p>
+<h2 id="一-先聊一下三个核心api">一、 先聊一下三个核心API</h2>
+<p>这三个API在不同版本下的Kube-Proxy发挥着主要作用，尤其是后两者。</p>
+<h3 id="1-service">1. Service</h3>
+<h3 id="2-endpointendpointslice">2. Endpoint、EndpointSlice</h3>
+<p><code>EndpointSlice</code>是在k8s 1.9版本开始支持的</p>
+<h2 id="二kube-proxy的源码分析">二、Kube-Proxy的源码分析</h2>
+<h3 id="1-kube-proxy的相关配置">1. Kube-Proxy的相关配置</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">config</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">KubeProxyConfiguration</span> <span class="kd">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="cm">/**
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 *  1. 设置masqueradeAll，即所有发送到Service的请求都做SNAT
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 *  2. oom_score_adj，默认值是-999，也就是在系统内存非常低的情况下，被OOMKiller的优先级最低
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 *  3. 几个比较重要的conntrack相关的系统参数
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 *      net.netfilter.nf_conntrack_tcp_timeout_established
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 *      net.netfilter.nf_conntrack_tcp_timeout_close_wait
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 *      net.netfilter.nf_conntrack_tcp_be_liberal
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 */</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">Linux</span> <span class="nx">KubeProxyLinuxConfiguration</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 开启一些实验性功能
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">FeatureGates</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">bool</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// client-go配置
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">ClientConnection</span> <span class="nx">componentbaseconfig</span><span class="p">.</span><span class="nx">ClientConnectionConfiguration</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">HostnameOverride</span> <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">BindAddress</span> <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// mode specifies which proxy mode to use.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">Mode</span> <span class="nx">ProxyMode</span>
+</span></span><span class="line"><span class="cl">	<span class="cm">/**
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 *  1. LocalhostNodePorts, 不允许本地访问NodePort端口。仅在iptables&amp;ipv4生效
+</span></span></span><span class="line"><span class="cl"><span class="cm">	    2. 
+</span></span></span><span class="line"><span class="cl"><span class="cm">	 */</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">IPTables</span> <span class="nx">KubeProxyIPTablesConfiguration</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// ipvs contains ipvs-related configuration options.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">IPVS</span> <span class="nx">KubeProxyIPVSConfiguration</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// nftables contains nftables-related configuration options.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">NFTables</span> <span class="nx">KubeProxyNFTablesConfiguration</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// 检测本地流量的模式，默认通过ClusterCIDR
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">DetectLocalMode</span> <span class="nx">LocalMode</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// 网桥名称、ClusterCIDR、设备前缀等设置
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">DetectLocal</span> <span class="nx">DetectLocalConfiguration</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// nodePortAddresses is a list of CIDR ranges that contain valid node IPs, or
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// alternatively, the single string &#39;primary&#39;. If set to a list of CIDRs,
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// connections to NodePort services will only be accepted on node IPs in one of
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// the indicated ranges. If set to &#39;primary&#39;, NodePort services will only be
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// accepted on the node&#39;s primary IPv4 and/or IPv6 address according to the Node
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// object. If unset, NodePort connections will be accepted on all local IPs.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nx">NodePortAddresses</span> <span class="p">[]</span><span class="kt">string</span>
+</span></span><span class="line"><span class="cl">	
+</span></span><span class="line"><span class="cl">	<span class="nx">SyncPeriod</span> <span class="nx">metav1</span><span class="p">.</span><span class="nx">Duration</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">MinSyncPeriod</span> <span class="nx">metav1</span><span class="p">.</span><span class="nx">Duration</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nx">ConfigSyncPeriod</span> <span class="nx">metav1</span><span class="p">.</span><span class="nx">Duration</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>水电费</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span> <span class="nx">config</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// NodeHandler is an abstract interface of objects which receive
+</span></span></span><span class="line"><span class="cl"><span class="c1">// notifications about node object changes.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">NodeHandler</span> <span class="kd">interface</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// OnNodeAdd is called whenever creation of new node object
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// is observed.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">OnNodeAdd</span><span class="p">(</span><span class="nx">node</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Node</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// OnNodeUpdate is called whenever modification of an existing
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// node object is observed.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">OnNodeUpdate</span><span class="p">(</span><span class="nx">oldNode</span><span class="p">,</span> <span class="nx">node</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Node</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// OnNodeDelete is called whenever deletion of an existing node
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// object is observed.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">OnNodeDelete</span><span class="p">(</span><span class="nx">node</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Node</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// OnNodeSynced is called once all the initial event handlers were
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// called and the state is fully propagated to local cache.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">OnNodeSynced</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">ServiceHandler</span> <span class="kd">interface</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// OnServiceAdd is called whenever creation of new service object
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// is observed.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">OnServiceAdd</span><span class="p">(</span><span class="nx">service</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Service</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// OnServiceUpdate is called whenever modification of an existing
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// service object is observed.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">OnServiceUpdate</span><span class="p">(</span><span class="nx">oldService</span><span class="p">,</span> <span class="nx">service</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Service</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// OnServiceDelete is called whenever deletion of an existing service
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// object is observed.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">OnServiceDelete</span><span class="p">(</span><span class="nx">service</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Service</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// OnServiceSynced is called once all the initial event handlers were
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// called and the state is fully propagated to local cache.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">OnServiceSynced</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// EndpointSliceHandler is an abstract interface of objects which receive
+</span></span></span><span class="line"><span class="cl"><span class="c1">// notifications about endpoint slice object changes.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">EndpointSliceHandler</span> <span class="kd">interface</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// OnEndpointSliceAdd is called whenever creation of new endpoint slice
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// object is observed.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">OnEndpointSliceAdd</span><span class="p">(</span><span class="nx">endpointSlice</span> <span class="o">*</span><span class="nx">discoveryv1</span><span class="p">.</span><span class="nx">EndpointSlice</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// OnEndpointSliceUpdate is called whenever modification of an existing
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// endpoint slice object is observed.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">OnEndpointSliceUpdate</span><span class="p">(</span><span class="nx">oldEndpointSlice</span><span class="p">,</span> <span class="nx">newEndpointSlice</span> <span class="o">*</span><span class="nx">discoveryv1</span><span class="p">.</span><span class="nx">EndpointSlice</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// OnEndpointSliceDelete is called whenever deletion of an existing
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// endpoint slice object is observed.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">OnEndpointSliceDelete</span><span class="p">(</span><span class="nx">endpointSlice</span> <span class="o">*</span><span class="nx">discoveryv1</span><span class="p">.</span><span class="nx">EndpointSlice</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// OnEndpointSlicesSynced is called once all the initial event handlers were
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// called and the state is fully propagated to local cache.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">OnEndpointSlicesSynced</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">type</span> <span class="nx">ServiceCIDRHandler</span> <span class="kd">interface</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// OnServiceCIDRsChanged is called whenever a change is observed
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// in any of the ServiceCIDRs, and provides complete list of service cidrs.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nf">OnServiceCIDRsChanged</span><span class="p">(</span><span class="nx">cidrs</span> <span class="p">[]</span><span class="kt">string</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// Provider is the interface provided by proxier implementations.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">type</span> <span class="nx">Provider</span> <span class="kd">interface</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">config</span><span class="p">.</span><span class="nx">EndpointSliceHandler</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">config</span><span class="p">.</span><span class="nx">ServiceHandler</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">config</span><span class="p">.</span><span class="nx">NodeHandler</span>
+</span></span><span class="line"><span class="cl">	<span class="nx">config</span><span class="p">.</span><span class="nx">ServiceCIDRHandler</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">// Sync immediately synchronizes the Provider&#39;s current state to proxy rules.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">Sync</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">	<span class="c1">// SyncLoop runs periodic work.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// This is expected to run as a goroutine or as the main loop of the app.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="c1">// It does not return.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="nf">SyncLoop</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div>
     </article>
 
     

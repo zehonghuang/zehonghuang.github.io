@@ -1,7 +1,7 @@
 +++
 title = 'Kube Proxy如何监听Service和Endpoint以及更新策略规则'
 date = 2022-08-13T22:36:08+08:00
-draft = true
+draft = false
 tags = [
     "云原生",
     "Kubernetes",
@@ -13,6 +13,79 @@ categories = [
 ]
 +++
 
+本文会探讨Kubernetes另一个核心网络组件Kube-Proxy，它承担着Service及其后端Pod对宿主机配置的影响。
+
+## 一、 先聊一下三个核心API
+
+这三个API在不同版本下的Kube-Proxy发挥着主要作用，尤其是后两者。
+
+### 1. Service
+
+### 2. Endpoint、EndpointSlice
+
+`EndpointSlice`是在k8s 1.9版本开始支持的
+
+## 二、Kube-Proxy的源码分析
+
+<!--more-->
+
+### 1. Kube-Proxy的相关配置
+
+```go
+package config
+
+type KubeProxyConfiguration struct {
+	/**
+	 *  1. 设置masqueradeAll，即所有发送到Service的请求都做SNAT
+	 *  2. oom_score_adj，默认值是-999，也就是在系统内存非常低的情况下，被OOMKiller的优先级最低
+	 *  3. 几个比较重要的conntrack相关的系统参数
+	 *      net.netfilter.nf_conntrack_tcp_timeout_established
+	 *      net.netfilter.nf_conntrack_tcp_timeout_close_wait
+	 *      net.netfilter.nf_conntrack_tcp_be_liberal
+	 */
+	Linux KubeProxyLinuxConfiguration
+    // 开启一些实验性功能
+	FeatureGates map[string]bool
+	// client-go配置
+	ClientConnection componentbaseconfig.ClientConnectionConfiguration
+
+	HostnameOverride string
+	BindAddress string
+
+	// mode specifies which proxy mode to use.
+	Mode ProxyMode
+	/**
+	 *  1. LocalhostNodePorts, 不允许本地访问NodePort端口。仅在iptables&ipv4生效
+	    2. 
+	 */
+	IPTables KubeProxyIPTablesConfiguration
+	// ipvs contains ipvs-related configuration options.
+	IPVS KubeProxyIPVSConfiguration
+	// nftables contains nftables-related configuration options.
+	NFTables KubeProxyNFTablesConfiguration
+
+	// 检测本地流量的模式，默认通过ClusterCIDR
+	DetectLocalMode LocalMode
+	// 网桥名称、ClusterCIDR、设备前缀等设置
+	DetectLocal DetectLocalConfiguration
+
+	// nodePortAddresses is a list of CIDR ranges that contain valid node IPs, or
+	// alternatively, the single string 'primary'. If set to a list of CIDRs,
+	// connections to NodePort services will only be accepted on node IPs in one of
+	// the indicated ranges. If set to 'primary', NodePort services will only be
+	// accepted on the node's primary IPv4 and/or IPv6 address according to the Node
+	// object. If unset, NodePort connections will be accepted on all local IPs.
+	NodePortAddresses []string
+	
+	SyncPeriod metav1.Duration
+
+	MinSyncPeriod metav1.Duration
+
+	ConfigSyncPeriod metav1.Duration
+}
+```
+
+水电费
 
 
 ```go
