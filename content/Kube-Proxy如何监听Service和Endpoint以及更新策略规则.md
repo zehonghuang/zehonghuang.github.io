@@ -85,7 +85,7 @@ type KubeProxyConfiguration struct {
 }
 ```
 
-水电费
+### 2. Informer的监听函数和Provider.SyncLoop()
 
 
 ```go
