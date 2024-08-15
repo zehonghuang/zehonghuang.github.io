@@ -403,7 +403,7 @@ data:
         }
         prometheus :9153
         ## 这里的文件就是宿主机的文件，个别系统该文件受systemd-resolved管理，无法直接改动
-        ## 
+        ## 可以通过coredns_forward_request_total{k8s_app="kube-dns"}这个指标看到多少请求被转发至上游
         forward . /etc/resolv.conf {
            max_concurrent 1000
         }
