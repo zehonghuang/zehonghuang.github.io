@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
-<head>
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
   <title>【网络编程】从Linux角度以及JVM源码，深入NIO的细节 - 作为客体的类库</title>
@@ -35,10 +35,10 @@
 对于Linux来说，一切皆为文件，设备文件、IO文件还是普通文件，都可以通过一个叫做文件描述 …">
   <meta name="author" content="金汤力"/>
   <meta property="og:site_name" content="作为客体的类库" />
-  <meta property="og:url" content="https://example.com/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B%E4%BB%8Elinux%E8%A7%92%E5%BA%A6%E4%BB%A5%E5%8F%8Ajvm%E6%BA%90%E7%A0%81%E6%B7%B1%E5%85%A5nio%E7%9A%84%E7%BB%86%E8%8A%82/" />
+  <meta property="og:url" content="http://localhost:1313/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B%E4%BB%8Elinux%E8%A7%92%E5%BA%A6%E4%BB%A5%E5%8F%8Ajvm%E6%BA%90%E7%A0%81%E6%B7%B1%E5%85%A5nio%E7%9A%84%E7%BB%86%E8%8A%82/" />
   <meta property="og:type" content="article" />
   <meta name="twitter:card" content="summary" />
-  <meta name="generator" content="Hugo 0.122.0">
+  <meta name="generator" content="Hugo 0.131.0">
   <link rel="stylesheet" href="/css/style.css" media="all" />
   <link rel="stylesheet" href="/css/style-dark.css" media="all and (prefers-color-scheme: dark)" />
 
@@ -1447,7 +1447,7 @@
 <ul class="article-share">
   
   <li>
-    <a class="resp-sharing-button__link" href="https://facebook.com/sharer/sharer.php?u=https://example.com/%25E7%25BD%2591%25E7%25BB%259C%25E7%25BC%2596%25E7%25A8%258B%25E4%25BB%258Elinux%25E8%25A7%2592%25E5%25BA%25A6%25E4%25BB%25A5%25E5%258F%258Ajvm%25E6%25BA%2590%25E7%25A0%2581%25E6%25B7%25B1%25E5%2585%25A5nio%25E7%259A%2584%25E7%25BB%2586%25E8%258A%2582/" target="_blank" rel="noopener" aria-label="Facebook">
+    <a class="resp-sharing-button__link" href="https://facebook.com/sharer/sharer.php?u=http://localhost:1313/%25E7%25BD%2591%25E7%25BB%259C%25E7%25BC%2596%25E7%25A8%258B%25E4%25BB%258Elinux%25E8%25A7%2592%25E5%25BA%25A6%25E4%25BB%25A5%25E5%258F%258Ajvm%25E6%25BA%2590%25E7%25A0%2581%25E6%25B7%25B1%25E5%2585%25A5nio%25E7%259A%2584%25E7%25BB%2586%25E8%258A%2582/" target="_blank" rel="noopener" aria-label="Facebook">
       <div class="resp-sharing-button resp-sharing-button--facebook resp-sharing-button--medium"><div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
         <i class="fa-brands fa-facebook-f"></i></div>Facebook</div>
     </a>
@@ -1458,7 +1458,7 @@
 
   
   <li>
-    <a class="resp-sharing-button__link" href="https://x.com/intent/tweet/?text=%e3%80%90%e7%bd%91%e7%bb%9c%e7%bc%96%e7%a8%8b%e3%80%91%e4%bb%8eLinux%e8%a7%92%e5%ba%a6%e4%bb%a5%e5%8f%8aJVM%e6%ba%90%e7%a0%81%ef%bc%8c%e6%b7%b1%e5%85%a5NIO%e7%9a%84%e7%bb%86%e8%8a%82%20-%20%e4%bd%9c%e4%b8%ba%e5%ae%a2%e4%bd%93%e7%9a%84%e7%b1%bb%e5%ba%93&amp;url=https://example.com/%25E7%25BD%2591%25E7%25BB%259C%25E7%25BC%2596%25E7%25A8%258B%25E4%25BB%258Elinux%25E8%25A7%2592%25E5%25BA%25A6%25E4%25BB%25A5%25E5%258F%258Ajvm%25E6%25BA%2590%25E7%25A0%2581%25E6%25B7%25B1%25E5%2585%25A5nio%25E7%259A%2584%25E7%25BB%2586%25E8%258A%2582/" target="_blank" rel="noopener" aria-label="Twitter">
+    <a class="resp-sharing-button__link" href="https://x.com/intent/tweet/?text=%e3%80%90%e7%bd%91%e7%bb%9c%e7%bc%96%e7%a8%8b%e3%80%91%e4%bb%8eLinux%e8%a7%92%e5%ba%a6%e4%bb%a5%e5%8f%8aJVM%e6%ba%90%e7%a0%81%ef%bc%8c%e6%b7%b1%e5%85%a5NIO%e7%9a%84%e7%bb%86%e8%8a%82%20-%20%e4%bd%9c%e4%b8%ba%e5%ae%a2%e4%bd%93%e7%9a%84%e7%b1%bb%e5%ba%93&amp;url=http://localhost:1313/%25E7%25BD%2591%25E7%25BB%259C%25E7%25BC%2596%25E7%25A8%258B%25E4%25BB%258Elinux%25E8%25A7%2592%25E5%25BA%25A6%25E4%25BB%25A5%25E5%258F%258Ajvm%25E6%25BA%2590%25E7%25A0%2581%25E6%25B7%25B1%25E5%2585%25A5nio%25E7%259A%2584%25E7%25BB%2586%25E8%258A%2582/" target="_blank" rel="noopener" aria-label="Twitter">
       <div class="resp-sharing-button resp-sharing-button--x resp-sharing-button--medium"><i class="fa-brands fa-x-twitter"></i></div>
     </a>
   </li>
@@ -1488,16 +1488,25 @@
   </div>
 </div>
 
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script>
-<script>
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.dataLayer = window.dataLayer || [];
-	function gtag(){dataLayer.push(arguments);}
-	gtag('js', new Date());
-	gtag('config', 'G-16F0MHER15', { 'anonymize_ip': false });
-}
-</script>
+  
+    
+      <script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script>
+      <script>
+        var doNotTrack = false;
+        if ( false ) {
+          var dnt = (navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack);
+          var doNotTrack = (dnt == "1" || dnt == "yes");
+        }
+        if (!doNotTrack) {
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-16F0MHER15');
+        }
+      </script>
+    
+  
+
 
 
 </body>

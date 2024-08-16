@@ -430,3 +430,16 @@ metadata:
    2. 集群内域名解析慢，在Service配置正确的情况下，有可能CoreDNS的Pod负载过大，挖个坑会讨论`如何看Linux的网络负载监控`
 2. 
 
+
+```shell
+[root@k8s-master01 ~]# ./calicoctl node status
+Calico process is running.
+
+IPv4 BGP status
++--------------+-------------------+-------+------------+-------------+
+| PEER ADDRESS |     PEER TYPE     | STATE |   SINCE    |    INFO     |
++--------------+-------------------+-------+------------+-------------+
+| 10.0.17.6    | node-to-node mesh | up    | 2024-06-05 | Established |
+| 10.0.17.7    | node-to-node mesh | up    | 2024-06-05 | Established |
++--------------+-------------------+-------+------------+-------------+
+```

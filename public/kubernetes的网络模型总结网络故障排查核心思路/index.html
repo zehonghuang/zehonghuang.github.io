@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
-<head>
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
   <title>详细梳理Kubernetes的网络模型，总结网络故障排查核心思路 - 作为客体的类库</title>
@@ -85,10 +85,10 @@ sudo ip netns exec my_namespace bash
 我们知道两个POD的网络相互隔离，实际在操作系统中是通过命名 …">
   <meta name="author" content="金汤力"/>
   <meta property="og:site_name" content="作为客体的类库" />
-  <meta property="og:url" content="https://example.com/kubernetes%E7%9A%84%E7%BD%91%E7%BB%9C%E6%A8%A1%E5%9E%8B%E6%80%BB%E7%BB%93%E7%BD%91%E7%BB%9C%E6%95%85%E9%9A%9C%E6%8E%92%E6%9F%A5%E6%A0%B8%E5%BF%83%E6%80%9D%E8%B7%AF/" />
+  <meta property="og:url" content="http://localhost:1313/kubernetes%E7%9A%84%E7%BD%91%E7%BB%9C%E6%A8%A1%E5%9E%8B%E6%80%BB%E7%BB%93%E7%BD%91%E7%BB%9C%E6%95%85%E9%9A%9C%E6%8E%92%E6%9F%A5%E6%A0%B8%E5%BF%83%E6%80%9D%E8%B7%AF/" />
   <meta property="og:type" content="article" />
   <meta name="twitter:card" content="summary" />
-  <meta name="generator" content="Hugo 0.122.0">
+  <meta name="generator" content="Hugo 0.131.0">
   <link rel="stylesheet" href="/css/style.css" media="all" />
   <link rel="stylesheet" href="/css/style-dark.css" media="all and (prefers-color-scheme: dark)" />
 
@@ -855,13 +855,40 @@ brigde会将报文转发至iptables并进行过滤和NAT，最后回到Pod之间
 </li>
 <li></li>
 </ol>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl"><span class="o">[</span>root@k8s-master01 ~<span class="o">]</span><span class="c1"># ./calicoctl node status</span>
+</span></span><span class="line"><span class="cl">Calico process is running.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">IPv4 BGP status
+</span></span><span class="line"><span class="cl">+--------------+-------------------+-------+------------+-------------+
+</span></span><span class="line"><span class="cl"><span class="p">|</span> PEER ADDRESS <span class="p">|</span>     PEER TYPE     <span class="p">|</span> STATE <span class="p">|</span>   SINCE    <span class="p">|</span>    INFO     <span class="p">|</span>
+</span></span><span class="line"><span class="cl">+--------------+-------------------+-------+------------+-------------+
+</span></span><span class="line"><span class="cl"><span class="p">|</span> 10.0.17.6    <span class="p">|</span> node-to-node mesh <span class="p">|</span> up    <span class="p">|</span> 2024-06-05 <span class="p">|</span> Established <span class="p">|</span>
+</span></span><span class="line"><span class="cl"><span class="p">|</span> 10.0.17.7    <span class="p">|</span> node-to-node mesh <span class="p">|</span> up    <span class="p">|</span> 2024-06-05 <span class="p">|</span> Established <span class="p">|</span>
+</span></span><span class="line"><span class="cl">+--------------+-------------------+-------+------------+-------------+
+</span></span></code></pre></td></tr></table>
+</div>
+</div>
     </article>
 
     
 <ul class="article-share">
   
   <li>
-    <a class="resp-sharing-button__link" href="https://facebook.com/sharer/sharer.php?u=https://example.com/kubernetes%25E7%259A%2584%25E7%25BD%2591%25E7%25BB%259C%25E6%25A8%25A1%25E5%259E%258B%25E6%2580%25BB%25E7%25BB%2593%25E7%25BD%2591%25E7%25BB%259C%25E6%2595%2585%25E9%259A%259C%25E6%258E%2592%25E6%259F%25A5%25E6%25A0%25B8%25E5%25BF%2583%25E6%2580%259D%25E8%25B7%25AF/" target="_blank" rel="noopener" aria-label="Facebook">
+    <a class="resp-sharing-button__link" href="https://facebook.com/sharer/sharer.php?u=http://localhost:1313/kubernetes%25E7%259A%2584%25E7%25BD%2591%25E7%25BB%259C%25E6%25A8%25A1%25E5%259E%258B%25E6%2580%25BB%25E7%25BB%2593%25E7%25BD%2591%25E7%25BB%259C%25E6%2595%2585%25E9%259A%259C%25E6%258E%2592%25E6%259F%25A5%25E6%25A0%25B8%25E5%25BF%2583%25E6%2580%259D%25E8%25B7%25AF/" target="_blank" rel="noopener" aria-label="Facebook">
       <div class="resp-sharing-button resp-sharing-button--facebook resp-sharing-button--medium"><div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
         <i class="fa-brands fa-facebook-f"></i></div>Facebook</div>
     </a>
@@ -872,7 +899,7 @@ brigde会将报文转发至iptables并进行过滤和NAT，最后回到Pod之间
 
   
   <li>
-    <a class="resp-sharing-button__link" href="https://x.com/intent/tweet/?text=%e8%af%a6%e7%bb%86%e6%a2%b3%e7%90%86Kubernetes%e7%9a%84%e7%bd%91%e7%bb%9c%e6%a8%a1%e5%9e%8b%ef%bc%8c%e6%80%bb%e7%bb%93%e7%bd%91%e7%bb%9c%e6%95%85%e9%9a%9c%e6%8e%92%e6%9f%a5%e6%a0%b8%e5%bf%83%e6%80%9d%e8%b7%af%20-%20%e4%bd%9c%e4%b8%ba%e5%ae%a2%e4%bd%93%e7%9a%84%e7%b1%bb%e5%ba%93&amp;url=https://example.com/kubernetes%25E7%259A%2584%25E7%25BD%2591%25E7%25BB%259C%25E6%25A8%25A1%25E5%259E%258B%25E6%2580%25BB%25E7%25BB%2593%25E7%25BD%2591%25E7%25BB%259C%25E6%2595%2585%25E9%259A%259C%25E6%258E%2592%25E6%259F%25A5%25E6%25A0%25B8%25E5%25BF%2583%25E6%2580%259D%25E8%25B7%25AF/" target="_blank" rel="noopener" aria-label="Twitter">
+    <a class="resp-sharing-button__link" href="https://x.com/intent/tweet/?text=%e8%af%a6%e7%bb%86%e6%a2%b3%e7%90%86Kubernetes%e7%9a%84%e7%bd%91%e7%bb%9c%e6%a8%a1%e5%9e%8b%ef%bc%8c%e6%80%bb%e7%bb%93%e7%bd%91%e7%bb%9c%e6%95%85%e9%9a%9c%e6%8e%92%e6%9f%a5%e6%a0%b8%e5%bf%83%e6%80%9d%e8%b7%af%20-%20%e4%bd%9c%e4%b8%ba%e5%ae%a2%e4%bd%93%e7%9a%84%e7%b1%bb%e5%ba%93&amp;url=http://localhost:1313/kubernetes%25E7%259A%2584%25E7%25BD%2591%25E7%25BB%259C%25E6%25A8%25A1%25E5%259E%258B%25E6%2580%25BB%25E7%25BB%2593%25E7%25BD%2591%25E7%25BB%259C%25E6%2595%2585%25E9%259A%259C%25E6%258E%2592%25E6%259F%25A5%25E6%25A0%25B8%25E5%25BF%2583%25E6%2580%259D%25E8%25B7%25AF/" target="_blank" rel="noopener" aria-label="Twitter">
       <div class="resp-sharing-button resp-sharing-button--x resp-sharing-button--medium"><i class="fa-brands fa-x-twitter"></i></div>
     </a>
   </li>
@@ -904,16 +931,25 @@ brigde会将报文转发至iptables并进行过滤和NAT，最后回到Pod之间
   </div>
 </div>
 
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script>
-<script>
-var doNotTrack = false;
-if (!doNotTrack) {
-	window.dataLayer = window.dataLayer || [];
-	function gtag(){dataLayer.push(arguments);}
-	gtag('js', new Date());
-	gtag('config', 'G-16F0MHER15', { 'anonymize_ip': false });
-}
-</script>
+  
+    
+      <script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script>
+      <script>
+        var doNotTrack = false;
+        if ( false ) {
+          var dnt = (navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack);
+          var doNotTrack = (dnt == "1" || dnt == "yes");
+        }
+        if (!doNotTrack) {
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-16F0MHER15');
+        }
+      </script>
+    
+  
+
 
 
 </body>

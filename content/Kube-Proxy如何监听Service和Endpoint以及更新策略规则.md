@@ -76,14 +76,18 @@ type KubeProxyConfiguration struct {
 	// accepted on the node's primary IPv4 and/or IPv6 address according to the Node
 	// object. If unset, NodePort connections will be accepted on all local IPs.
 	NodePortAddresses []string
-	
+	// 下面两个参数都应用在BoundedFrequencyRunner定时器中，Kube-Proxy更新的最高频率受限于MinSyncPeriod和内部burstRuns两个参数
+	// 这是Proxy规则同步的最大间隔
 	SyncPeriod metav1.Duration
-
+    // 最小间隔
 	MinSyncPeriod metav1.Duration
-
 	ConfigSyncPeriod metav1.Duration
 }
 ```
+
+### 1.1 BoundedFrequencyRunner
+
+
 
 ### 2. Informer的监听函数和Provider.SyncLoop()
 
