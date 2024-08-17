@@ -1,7 +1,7 @@
 name: 发布Hugo网站到GitHub Pages
 
 on:
-  # 在目标为默认分支的推送上运行
+  # 在目标为默认分支的推送上运行,试试
   push:
     branches:
       - main
