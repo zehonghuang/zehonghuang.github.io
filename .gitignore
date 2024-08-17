@@ -24,7 +24,7 @@ Thumbs.db
 node_modules/
 
 # Hugo themes (if using as a submodule, comment this out)
-themes/
+# themes/
 
 # Backup files
 *.bak
