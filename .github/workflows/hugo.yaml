@@ -60,7 +60,7 @@ jobs:
         run: |
           cd public
           git init
-          git remote add origin https://github.com/zehonghuang.github.io.git
+          git remote add origin https://github.com/zehonghuang/zehonghuang.github.io.git
           git checkout -b gh-pages
           git add .
           git commit -m "Deploy from GitHub Actions"
