@@ -60,6 +60,8 @@ jobs:
         run: |
           cd public
           git init
+          git config --global user.email "you@example.com"
+          git config --global user.name "gintonic.oneglass@gmail.com"
           git remote add origin https://github.com/zehonghuang/zehonghuang.github.io.git
           git checkout -b gh-pages
           git add .
