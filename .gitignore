@@ -1,0 +1,45 @@
+# Hugo Files
+public/
+resources/_gen/
+hugo_stats.json
+
+# Log files
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*~
+
+# Node modules (if using npm/yarn)
+node_modules/
+
+# Hugo themes (if using as a submodule, comment this out)
+# themes/
+
+# Backup files
+*.bak
+
+# Compiled files
+*.out
+*.o
+*.pyc
+*.class
+
+# Hugo executable (if downloaded to the project directory)
+hugo
+
+# Netlify related files
+.netlify/
+
+# Local Hugo server config files
+*.toml.lock
