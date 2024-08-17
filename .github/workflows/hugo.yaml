@@ -62,11 +62,11 @@ jobs:
           git init
           git config --global user.email "gintonic.oneglass@gmail.com"
           git config --global user.name "zehonghuang"
-          git remote add origin https://github.com/zehonghuang/zehonghuang.github.io.git
+          git remote add origin https://github.com/${{ github.repository }}.git
           git checkout -b gh-pages
           git add .
           git commit -m "Deploy from GitHub Actions"
-          git push -f origin gh-pages
+          git push --force "https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:gh-pages
 
   # 部署作业
   deploy:
