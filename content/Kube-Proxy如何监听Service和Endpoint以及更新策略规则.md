@@ -17,11 +17,49 @@ categories = [
 
 ## 一、 先聊一下三个核心API
 
-这三个API在不同版本下的Kube-Proxy发挥着主要作用，尤其是后两者。
+这三个API在不同版本下的Kube-Proxy发挥着主要作用，尤其是后两者。先上几个三个资源的常用配置一步步展开。
 
 ### 1. Service
 
-### 2. Endpoint、EndpointSlice
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+  namespace: default
+  labels:
+    app: my-app
+  annotations:
+    description: "This is a demo service"
+spec:
+  selector:
+    app: my-app
+    tier: backend
+  type: ClusterIP
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+      name: http
+    - protocol: TCP
+      port: 443
+      targetPort: 8443
+      name: https
+  sessionAffinity: None
+  externalTrafficPolicy: Cluster
+  loadBalancerIP: 192.168.1.100
+  loadBalancerSourceRanges:
+    - 192.168.1.0/24
+  externalIPs:
+    - 203.0.113.1
+  publishNotReadyAddresses: false
+  ipFamilyPolicy: SingleStack
+  ipFamilies:
+    - IPv4
+  healthCheckNodePort: 30009
+```
+
+### 2. Endpoints、EndpointSlice
 
 `EndpointSlice`是在k8s 1.9版本开始支持的
 
@@ -55,7 +93,7 @@ type KubeProxyConfiguration struct {
 	// mode specifies which proxy mode to use.
 	Mode ProxyMode
 	/**
-	 *  1. LocalhostNodePorts, 不允许本地访问NodePort端口。仅在iptables&ipv4生效
+	 *  1. LocalhostNodePorts, false不允许回环地址访问NodePort，仅在iptables&ipv4生效
 	    2. 
 	 */
 	IPTables KubeProxyIPTablesConfiguration
@@ -69,12 +107,7 @@ type KubeProxyConfiguration struct {
 	// 网桥名称、ClusterCIDR、设备前缀等设置
 	DetectLocal DetectLocalConfiguration
 
-	// nodePortAddresses is a list of CIDR ranges that contain valid node IPs, or
-	// alternatively, the single string 'primary'. If set to a list of CIDRs,
-	// connections to NodePort services will only be accepted on node IPs in one of
-	// the indicated ranges. If set to 'primary', NodePort services will only be
-	// accepted on the node's primary IPv4 and/or IPv6 address according to the Node
-	// object. If unset, NodePort connections will be accepted on all local IPs.
+	// 指定哪些CIDR访问能使用NodePort暴露端口，比如数据库或特定的服务
 	NodePortAddresses []string
 	// 下面两个参数都应用在BoundedFrequencyRunner定时器中，Kube-Proxy更新的最高频率受限于MinSyncPeriod和内部burstRuns两个参数
 	// 这是Proxy规则同步的最大间隔
