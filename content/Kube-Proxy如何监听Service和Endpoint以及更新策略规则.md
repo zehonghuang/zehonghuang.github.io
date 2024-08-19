@@ -41,17 +41,12 @@ spec:
       port: 80
       targetPort: 8080
       name: http
-    - protocol: TCP
-      port: 443
-      targetPort: 8443
-      name: https
+  ## 粘性会话，一般用于长连接并且开启ClusterIP的场景
   sessionAffinity: None
+  ## Cluster和Local，默认前者，后者用于本地流量请求
+  ## 例如说，在Node1的PodA请求ServiceB，只能路由到Node1的ServiceB的Pod地址，如果本地没有则无法请求，报文会被iptables drop掉
   externalTrafficPolicy: Cluster
-  loadBalancerIP: 192.168.1.100
-  loadBalancerSourceRanges:
-    - 192.168.1.0/24
-  externalIPs:
-    - 203.0.113.1
+  ## 控制NotReady的Pod是否要包含进Service，为true的话有可能导致流量损失
   publishNotReadyAddresses: false
   ipFamilyPolicy: SingleStack
   ipFamilies:
@@ -59,9 +54,55 @@ spec:
   healthCheckNodePort: 30009
 ```
 
+Service在kube-controller-manager中实际上没有单独的controller，而是被endpointslice-controller所控制。
+
 ### 2. Endpoints、EndpointSlice
 
-`EndpointSlice`是在k8s 1.9版本开始支持的
+`EndpointSlice`是在k8s 1.9版本开始默认支持的
+
+```yaml
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  annotations:
+    endpoints.kubernetes.io/last-change-trigger-time: "2022-08-19T03:32:20Z"
+  creationTimestamp: "2022-08-08T03:37:17Z"
+  generateName: python-server-headless-
+  generation: 27
+  labels:
+    endpointslice.kubernetes.io/managed-by: endpointslice-controller.k8s.io
+    kubernetes.io/service-name: python-server-headless
+    service.kubernetes.io/headless: ""
+  name: python-server-headless-5xvm5
+  namespace: net-test
+  ownerReferences:
+    - apiVersion: v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Service
+      name: python-server-headless
+      uid: fb7d24b3-c7cb-4b1a-8bc2-7caf2cb32101
+  resourceVersion: "6538663"
+  uid: d7475629-ac4f-46bc-9aeb-479417162ec3
+addressType: IPv4
+endpoints:
+- addresses:
+  - 10.100.58.221
+  conditions:
+    ready: true
+    serving: true
+    terminating: false
+  nodeName: k8s-node02
+  targetRef:
+    kind: Pod
+    name: python-server-65b886d59c-nnktx
+    namespace: net-test
+    uid: b3cf8828-5311-44cc-b9b1-6e8165f793f4
+ports:
+  - name: ""
+    port: 80
+    protocol: TCP
+```
 
 ## 二、Kube-Proxy的源码分析
 
