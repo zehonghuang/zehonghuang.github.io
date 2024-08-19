@@ -65,8 +65,8 @@ apiVersion: discovery.k8s.io/v1
 kind: EndpointSlice
 metadata:
   annotations:
+    ## 每一次Service或Pod改动都会update这个字段
     endpoints.kubernetes.io/last-change-trigger-time: "2022-08-19T03:32:20Z"
-  creationTimestamp: "2022-08-08T03:37:17Z"
   generateName: python-server-headless-
   generation: 27
   labels:
