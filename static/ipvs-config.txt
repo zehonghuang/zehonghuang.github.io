@@ -1,0 +1,17 @@
+-A -t k8s-master01:https -s rr
+-a -t k8s-master01:https -r apiserver.sz.lan:sun-sr-https -m -w 1
+-A -t k8s-master01:domain -s rr
+-a -t k8s-master01:domain -r 10.100.32.131:domain -m -w 1
+-a -t k8s-master01:domain -r 10.100.32.134:domain -m -w 1
+-A -t k8s-master01:9153 -s rr
+-a -t k8s-master01:9153 -r 10.100.32.131:9153 -m -w 1
+-a -t k8s-master01:9153 -r 10.100.32.134:9153 -m -w 1
+-A -t k8s-master01:https -s rr
+-a -t k8s-master01:https -r 10.100.32.132:spss -m -w 1
+-a -t k8s-master01:https -r 10.100.32.133:spss -m -w 1
+-A -t k8s-master01:5473 -s rr
+-a -t k8s-master01:5473 -r apiserver.sz.lan:5473 -m -w 1
+-a -t k8s-master01:5473 -r 10.0.17.7:5473 -m -w 1
+-A -u k8s-master01:domain -s rr
+-a -u k8s-master01:domain -r 10.100.32.131:domain -m -w 1
+-a -u k8s-master01:domain -r 10.100.32.134:domain -m -w 1

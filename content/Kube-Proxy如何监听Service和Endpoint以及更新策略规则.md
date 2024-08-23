@@ -9,7 +9,8 @@ tags = [
     "Kube-Proxy"
 ]
 categories = [
-    "Kubernetes"
+    "Kubernetes",
+    "Prometheus",
 ]
 +++
 
@@ -20,6 +21,8 @@ categories = [
 这三个API在不同版本下的Kube-Proxy发挥着主要作用，尤其是后两者。先上几个三个资源的常用配置一步步展开。
 
 ### 1. Service
+
+`Service`作用核心其实就是提供一个ClusterIP和域名的配置容器以及EP/EPS组织，并没有一个单独的controller进行管理，而是被endpointslice-controller所控制。
 
 ```yaml
 apiVersion: v1
@@ -54,11 +57,11 @@ spec:
   healthCheckNodePort: 30009
 ```
 
-Service在kube-controller-manager中实际上没有单独的controller，而是被endpointslice-controller所控制。
 
 ### 2. Endpoints、EndpointSlice
 
-`EndpointSlice`是在k8s 1.9版本开始默认支持的
+`EndpointSlice`是在k8s 1.19版本开始默认支持的，相较于`Endpoints`能支持更大规模部署，受限于etcd的value值大小，ep即一个Service只能部署6000个节点，
+而eps理论上可以无上限，并且eps支持网络拓扑，它可以根据集群节点的资源信息，按需部署Pod数量。
 
 ```yaml
 apiVersion: discovery.k8s.io/v1
