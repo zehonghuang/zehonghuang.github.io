@@ -61,7 +61,7 @@ spec:
 ### 2. Endpoints、EndpointSlice
 
 `EndpointSlice`是在k8s 1.19版本开始默认支持的，相较于`Endpoints`能支持更大规模部署，受限于etcd的value值大小，ep即一个Service只能部署6000个节点，
-而eps理论上可以无上限，并且eps支持网络拓扑，它可以根据集群节点的资源信息，按需部署Pod数量。
+而eps理论上可以无上限，并且eps支持网络拓扑，它可以根据集群节点的资源信息，按需部署Pod数量。具体文档在这[K8s文档-EndpointSlice](https://kubernetes.io/zh-cn/docs/concepts/services-networking/endpoint-slices/)
 
 ```yaml
 apiVersion: discovery.k8s.io/v1
@@ -96,6 +96,7 @@ endpoints:
     serving: true
     terminating: false
   nodeName: k8s-node02
+  ## 控制器基本上靠着这些信息对eps进行增删改查
   targetRef:
     kind: Pod
     name: python-server-65b886d59c-nnktx
@@ -108,6 +109,17 @@ ports:
 ```
 
 ## 二、Kube-Proxy的源码分析
+
+首先我们还是需要先认识一下Kube-Proxy的整体架构：
+
+- cmd/kube-proxy/app/server.go 这是程序主入口，对宿主机的参数和启动参数进行注入
+	- cmd/kube-proxy/app/server_linux.go 对应不同编译平台的代码，这里会继续设置部分协议栈的一些配置，如nf_conntrack、iptables等
+		- 这里就会应用到pkg/proxy中的各种 Proxy 创建器，根据不同设置有对应的代理
+		- pkg/proxy/iptables/proxier.go
+		- pkg/proxy/ipvs/proxier.go
+		- pkg/util/async/bounded_frequency_runner.go
+		- pkg/proxy/endpointschangetracker.go
+		- pkg/proxy/servicechangetracker.go
 
 <!--more-->
 
