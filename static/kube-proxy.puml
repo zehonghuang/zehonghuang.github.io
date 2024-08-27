@@ -19,4 +19,7 @@ main -> "app/server.go": CMD调用入口
 
 "infomer" -> "bounded_frequency_runner"
 
+"bounded_frequency_runner" --> "iptables/proxier.go"
+"bounded_frequency_runner" --> "ipvs/proxier.go"
+
 @enduml
