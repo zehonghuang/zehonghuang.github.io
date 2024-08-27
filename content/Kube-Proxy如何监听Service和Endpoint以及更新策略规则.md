@@ -115,12 +115,14 @@ ports:
 - cmd/kube-proxy/app/server.go 这是程序主入口，对宿主机的参数和启动参数进行注入
 	- cmd/kube-proxy/app/server_linux.go 对应不同编译平台的代码，这里会继续设置部分协议栈的一些配置，如nf_conntrack、iptables等
 		- 这里就会应用到pkg/proxy中的各种 Proxy 创建器，根据不同设置有对应的代理
-		- pkg/proxy/iptables/proxier.go
-		- pkg/proxy/ipvs/proxier.go
-		- pkg/util/async/bounded_frequency_runner.go
-		- pkg/proxy/endpointschangetracker.go
-		- pkg/proxy/servicechangetracker.go
-
+          - pkg/proxy/iptables/proxier.go 
+          - pkg/proxy/ipvs/proxier.go
+		- pkg/util/async/bounded_frequency_runner.go 这是控制更新iptables/ipvs的核心组件，可以自定义更新的频率窗口
+        - 两个资源的同步器，被绑定在infomer的回调函数上，用来存储监听到的缓存
+          - pkg/proxy/endpointschangetracker.go
+          - pkg/proxy/servicechangetracker.go
+          - 
+![kube-proxy.png](../images/kube-proxy.png)
 <!--more-->
 
 ### 1. Kube-Proxy的相关配置

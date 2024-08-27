@@ -30,6 +30,7 @@ add KUBE-CLUSTER-IP 10.96.0.10,udp:53
 add KUBE-CLUSTER-IP 10.96.0.10,tcp:53
 add KUBE-CLUSTER-IP 10.107.98.137,tcp:443
 add KUBE-CLUSTER-IP 10.108.73.191,tcp:5473
+add KUBE-CLUSTER-IP 10.98.135.192,tcp:80
 add KUBE-CLUSTER-IP 10.96.0.10,tcp:9153
 create KUBE-NODE-PORT-SCTP-HASH hash:ip,port family inet hashsize 1024 maxelem 65536
 create KUBE-NODE-PORT-LOCAL-SCTP-HASH hash:ip,port family inet hashsize 1024 maxelem 65536
@@ -42,6 +43,7 @@ create KUBE-IPVS-IPS hash:ip family inet hashsize 1024 maxelem 65536
 add KUBE-IPVS-IPS 10.96.0.1
 add KUBE-IPVS-IPS 10.108.73.191
 add KUBE-IPVS-IPS 10.107.98.137
+add KUBE-IPVS-IPS 10.98.135.192
 add KUBE-IPVS-IPS 10.96.0.10
 create KUBE-EXTERNAL-IP-LOCAL hash:ip,port family inet hashsize 1024 maxelem 65536
 create KUBE-LOAD-BALANCER hash:ip,port family inet hashsize 1024 maxelem 65536

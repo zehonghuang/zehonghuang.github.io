@@ -1,0 +1,22 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+
+actor "proxy.go" as main
+
+main -> "app/server.go": CMD调用入口
+
+"app/server.go" -> "app/server_linux.go": Authentication Request
+"app/server_linux.go" -> "iptables/proxier.go" : iptables的proxier
+"app/server_linux.go" -> "ipvs/proxier.go" : ipvs的proxier
+
+"iptables/proxier.go" -> "infomer"
+"ipvs/proxier.go" -> "infomer"
+
+"infomer" -> "servicechangetracker.go"
+"infomer" -> "endpointschangetracker.go"
+
+"infomer" -> "bounded_frequency_runner"
+
+@enduml
