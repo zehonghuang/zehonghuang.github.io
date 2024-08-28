@@ -121,11 +121,15 @@ ports:
         - 两个资源的同步器，被绑定在infomer的回调函数上，用来存储监听到的缓存
           - pkg/proxy/endpointschangetracker.go
           - pkg/proxy/servicechangetracker.go
-          - 
+
+下面是kube-proxy的代码主流程，没有太复杂的内容
+
 ![kube-proxy.png](../images/kube-proxy.png)
 <!--more-->
 
 ### 1. Kube-Proxy的相关配置
+
+config还是比较有价值的，能了解到iptables、conntrack的核心配置有哪些，常用几个选项除了Mode就是SyncPeriod相关的
 
 ```go
 package config
@@ -178,60 +182,62 @@ type KubeProxyConfiguration struct {
 
 ### 1.1 BoundedFrequencyRunner
 
+正如名称所说，这是一个有边界频率的任务执行器，会限制runner执行的qps，无法高频更新配置。
 
+```go
+func NewBoundedFrequencyRunner(name string, fn func(), minInterval, maxInterval time.Duration, burstRuns int) *BoundedFrequencyRunner {
+	// fn: 执行方法
+    // minInterval和burstRuns用于控制runner最高qps是多少，超过会合并至下一个interval执行。该值允许为0
+	// maxInterval则是最大周期，离上一次更新满足这个区间会自动tick
+	timer := &realTimer{timer: time.NewTimer(0)} // will tick immediately
+	<-timer.C()                                  // consume the first tick
+	return construct(name, fn, minInterval, maxInterval, burstRuns, timer)
+}
+
+// Make an instance with dependencies injected.
+func construct(name string, fn func(), minInterval, maxInterval time.Duration, burstRuns int, timer timer) *BoundedFrequencyRunner {
+	//...
+	// bfr := &BoundedFrequencyRunner{ ...
+	
+	if minInterval == 0 {
+		bfr.limiter = nullLimiter{}
+	} else {
+		// allow burst updates in short succession
+		qps := float32(time.Second) / float32(minInterval)
+		// flowcontrol是client-go中专门用于流量控制的工具库，提供了几种令牌实现工具
+		// 具体路径staging/src/k8s.io/client-go/util/flowcontrol/throttle.go
+		bfr.limiter = flowcontrol.NewTokenBucketRateLimiterWithClock(qps, burstRuns, timer)
+	}
+	return bfr
+}
+```
 
 ### 2. Informer的监听函数和Provider.SyncLoop()
 
+![Proxier继承图.png](../images/Proxier基础图.png)
 
 ```go
 package config
 // NodeHandler is an abstract interface of objects which receive
 // notifications about node object changes.
 type NodeHandler interface {
-	// OnNodeAdd is called whenever creation of new node object
-	// is observed.
 	OnNodeAdd(node *v1.Node)
-	// OnNodeUpdate is called whenever modification of an existing
-	// node object is observed.
 	OnNodeUpdate(oldNode, node *v1.Node)
-	// OnNodeDelete is called whenever deletion of an existing node
-	// object is observed.
 	OnNodeDelete(node *v1.Node)
-	// OnNodeSynced is called once all the initial event handlers were
-	// called and the state is fully propagated to local cache.
 	OnNodeSynced()
 }
 
-
 type ServiceHandler interface {
-	// OnServiceAdd is called whenever creation of new service object
-	// is observed.
 	OnServiceAdd(service *v1.Service)
-	// OnServiceUpdate is called whenever modification of an existing
-	// service object is observed.
 	OnServiceUpdate(oldService, service *v1.Service)
-	// OnServiceDelete is called whenever deletion of an existing service
-	// object is observed.
 	OnServiceDelete(service *v1.Service)
-	// OnServiceSynced is called once all the initial event handlers were
-	// called and the state is fully propagated to local cache.
 	OnServiceSynced()
 }
 
-// EndpointSliceHandler is an abstract interface of objects which receive
-// notifications about endpoint slice object changes.
 type EndpointSliceHandler interface {
-	// OnEndpointSliceAdd is called whenever creation of new endpoint slice
-	// object is observed.
 	OnEndpointSliceAdd(endpointSlice *discoveryv1.EndpointSlice)
-	// OnEndpointSliceUpdate is called whenever modification of an existing
-	// endpoint slice object is observed.
 	OnEndpointSliceUpdate(oldEndpointSlice, newEndpointSlice *discoveryv1.EndpointSlice)
-	// OnEndpointSliceDelete is called whenever deletion of an existing
-	// endpoint slice object is observed.
 	OnEndpointSliceDelete(endpointSlice *discoveryv1.EndpointSlice)
-	// OnEndpointSlicesSynced is called once all the initial event handlers were
-	// called and the state is fully propagated to local cache.
 	OnEndpointSlicesSynced()
 }
 
