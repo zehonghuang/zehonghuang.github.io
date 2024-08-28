@@ -3,20 +3,21 @@
 
 autonumber
 
-actor "proxy.go" as main
+actor "proxy.go" as main #red
 
 main -> "app/server.go": CMD调用入口，\n opts.Run(context.Background())这个函数\n中调用newProxyServer
 
 "app/server.go" -> "app/server_linux.go": newProxyServer其实就是createProxier创建proxy.Provider，\n 根据mode选择iptables/ipvs/nftables。\n Provider是个接口，实现类分别实现自己的 \nSync/SyncLoop方法
-"app/server_linux.go" -> "ipvs/iptables的proxier.go"
+"app/server_linux.go" -> "ipvs/iptables的proxier.go": 创建实例
 '
 "app/server.go" -> "informerFactory": 创建ProxyServer后\n在Run(ctx context.Context)分别启动Service/Slice的informer
 "informerFactory" -> "ipvs/iptables的proxier.go": 所有proxier都实现了ServiceHandler接口，\n而informer的监听方法都由该接口实现类实现
-"ipvs/iptables的proxier.go" -> "bounded_frequency_runner"
+"ipvs/iptables的proxier.go" -> "bounded_frequency_runner": 在NewProxier阶段把syncProxierRules方法交给bounded_frequency_runner
 
 "ipvs/iptables的proxier.go" -> "servicechangetracker.go": ServiceHandler接口实现类调用了\n(sct *ServiceChangeTracker) Update(previous, current *v1.Service)方法更新缓存
 
 "ipvs/iptables的proxier.go" -> "endpointschangetracker.go": ServiceHandler接口实现类调用了\n(ect *EndpointsChangeTracker) EndpointSliceUpdate(endpointSlice, removeSlice)方法更新缓存
 
+"informerFactory" -> "bounded_frequency_runner": informer的任意监听都会最终都会触发bounded_frequency_runner.run()方法
 
 @enduml
