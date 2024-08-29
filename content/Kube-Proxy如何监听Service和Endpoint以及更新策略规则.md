@@ -1,5 +1,5 @@
 +++
-title = 'Kube Proxy如何监听Service和Endpoint以及更新策略规则'
+title = '【长文】Kube Proxy如何监听Service和Endpoint以及更新策略规则'
 date = 2022-08-13T22:36:08+08:00
 draft = false
 tags = [
@@ -333,45 +333,22 @@ func (proxier *Proxier) syncProxyRules() {
 	proxier.mu.Lock()
 	defer proxier.mu.Unlock()
 
-	// don't sync rules till we've received services and endpoints
-	if !proxier.isInitialized() {
-		proxier.logger.V(2).Info("Not syncing iptables until Services and Endpoints have been received from master")
-		return
-	}
-
 	// The value of proxier.needFullSync may change before the defer funcs run, so
 	// we need to keep track of whether it was set at the *start* of the sync.
 	tryPartialSync := !proxier.needFullSync
 
-	// Keep track of how long syncs take.
 	start := time.Now()
 	defer func() {
-		metrics.SyncProxyRulesLatency.Observe(metrics.SinceInSeconds(start))
-		if tryPartialSync {
-			metrics.SyncPartialProxyRulesLatency.Observe(metrics.SinceInSeconds(start))
-		} else {
-			metrics.SyncFullProxyRulesLatency.Observe(metrics.SinceInSeconds(start))
-		}
-		proxier.logger.V(2).Info("SyncProxyRules complete", "elapsed", time.Since(start))
+		// metrics 统计该方法的执行时间
 	}()
 
 	serviceUpdateResult := proxier.svcPortMap.Update(proxier.serviceChanges)
 	endpointUpdateResult := proxier.endpointsMap.Update(proxier.endpointsChanges)
-
-	proxier.logger.V(2).Info("Syncing iptables rules")
-
+	
 	success := false
 	defer func() {
 		if !success {
-			proxier.logger.Info("Sync failed", "retryingTime", proxier.syncPeriod)
-			proxier.syncRunner.RetryAfter(proxier.syncPeriod)
-			if tryPartialSync {
-				metrics.IPTablesPartialRestoreFailuresTotal.Inc()
-			}
-			// proxier.serviceChanges and proxier.endpointChanges have already
-			// been flushed, so we've lost the state needed to be able to do
-			// a partial sync.
-			proxier.needFullSync = true
+			// 失败重试 -> metrics
 		}
 	}()
 
