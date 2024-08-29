@@ -212,53 +212,110 @@ func construct(name string, fn func(), minInterval, maxInterval time.Duration, b
 }
 ```
 
-### 2. Informer的监听函数和Provider.SyncLoop()
+### 2. Kube-Proxy核心，Proxier实现类
 
 ![Proxier继承图.png](../images/Proxier基础图.png)
 
+### 2.1 Informer回调方法
+
+下面几个接口都在`pkg/proxy/config/config.go`
 ```go
-package config
-// NodeHandler is an abstract interface of objects which receive
-// notifications about node object changes.
-type NodeHandler interface {
-	OnNodeAdd(node *v1.Node)
-	OnNodeUpdate(oldNode, node *v1.Node)
-	OnNodeDelete(node *v1.Node)
-	OnNodeSynced()
+type NodeHandler interface{}
+type ServiceHandler interface{
+    // 这个是Service监听回调的核心接口
+    OnServiceUpdate(oldService, service *v1.Service)
 }
+type EndpointSliceHandler interface{}
+// 这个是监听Service ClusterIP的分配区间
+type ServiceCIDRHandler interface{}
+```
+这里没什么好说的，只是调用链比较隐晦，都是通过同一个go文件下`RegisterEventHandler`方法注册进来的
 
-type ServiceHandler interface {
-	OnServiceAdd(service *v1.Service)
-	OnServiceUpdate(oldService, service *v1.Service)
-	OnServiceDelete(service *v1.Service)
-	OnServiceSynced()
-}
+### 2.2 Service、EndpointSlice的变化跟踪器
 
-type EndpointSliceHandler interface {
-	OnEndpointSliceAdd(endpointSlice *discoveryv1.EndpointSlice)
-	OnEndpointSliceUpdate(oldEndpointSlice, newEndpointSlice *discoveryv1.EndpointSlice)
-	OnEndpointSliceDelete(endpointSlice *discoveryv1.EndpointSlice)
-	OnEndpointSlicesSynced()
-}
+```go
+func (ect *EndpointsChangeTracker) EndpointSliceUpdate(endpointSlice *discovery.EndpointSlice, removeSlice bool) bool {
+	if !supportedEndpointSliceAddressTypes.Has(endpointSlice.AddressType) {
+		klog.V(4).InfoS("EndpointSlice address type not supported by kube-proxy", "addressType", endpointSlice.AddressType)
+		return false
+	}
 
-type ServiceCIDRHandler interface {
-    // OnServiceCIDRsChanged is called whenever a change is observed
-    // in any of the ServiceCIDRs, and provides complete list of service cidrs.
-    OnServiceCIDRsChanged(cidrs []string)
-}
+	// This should never happen
+	if endpointSlice == nil {
+		klog.ErrorS(nil, "Nil endpointSlice passed to EndpointSliceUpdate")
+		return false
+	}
 
-// Provider is the interface provided by proxier implementations.
-type Provider interface {
-	config.EndpointSliceHandler
-	config.ServiceHandler
-	config.NodeHandler
-	config.ServiceCIDRHandler
+	namespacedName, _, err := endpointSliceCacheKeys(endpointSlice)
+	if err != nil {
+		klog.InfoS("Error getting endpoint slice cache keys", "err", err)
+		return false
+	}
 
-	// Sync immediately synchronizes the Provider's current state to proxy rules.
-	Sync()
-	// SyncLoop runs periodic work.
-	// This is expected to run as a goroutine or as the main loop of the app.
-	// It does not return.
-	SyncLoop()
+	metrics.EndpointChangesTotal.Inc()
+
+	ect.lock.Lock()
+	defer ect.lock.Unlock()
+
+	changeNeeded := ect.endpointSliceCache.updatePending(endpointSlice, removeSlice)
+
+	if changeNeeded {
+		metrics.EndpointChangesPending.Inc()
+		// In case of Endpoints deletion, the LastChangeTriggerTime annotation is
+		// by-definition coming from the time of last update, which is not what
+		// we want to measure. So we simply ignore it in this cases.
+		// TODO(wojtek-t, robscott): Address the problem for EndpointSlice deletion
+		// when other EndpointSlice for that service still exist.
+		if removeSlice {
+			delete(ect.lastChangeTriggerTimes, namespacedName)
+		} else if t := getLastChangeTriggerTime(endpointSlice.Annotations); !t.IsZero() && t.After(ect.trackerStartTime) {
+			ect.lastChangeTriggerTimes[namespacedName] =
+				append(ect.lastChangeTriggerTimes[namespacedName], t)
+		}
+	}
+
+	return changeNeeded
 }
 ```
+
+dddd
+
+```go
+func (sct *ServiceChangeTracker) Update(previous, current *v1.Service) bool {
+	// This is unexpected, we should return false directly.
+	if previous == nil && current == nil {
+		return false
+	}
+
+	svc := current
+	if svc == nil {
+		svc = previous
+	}
+	metrics.ServiceChangesTotal.Inc()
+	namespacedName := types.NamespacedName{Namespace: svc.Namespace, Name: svc.Name}
+
+	sct.lock.Lock()
+	defer sct.lock.Unlock()
+
+	change, exists := sct.items[namespacedName]
+	if !exists {
+		change = &serviceChange{}
+		change.previous = sct.serviceToServiceMap(previous)
+		sct.items[namespacedName] = change
+	}
+	change.current = sct.serviceToServiceMap(current)
+	// if change.previous equal to change.current, it means no change
+	if reflect.DeepEqual(change.previous, change.current) {
+		delete(sct.items, namespacedName)
+	} else {
+		klog.V(4).InfoS("Service updated ports", "service", klog.KObj(svc), "portCount", len(change.current))
+	}
+	metrics.ServiceChangesPending.Set(float64(len(sct.items)))
+	return len(sct.items) > 0
+}
+```
+
+### 2.3 iptables的syncProxyRules
+
+### 2.4 ipvs的syncProxyRules
+
