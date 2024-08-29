@@ -84,22 +84,22 @@ copyright = "&copy; Copyright 2017 Foo Bar"
   series = "series"
 
 [[menu.main]]
-  name = "Categories"
+  name = "所有文章"
   weight = 1
-  identifier = "categories"
-  url = "/categories/"
-[[menu.main]]
-  name = "Tags"
-  weight = 2
-  identifier = "tags"
-  url = "/tags/"
-[[menu.main]]
-  name = "Archives"
-  weight = 3
   identifier = "archives"
   url = "/archives/"
 [[menu.main]]
-  name = "About"
+  name = "类别"
+  weight = 2
+  identifier = "categories"
+  url = "/categories/"
+[[menu.main]]
+  name = "标签"
+  weight = 3
+  identifier = "tags"
+  url = "/tags/"
+[[menu.main]]
+  name = "关于我"
   weight = 4
   identifier = "about"
   url = "/about/"
