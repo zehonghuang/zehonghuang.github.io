@@ -158,7 +158,7 @@ func allocateMemory(mb int) {
 	}
 }
 ```
-resource.limits.memory只给300m看看Pod的变化
+resource.limits.memory只给300m看看Pod的变化，以及查看节点的其他地方输出什么内容
 ```shell
 kubectl get pod -l app=go-oom-test -w
 NAME                               READY   STATUS     RESTARTS   AGE
@@ -169,9 +169,57 @@ go-oom-test-7d9977c468-g7c6v       0/1     OOMKilled  0          40s
 grep -i oom /var/log/syslog |grep kill
 Jul  6 16:10:47 kernel: [537752.873767] go-oom-test invoked oom-killer: gfp_mask=0xcc0(GFP_KERNEL), order=0, oom_score_adj=-997
 Jul  6 16:10:47 kernel: [537752.873800]  oom_kill_process.cold+0xb/0x10
+
+## dmesg也有oom日志
+[539381.757126] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=0f0ace7729716150acf57fcb9750f8199e8762c054912b944a3c436245cb9a43,mems_allowed=0-1,oom_memcg=/kubepods/poda41b2cd5-5451-4bbc-b740-c908d58d652e,task_memcg=/kubepods/poda41b2cd5-5451-4bbc-b740-c908d58d652e/0f0ace7729716150acf57fcb9750f8199e8762c054912b944a3c436245cb9a43,task=go-oom-test,pid=238343,uid=0
+[539381.757144] Memory cgroup out of memory: Killed process 238343 (go-oom-test) total-vm:3950264kB, anon-rss:204516kB, file-rss:1256kB, shmem-rss:0kB, UID:0 pgtables:488kB oom_score_adj:-997
+[539381.886383] oom_reaper: reaped process 238343 (go-oom-test), now anon-rss:0kB, file-rss:0kB, shmem-rss:0kB
+
+## prometheus的监控指标可以看到
+kube_pod_container_status_terminated_reason{reason="OOMKilled"}==1
+
+## 同时节点对应的kubelet也会上报
+kubectl describe node
+Events:
+  Type     Reason     Age    From     Message
+  ----     ------     ----   ----     -------
+  Warning  SystemOOM  6m57s  kubelet  System OOM encountered, victim process: go-oom-test, pid: 3419
 ```
 
-### 2. 懂得都懂
+### 2. 浅浅探究一下kubelet是如何监听并上报OOM的
+
+其实kubelet有一个叫oomWatcher的监听器，底层就是打开/dev/kmsg获取内核日志
+
+`kubernetes\pkg\kubelet\kubelet.go`处有`oomwatcher.NewWatcher(kubeDeps.Recorder)`初始化kmsg的分析器
+```go
+// kubernetes\vendor\github.com\euank\go-kmsg-parser\kmsgparser\kmsgparser.go
+func NewParser() (Parser, error) {
+	f, err := os.Open("/dev/kmsg")
+	if err != nil {
+		return nil, err
+	}
+
+	bootTime, err := getBootTime()
+	if err != nil {
+		return nil, err
+	}
+
+	return &parser{
+		log:        &StandardLogger{nil},
+		kmsgReader: f,
+		bootTime:   bootTime,
+	}, nil
+}
+```
+
+### 3. 一个容器中有多个进程那会怎么样呢？
+
+先说结论，只有1号进程oom之后的信息是能够同步到Pod的Status字段，OOMkilled状态，
+在一些复杂的业务场景，比如AI训练任务，通常是脚本启动训练进程。
+那么主服务在pod中不是1号进程了，这种case会导致oomKill信息不能正常显示。
+
+我们来做下实验就知道了，写个Bash启动一下
+
 ```shell
 #!/bin/bash
 
@@ -187,3 +235,23 @@ while true; do
     sleep 3600
 done
 ```
+
+再看看日志相关的信息，可以看出容器内内非1号进程（1号进程的child）OOM，（可能）不会导致pod的Failed
+```shell
+kubectl exec go-oom-test-subprocess-6db9764f46-hpdvw  -ti bash
+bash-5.1# ps
+PID   USER     TIME  COMMAND
+    1 root      0:00 bash ./startup.sh
+   11 root      0:00 ./go-oom-test
+   12 root      0:00 sleep 3600
+   16 root      0:00 bash
+   21 root      0:00 ps
+   
+kubectl get pod -l app=go-oom-test-subprocess
+NAME                                          READY   STATUS    RESTARTS   AGE
+go-oom-test-subprocess-6db9764f46-hz4hm   1/1     Running   0          6s
+
+Warning  SystemOOM  34s (x12 over 34m)  kubelet  (combined from similar events): System OOM encountered, victim process: go-oom-test, pid: 381348
+```
+
+## 三、应该如何弥补这个缺陷？
