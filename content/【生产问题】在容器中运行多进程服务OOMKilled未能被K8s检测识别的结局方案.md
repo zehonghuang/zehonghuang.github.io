@@ -255,3 +255,12 @@ Warning  SystemOOM  34s (x12 over 34m)  kubelet  (combined from similar events):
 ```
 
 ## 三、应该如何弥补这个缺陷？
+
+我们没办法去改变Pod的Status字段，只能通过metrics去补充这个异常情况。
+原来kube_pod_container_status_terminated_reason是读取的pod.status.containerStatuses.state.terminated.reason，类似以上情况，
+这个指标就无法满足我们的监控需求。
+
+### 1. 梳理一下机器上关于进程OOM信息
+
+
+
