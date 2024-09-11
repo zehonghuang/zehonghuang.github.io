@@ -70,7 +70,7 @@ jobs:
           # 切换到 gh-pages 分支（如果分支不存在，创建新的分支）
           if git rev-parse --verify origin/gh-pages; then
             git checkout gh-pages
-            git merge origin/gh-pages
+            git pull origin gh-pages
           else
             git checkout -b gh-pages
           fi
