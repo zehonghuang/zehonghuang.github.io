@@ -318,5 +318,11 @@ ctr -n k8s.io c info 8471f80af7984ef5d596dc9959c1d8f8b38fe0ac2b323dbbce301a05d83
 
 ## 四、实现一个oom-exporter
 
+### 1. 实现/dev/kmsg的OomWatcher
+
+### 2. 封装containerd客户端API
+
+### 3. 自定义Prometheus Collector
+
 
 
