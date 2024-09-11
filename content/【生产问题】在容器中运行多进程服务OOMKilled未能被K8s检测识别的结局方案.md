@@ -260,7 +260,63 @@ Warning  SystemOOM  34s (x12 over 34m)  kubelet  (combined from similar events):
 原来kube_pod_container_status_terminated_reason是读取的pod.status.containerStatuses.state.terminated.reason，类似以上情况，
 这个指标就无法满足我们的监控需求。
 
-### 1. 梳理一下机器上关于进程OOM信息
+### 1. 自定义一个metrics: kube_pod_container_oomkilled
+
+```shell
+kube_pod_container_oomkilled {
+  pod 
+  container ## 具体容器名称
+  image_name
+  namespace
+  node
+  process_name ## 容器里具体的进程名称
+}  1 ## 常量 1
+```
+
+### 2. 梳理一下机器上关于进程OOM信息
+
+/dev/kmsg的输出如下
+```shell
+6,2697,3812808832,-;oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=cri-containerd-8471f80af7984ef5d596dc9959c1d8f8b38fe0ac2b323dbbce301a05d836e45b.scope,mems_allowed=0,oom_memcg=/kubepods.slice/kubepods-pod57a0b3fe_c602_4585_b2f3_b07076fb3961.slice,task_memcg=/kubepods.slice/kubepods-pod57a0b3fe_c602_4585_b2f3_b07076fb3961.slice/cri-containerd-8471f80af7984ef5d596dc9959c1d8f8b38fe0ac2b323dbbce301a05d836e45b.scope,task=go-oom-test,pid=61436,uid=0
+```
+上面的日志信息只有`process_name`和cgroup id，那问题是怎么通过cgroup找到对应的container？
+
+```shell
+## 用ctr命令查询容器列表其实能看到container id，似乎和kmsg的cpuset能对应起来
+ctr -n k8s.io c ls
+CONTAINER                                                           IMAGE                                                          RUNTIME                  
+8471f80af7984ef5d596dc9959c1d8f8b38fe0ac2b323dbbce301a05d836e45b    registry.cn-hangzhou.aliyuncs.com/inmyimage/go-oom-test:v1     io.containerd.runc.v2    
+
+## 在看下用container id能查到什么？
+ctr -n k8s.io c info 8471f80af7984ef5d596dc9959c1d8f8b38fe0ac2b323dbbce301a05d836e45b
+{
+    "ID": "8471f80af7984ef5d596dc9959c1d8f8b38fe0ac2b323dbbce301a05d836e45b",
+    "Labels": {
+        "io.cri-containerd.kind": "container",
+        "io.kubernetes.container.name": "go-oom-test",
+        "io.kubernetes.pod.name": "go-oom-test-65b886d59c-2p57h",
+        "io.kubernetes.pod.namespace": "net-test",
+        "io.kubernetes.pod.uid": "7adc7989-b33d-44a1-b212-1edb88e2ffdd"
+    },
+    "Image": "registry.cn-hangzhou.aliyuncs.com/inmyimage/go-oom-test:v1",
+    "Runtime": {
+        "Name": "io.containerd.runc.v2",
+        "Options": {
+            "type_url": "containerd.runc.v1.Options",
+            "value": "SAE="
+        }
+    },
+```
+很显然`Labels`字段已经可以满足我们定义的`kube_pod_container_oomkilled`了。
+
+> 也就是说，我们有了以下思路：
+> 1. 通过监听/dev/kmsg的killed日志输出，匹配task=go-oom-test以及cpuset=cri-containerd-8471f80af7984ef5d596dc9959c1d8f8b38fe0ac2b323dbbce301a05d836e45b.scope
+> 2. 获取到container id后ctr -n k8s.io c info查到容器所在的pod信息
+> 3. 用prometheus/client_golang将信息push到监控系统
+
+可以直接用golang来实现以上思路
+
+## 四、实现一个oom-exporter
 
 
 
