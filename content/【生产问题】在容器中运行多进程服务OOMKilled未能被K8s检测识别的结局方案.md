@@ -327,7 +327,54 @@ type Exporter struct {
 
 ### 1. 实现/dev/kmsg的OomWatcher
 
+```go
+// monitorKmsg 持续监听 /dev/kmsg 文件中的内核日志
+func (e *Exporter) monitorKmsg() {
+	file, err := os.Open("/dev/kmsg")
+	if err != nil {
+		log.Fatalf("failed to open /dev/kmsg: %v", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for {
+		for scanner.Scan() {
+			line := scanner.Text()
+
+			// 简单示例：如果日志行包含 "error"，就增加计数器
+			if containsError(line) {
+				e.kmsgErrors.Inc() // 增加错误计数
+				log.Printf("Found error in kmsg: %s", line)
+			}
+		}
+
+		// 检查是否发生了错误
+		if err := scanner.Err(); err != nil {
+			log.Printf("Error reading /dev/kmsg: %v", err)
+			time.Sleep(5 * time.Second) // 暂停5秒，然后继续尝试读取
+		}
+	}
+}
+```
+
 ### 2. 封装containerd客户端API
+
+```go
+// GetContainerd 根据容器 ID 返回容器信息
+func (e *Exporter) GetContainerd(containerId string, namespace string) (containerd.Container, error) {
+    // 在指定的命名空间中获取容器
+    ctx := namespaces.WithNamespace(context.Background(), namespace)
+    
+    // 获取容器对象
+    container, err := e.client.LoadContainer(ctx, containerId)
+    if err != nil {
+        return containerd.Container{}, fmt.Errorf("failed to load container with ID %s: %w", containerId, err)
+    }
+    
+    return container, nil
+}
+
+```
 
 ### 3. 自定义Prometheus Collector
 
