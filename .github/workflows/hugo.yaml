@@ -62,25 +62,12 @@ jobs:
           git init
           git config --global user.email "gintonic.oneglass@gmail.com"
           git config --global user.name "zehonghuang"
-          
-          # 添加远程仓库并获取 gh-pages 分支的最新内容
           git remote add origin https://github.com/${{ github.repository }}.git
-          git fetch origin gh-pages
-
-          # 切换到 gh-pages 分支（如果分支不存在，创建新的分支）
-          if git rev-parse --verify origin/gh-pages; then
-            git checkout gh-pages
-            git pull origin gh-pages
-          else
-            git checkout -b gh-pages
-          fi
-
-          # 添加生成的文件并提交
+          git checkout -b gh-pages
+          echo "huangzehong.me" > CNAME
           git add .
           git commit -m "Deploy from GitHub Actions"
-
-          # 使用 --force-with-lease 推送，避免覆盖他人提交
-          git push --force-with-lease "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:gh-pages
+          git push --force "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:gh-pages
 
   # 部署作业
   deploy:
