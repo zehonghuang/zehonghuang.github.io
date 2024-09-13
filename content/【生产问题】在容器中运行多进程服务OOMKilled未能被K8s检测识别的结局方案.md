@@ -369,10 +369,58 @@ func (e *Exporter) encounterOOM(msg string)  {
     header := parts[0]
     message := parts[1]
 
+    if !strings.HasPrefix(message, "oom-kill:constraint=CONSTRAINT_MEMCG") {
+        // 如果不符合条件，跳过处理
+        return
+    }
+
     headerFields := strings.Split(header, ",")
     if len(headerFields) < 3 {
         return
     }
+    timestampMicroStr := headerFields[2]
+    timestampMicro, err := strconv.ParseInt(timestampMicroStr, 10, 64)
+    if err != nil {
+        return
+    }
+    
+    // 计算日志的发生时间
+    uptime := time.Duration(timestampMicro) * time.Microsecond
+    eventTime := time.Now().Add(-uptime)
+
+    // 3. 解析消息部分，提取需要的字段
+    fields := strings.Split(message, ",")
+    var (
+        containerIdStr   string
+        task          string
+    )
+
+    for _, field := range fields {
+        field = strings.TrimSpace(field)
+        if strings.HasPrefix(field, "cpuset=") {
+            containerIdStr = containerId(strings.TrimPrefix(field, "cpuset="))
+        }
+        if strings.HasPrefix(field, "task=") {
+            task = strings.TrimPrefix(field, "task=")
+        }
+    }
+}
+
+func containerId(cpuset string) string {
+    // 假设格式为 "cri-containerd-<ID>.scope"
+    // 首先去掉前缀 "cri-containerd-"，然后去掉后缀 ".scope"
+    
+    // 去掉前缀 "cri-containerd-"
+    if strings.HasPrefix(cpuset, "cri-containerd-") {
+        cpuset = strings.TrimPrefix(cpuset, "cri-containerd-")
+    }
+    
+    // 去掉后缀 ".scope"
+    if strings.HasSuffix(cpuset, ".scope") {
+        cpuset = strings.TrimSuffix(cpuset, ".scope")
+    }
+    
+    return cpuset
 }
 ```
 
