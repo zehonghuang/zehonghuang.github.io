@@ -320,16 +320,17 @@ ctr -n k8s.io c info 8471f80af7984ef5d596dc9959c1d8f8b38fe0ac2b323dbbce301a05d83
 
 ```go
 type Exporter struct {
-	client         *containerd.Client
-	oomContainer   *prometheus.Desc
+    NodeName           string
+	client             *containerd.Client
+	PromeMetricCache   *cache.Cache
 }
 ```
 
 ### 1. 实现/dev/kmsg的OomWatcher
 
 ```go
-// monitorKmsg 持续监听 /dev/kmsg 文件中的内核日志
-func (e *Exporter) monitorKmsg() {
+// kmsgWatcher 持续监听 /dev/kmsg 文件中的内核日志
+func (e *Exporter) kmsgWatcher(ctx context.Context) {
 	file, err := os.Open("/dev/kmsg")
 	if err != nil {
 		log.Fatalf("failed to open /dev/kmsg: %v", err)
@@ -338,22 +339,40 @@ func (e *Exporter) monitorKmsg() {
 
 	scanner := bufio.NewScanner(file)
 	for {
+        select {
+        case <-ctx.Done():
+            klog.Errorf("[receive.quit.signal.ReadKmesg.exit]")
+            return
+        default:
+        }
+		
 		for scanner.Scan() {
 			line := scanner.Text()
-
-			// 简单示例：如果日志行包含 "error"，就增加计数器
-			if containsError(line) {
-				e.kmsgErrors.Inc() // 增加错误计数
-				log.Printf("Found error in kmsg: %s", line)
-			}
+			// 负责解析日志发现OOM事件
+			go encounterOOM(line)
 		}
 
 		// 检查是否发生了错误
 		if err := scanner.Err(); err != nil {
-			log.Printf("Error reading /dev/kmsg: %v", err)
-			time.Sleep(5 * time.Second) // 暂停5秒，然后继续尝试读取
+            klog.Errorf("Error reading /dev/kmsg: %v", err)
+			time.Sleep(5 * time.Second)
 		}
 	}
+}
+
+func (e *Exporter) encounterOOM(msg string)  {
+    parts := strings.Split(msg, ";")
+    if len(parts) != 2 {
+        return
+    }
+
+    header := parts[0]
+    message := parts[1]
+
+    headerFields := strings.Split(header, ",")
+    if len(headerFields) < 3 {
+        return
+    }
 }
 ```
 
@@ -361,9 +380,9 @@ func (e *Exporter) monitorKmsg() {
 
 ```go
 // GetContainerd 根据容器 ID 返回容器信息
-func (e *Exporter) GetContainerd(containerId string, namespace string) (containerd.Container, error) {
+func (e *Exporter) GetContainerd(containerId string) (map[string]string, error) {
     // 在指定的命名空间中获取容器
-    ctx := namespaces.WithNamespace(context.Background(), namespace)
+    ctx := namespaces.WithNamespace(context.Background(), "k8s.io")
     
     // 获取容器对象
     container, err := e.client.LoadContainer(ctx, containerId)
@@ -371,7 +390,7 @@ func (e *Exporter) GetContainerd(containerId string, namespace string) (containe
         return containerd.Container{}, fmt.Errorf("failed to load container with ID %s: %w", containerId, err)
     }
     
-    return container, nil
+    return container.Labels(ctx), nil
 }
 
 ```
