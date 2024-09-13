@@ -404,6 +404,8 @@ func (e *Exporter) encounterOOM(msg string)  {
             task = strings.TrimPrefix(field, "task=")
         }
     }
+	
+	// TODO 获取containerd的信息
 }
 
 func containerId(cpuset string) string {
