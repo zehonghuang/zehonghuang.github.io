@@ -325,6 +325,19 @@ type Exporter struct {
 	PromeMetricCache   *cache.Cache
 	OOMInfoChan         chan OOMInfo
 }
+
+var conrtainerOOMKiiled = prometheus.NewDesc(
+    "kube_pod_container_oomkilled",
+    "fetch oom info from containerd",
+    []string{
+        "pod",
+        "container",
+        "image_name",
+        "namespace",
+        "node",
+        "process_name ",
+        "mem_limit_gibs",
+    }, nil)
 ```
 
 ### 1. 实现/dev/kmsg的OomWatcher
@@ -447,16 +460,42 @@ func containerId(cpuset string) string {
     return cpuset
 }
 ```
-...
+用异步的方式将解析出来的containerId塞入`OOMInfoChan`，consumer负责读取并调用containerd客户端，然后塞入Metrics的缓存种。
 
 ```go
-func (e *Exporter) Consumer() {
+func (e *Exporter) consumer() {
 	for oi range e.OOMInfoChan {
 	    labels, ok := e.GetContainerd(oi.ContainerId)
 		if !ok {
             continue	
         }
-		
+
+        /*
+          "Labels": {
+            "io.cri-containerd.kind": "container",
+            "io.kubernetes.container.name": "go-mem-allocate",
+            "io.kubernetes.pod.name": "go-mem-allocate-7d55b48cff-7rz7v",
+            "io.kubernetes.pod.namespace": "default",
+            "io.kubernetes.pod.uid": "6a7b65f8-a63e-48f1-90f9-ddca01411259"
+          },
+        */
+        podName := labels["io.kubernetes.pod.name"]
+        podNamespace := labels["io.kubernetes.pod.namespace"]
+        podUid := labels["io.kubernetes.pod.uid"]
+        containerName := labels["io.kubernetes.container.name"]
+		memLimitGibs := labels["resource.memory.limit"]
+
+        mc := prometheus.MustNewConstMetric(conrtainerOOMKiiled,
+            prometheus.GaugeValue, 1,
+            podName,
+            containerName,
+            oi.ImageName,
+            podNamespace,
+            p.NodeName,
+            oi.ProcessName,
+			memLimitGibs,
+        )
+		e.PromeMetricCache.SetDefault(key, mc)
     }
 }
 ```
@@ -474,6 +513,18 @@ func (e *Exporter) GetContainerd(containerId string) (map[string]string, bool) {
     if err != nil {
         return containerd.Container{}, false)
     }
+	
+	labels := container.Labels(ctx)
+	spec := container.Spec(ctx)
+	resource := spec.Linux.Resources
+    if resource != nil {
+        mem := resource.Memory
+        if mem != nil {
+            if mem.Limit != nil {
+                labels["resource.memory.limit"] = fmt.Sprintf("%.2f", float64(*mem.Limit)/float64(1024*1024*1024))
+            }
+        }
+	}
     
     return container.Labels(ctx), true
 }
@@ -483,19 +534,6 @@ func (e *Exporter) GetContainerd(containerId string) (map[string]string, bool) {
 ### 3. 自定义Prometheus Collector
 
 ```go
-var conrtainerOOMKiiled = prometheus.NewDesc(
-    "kube_pod_container_oomkilled",
-    "fetch oom info from containerd",
-    []string{
-    "pod",
-    "container",
-    "image_name",
-    "namespace",
-    "node",
-    "process_name ",
-    "mem_limit_gibs",
-    },
-    nil)
 type Collector interface {
     Describe(chan<- *Desc)
     Collect(chan<- Metric)
@@ -515,5 +553,8 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 }
 ```
 
+## 五、总结
 
-
+> 类似这个问题其实不仅仅存在于AI训练的服务中，任何能fork子进程并且母进程未做好进程管理，必定会出现这种情况。
+> 
+> 对于运维来说，无法去判断开发的代码是什么原因导致的这个问题，所以只能通过这种方式弥补Kubernetes监控的不足，加强集群的可观测性。
