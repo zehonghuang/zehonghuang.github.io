@@ -323,12 +323,26 @@ type Exporter struct {
     NodeName           string
 	client             *containerd.Client
 	PromeMetricCache   *cache.Cache
+	OOMInfoChan         chan OOMInfo
 }
 ```
 
 ### 1. 实现/dev/kmsg的OomWatcher
 
 ```go
+type OOMInfo struct {
+    Pid             int
+	ProcessName     string
+	TimeOfDeath     time.Time
+    CgroupsPath     string
+	Namespace       string
+	PodName         string
+	MemoryLimit     string
+	ContainerId     string
+	Container       string
+	ImageName       string
+}
+
 // kmsgWatcher 持续监听 /dev/kmsg 文件中的内核日志
 func (e *Exporter) kmsgWatcher(ctx context.Context) {
 	file, err := os.Open("/dev/kmsg")
@@ -392,7 +406,8 @@ func (e *Exporter) encounterOOM(msg string)  {
     fields := strings.Split(message, ",")
     var (
         containerIdStr   string
-        task          string
+        task             string
+		pid              string
     )
 
     for _, field := range fields {
@@ -403,9 +418,16 @@ func (e *Exporter) encounterOOM(msg string)  {
         if strings.HasPrefix(field, "task=") {
             task = strings.TrimPrefix(field, "task=")
         }
+		if strings.HasPreifx(field, "pid=") {
+            pid = strings.TrimPrefix(field, "pid=")
+        }
     }
 	
-	// TODO 获取containerd的信息
+	e.OOMInfoChan <- OOMInfo{
+	    	Pid:         pid
+			ProcessName: task
+			ContainerId: containerIdStr
+    }
 }
 
 func containerId(cpuset string) string {
@@ -425,27 +447,73 @@ func containerId(cpuset string) string {
     return cpuset
 }
 ```
+...
+
+```go
+func (e *Exporter) Consumer() {
+	for oi range e.OOMInfoChan {
+	    labels, ok := e.GetContainerd(oi.ContainerId)
+		if !ok {
+            continue	
+        }
+		
+    }
+}
+```
 
 ### 2. 封装containerd客户端API
 
 ```go
 // GetContainerd 根据容器 ID 返回容器信息
-func (e *Exporter) GetContainerd(containerId string) (map[string]string, error) {
+func (e *Exporter) GetContainerd(containerId string) (map[string]string, bool) {
     // 在指定的命名空间中获取容器
     ctx := namespaces.WithNamespace(context.Background(), "k8s.io")
     
     // 获取容器对象
     container, err := e.client.LoadContainer(ctx, containerId)
     if err != nil {
-        return containerd.Container{}, fmt.Errorf("failed to load container with ID %s: %w", containerId, err)
+        return containerd.Container{}, false)
     }
     
-    return container.Labels(ctx), nil
+    return container.Labels(ctx), true
 }
 
 ```
 
 ### 3. 自定义Prometheus Collector
+
+```go
+var conrtainerOOMKiiled = prometheus.NewDesc(
+    "kube_pod_container_oomkilled",
+    "fetch oom info from containerd",
+    []string{
+    "pod",
+    "container",
+    "image_name",
+    "namespace",
+    "node",
+    "process_name ",
+    "mem_limit_gibs",
+    },
+    nil)
+type Collector interface {
+    Describe(chan<- *Desc)
+    Collect(chan<- Metric)
+}
+
+func (e *Exporter) Describe(chan<- *Desc) {
+    ch <- conrtainerOOMKiiled
+}
+func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
+    for key, v := range e.PromeMetricCache.Items() {
+        key := key
+        
+        v := v
+        mv := v.Object.(prometheus.Metric)
+        ch <- mv
+    }
+}
+```
 
 
 
