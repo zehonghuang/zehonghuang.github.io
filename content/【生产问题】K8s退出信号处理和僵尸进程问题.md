@@ -81,6 +81,42 @@ func (c *Cmd) Run() error {
 
 ## 二、K8s中的僵尸进程
 
+可能有人会疑惑，PID不是也有自己的命名空间吗？容器中产生的僵尸进程，为什么会占用宿主机的进程表呢？
+尽管容器通过各种命名空间进行隔离，但所有的容器进程依然注册在宿主机的全局进程表中。可以做个实验看看
+
+```go
+func main() {
+	num := 0
+	for num < 36000 {
+		cmd := exec.Command("ls")
+		cmd.Start()
+
+		time.Sleep(1 * time.Second)
+		num++
+	}
+
+}
+```
+将这段程序部署在k8s
+```shell
+root@k8s-master01:~/defunct# kubectl get pod  -o wide |grep span
+go-defunct-span                            1/1     Running   0             3s      10.250.85.225   k8s-node01     <none>           <none>
+
+# 再回到Node上查看进程就一目了然了
+root@k8s-node01:~# ps -ef |grep defunct
+root       59042   58985  0 18:23 ?        00:00:00 ./defunct-span
+root       59058   59042  0 18:23 ?        00:00:00 [ls] <defunct>
+root       59061   59042  0 18:23 ?        00:00:00 [ls] <defunct>
+root       59063   59042  0 18:23 ?        00:00:00 [ls] <defunct>
+root       59064   59042  0 18:23 ?        00:00:00 [ls] <defunct>
+root       59065   59042  0 18:23 ?        00:00:00 [ls] <defunct>
+root       59066   59042  0 18:23 ?        00:00:00 [ls] <defunct>
+root       59071   59042  0 18:23 ?        00:00:00 [ls] <defunct>
+root       59072   59042  0 18:23 ?        00:00:00 [ls] <defunct>
+root       59074   49682  0 18:23 pts/0    00:00:00 grep --color=auto defunct
+```
+
+
 ## 三、如何处理集群中产生的僵尸进程？
 
 ### 1. 具体思路
