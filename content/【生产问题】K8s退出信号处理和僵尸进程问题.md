@@ -55,5 +55,32 @@ func main() {
 }
 ```
 
+直接运行上面程序的话，看`ps auxf`就能看到ls命令状态变成了Z+
+```shell
+root@k8s-master01:~# ps auxf |grep Z
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root      124345  0.0  0.0      0     0 pts/0    Z+   17:21   0:00  |               \_ [ls] <defunct>
+root      124348  0.0  0.0   6480  2228 pts/1    S+   17:21   0:00  |       \_ grep --color=auto Z
+root@k8s-master01:~# ps -ef |grep defunct
+root      124345  124340  0 17:21 pts/0    00:00:00 [ls] <defunct>
+root      124374  106213  0 17:21 pts/1    00:00:00 grep --color=auto defunct
+```
 
-## 二、
+Golang中如果要避免这种情况当然可以用`Run()`，只是主线程就不再是异步了
+```go
+
+// Run比 Start会多了一个 wait
+func (c *Cmd) Run() error {
+    if err := c.Start(); err != nil {
+        return err
+    }
+    return c.Wait()
+}
+```
+> 这里只是举个例子，实际编程可能会复杂很多
+
+## 二、K8s中的僵尸进程
+
+## 三、如何处理集群中产生的僵尸进程？
+
+### 1. 具体思路
