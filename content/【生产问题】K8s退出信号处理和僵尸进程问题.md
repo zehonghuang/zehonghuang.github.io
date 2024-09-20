@@ -119,7 +119,49 @@ root       59074   49682  0 18:23 pts/0    00:00:00 grep --color=auto defunct
 
 ## 三、如何处理集群中产生的僵尸进程？
 
+正如上文所说，僵尸进程危害还是比较明显的，尤其是对于多进程服务来说。所以我们需要有个后台程序来定期处理集群节点的僵尸进程，避免需要重启节点的可能性。
+
 ### 1. 具体思路
 
+> 1. 需要遍历进程找到Z+的进程PID，这一步可以通过/proc/{pid}/stat目录得到我们想用的信息
+> 2. 找到他的母进程，看看是不是k8s容器所产生的
+> 3. hold住数秒，看看是否还在
+> 4. 可以集成alert了，最后kill掉containerd-shim进程，让容器重启
+
 ### 2. 代码实现
+
+扫描`/proc/{pid}/stat`目录我们可以直接挪用prometheus的工具库`github.com/prometheus/procfs`
+```go
+func (c *Cleaner) Scan(ctx context.Context) {
+    allFs, err := procfs.NewFS("/proc")
+    if err != nil {
+        klog.Errorf("打开/proc目录错误:%v nodeName:%v", err, c.nodeName)
+        return
+    }
+    // 获取进程
+    allPs, err := allFs.AllProcs()
+    if err != nil {
+        klog.Errorf("获取进程错误:%v  nodeName:%v", err, c.nodeName)
+        return
+    }
+    allStatMap := sync.Map{}
+    zStatMap := sync.Map{}
+    dStatMap := sync.Map{}
+    for _, p := range allPs {
+        oneStat, err := p.Stat()
+        if err != nil {
+			continue
+        }
+        allStatMap.Store(p.PID, oneStat)
+        switch oneStat.State {
+        case "Z":
+            zStatMap.Store(p.PID, oneStat)
+            zNum++
+        case "D":
+            dStatMap.Store(p.PID, oneStat)
+            dNum++
+        }
+    }
+}
+```
 
