@@ -10,7 +10,7 @@ author = "Hugo Authors"
 - QQ：740762239
 - 邮箱：740762239@qq.com
 - Java开发入行两年后，工作原因逐渐转向运维开发、SRE
-- 五年的 Kubernetes 的运维经验，熟读
+- 五年+的 Kubernetes 的运维经验，曾在凉屋游戏、腾讯云Coding、屈臣氏中国等公司任职
 
 - 目前在做的事
     - 攻读redis 5.0源码
