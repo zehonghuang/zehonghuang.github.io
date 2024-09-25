@@ -4,13 +4,13 @@ date = 2020-09-24T16:23:15+08:00
 draft = false
 tags = [
     "云原生",
-    "Kubernetes",
-    "网络通讯",
-    "Kube-Proxy"
+    "Docker",
+    "镜像",
 ]
 categories = [
     "Kubernetes",
-    "Prometheus",
+    "Docker",
+    "云原生",
 ]
 +++
 
