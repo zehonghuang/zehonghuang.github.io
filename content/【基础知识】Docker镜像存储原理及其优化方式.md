@@ -65,6 +65,8 @@ ONBUILD RUN cd /app && npm install
 
 ```dockerfile
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+
+RUN --mount=type=bind,source=/path/to/local/.m2,target=/root/.m2 mvn install
 ```
 
 `COPY`和`ADD`都有一个link选项，用于让Docker在将文件或目录从宿主机复制到镜像时，创建**硬链接**而不是直接复制文件。
@@ -101,7 +103,9 @@ COPY --link --from=depot.ai/runwayml/stable-diffusion-v1-5 /v1-5-pruned.ckpt .
 后者影响着私有制品库的存储成本和集群部署时分发所占的网络带宽，一个项目可能有数百甚至上千个镜像。
 
 ### 1. 构建速度
-
+1. 构建效率上的优化其实有很多，最显而易见的就是缓存，例如`RUN --mount=type=bind`。 
+一般来说，**CI/CD都能通过labels为不同项目的构建指定执行机器**，这对于`maven`、`go mod`等项目构建有极大的帮助。
+2. 
 
 
 ### 2. 镜像大小
