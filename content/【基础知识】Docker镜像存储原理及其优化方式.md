@@ -51,22 +51,57 @@ EXPOSE 80
 # docker run --mount type=bind,source=<宿主机目录>,target=<容器内目录> <镜像名>
 VOLUME ["/data"]
 
-
+# ONBUILD 用于定义`延迟执行`的构建指令，即当该镜像被用作基础镜像来构建其他镜像时才会执行。一般情况下，它不会在构建当前镜像时触发。
+# 举我用到的场景：
+# 1. 同步私有仓库管理的config文件，可能有因为不同项目或者语言导致相同的配置数据出现异构
+# 2. 安装依赖包搭建编译环境
+# 一般来说都是在构建派生镜像时需要拉取最新配置或者依赖包时，可以通过ONBUILD降低派生镜像Dockerfile的复杂度
+ONBUILD COPY . /app
+ONBUILD RUN cd /app && npm install
 ```
+上面命令基本足够编写一个复杂的镜像构建脚本，但个别有一些高级选项，可以继续研究一下
 
 ### 2.基础指令上高阶用法
 
+```dockerfile
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+```
 
+`COPY`和`ADD`都有一个link选项，用于让Docker在将文件或目录从宿主机复制到镜像时，创建**硬链接**而不是直接复制文件。
+
+在普通Web项目里面很少用到，但在AI训练机器上会很常见，例如这里[Depot AI](https://depot.dev/blog/depot-ai)。
+因为AI的数据集非常庞大，不可能完全复制到镜像当中，这会导致构建的镜像过大而占用制品库空间，可以通过`link`的形式将文件链接到镜像的文件系统中。
+
+```dockerfile
+FROM python:3.10
+
+COPY --link --from=depot.ai/runwayml/stable-diffusion-v1-5 /v1-inference.yaml .
+COPY --link --from=depot.ai/runwayml/stable-diffusion-v1-5 /v1-5-pruned.ckpt .
+```
 
 ## 二、镜像构建原理，Layers之间的关系
+
+> 我觉得需要搞明白一件事情就是，Docker不是VM，任意基础镜像都不存在安装一个完整的操作系统。
 
 ![docker-image.png](../images/Docker-image.jpg)
 
 <!--more-->
 
+上图很经典的了，很好解释了宿主机、镜像、容器之间的关系
+
+- **bootfs/Kernel** > bootfs是Linux内核的引导器，负责加载内核和相关文件系统
+- **Base Image基础镜像** >
+- **Image layers** >
+- **Container**
+
 
 ## 三、镜像优化
 
+镜像优化一般有两个方向：构建速度、镜像大小，前者决定公司内部频繁构建时的效率，有时为了满足发版高峰期CI/CD需要增加若干台高配机器，
+后者影响着私有制品库的存储成本和集群部署时分发所占的网络带宽，一个项目可能有数百甚至上千个镜像。
+
 ### 1. 构建速度
+
+
 
 ### 2. 镜像大小
