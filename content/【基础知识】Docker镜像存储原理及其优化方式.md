@@ -111,7 +111,15 @@ COPY --link --from=depot.ai/runwayml/stable-diffusion-v1-5 /v1-5-pruned.ckpt .
 2. 不同公司对规范可能不太一样，对于最终的派生镜像Dockerfile而言，**尽量精简到只编译最终产物以及启动脚本，任何需要依赖下载的行为都在基础镜像提前做好**，
 例如在Base Image提前执行`mvn dependency:go-offline`之类的指令，结合`(1)`最大程度加快日常项目的构建速度。
 
-3. 较新版本的Docker有BuildKit这么一个功能，`DOCKER_BUILDKIT=1 docker build .`构建时可以临时启用，或者通过修改`/etc/docker/daemon.json`配置来启动。
+3. 善用镜像层，把`maven`、`go mod`之类的描述文件单独拷贝，并提前执行下载依赖。
+```dockerfile
+WORKDIR /workspace
+COPY go.mod .
+COPY go.sum .
+RUN go mod download
+```
+
+4. 较新版本的Docker有BuildKit这么一个功能，`DOCKER_BUILDKIT=1 docker build .`构建时可以临时启用，或者通过修改`/etc/docker/daemon.json`配置来启动。
 
 ### 2. 镜像大小
 
