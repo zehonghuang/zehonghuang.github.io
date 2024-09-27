@@ -21,7 +21,7 @@ categories = [
 可能是磁盘满了，无法创建和删除 pod
 
 处理建议是参考Kubernetes 最佳实践：[处理容器数据磁盘被写满](https://tencentcloudcontainerteam.github.io/tke-handbook/best-practice/kubernetes-best-practice-handle-disk-full.html)
-
+<!--more-->
 
 ## DeadlineExceeded
 
