@@ -63,6 +63,8 @@ ONBUILD RUN cd /app && npm install
 
 ### 2.基础指令上高阶用法
 
+`RUN`其实有两种缓存layer的方式，分别是
+
 ```dockerfile
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 
@@ -104,8 +106,12 @@ COPY --link --from=depot.ai/runwayml/stable-diffusion-v1-5 /v1-5-pruned.ckpt .
 
 ### 1. 构建速度
 1. 构建效率上的优化其实有很多，最显而易见的就是缓存，例如`RUN --mount=type=bind`。 
-一般来说，**CI/CD都能通过labels为不同项目的构建指定执行机器**，这对于`maven`、`go mod`等项目构建有极大的帮助。
-2. 
+一般来说，**CI/CD都能通过labels为不同类型、语言项目的构建指定执行机器**，这对于`maven`、`go mod`等项目构建有极大的帮助。
+
+2. 不同公司对规范可能不太一样，对于最终的派生镜像Dockerfile而言，**尽量精简到只编译最终产物以及启动脚本，任何需要依赖下载的行为都在基础镜像提前做好**，
+例如在Base Image提前执行`mvn dependency:go-offline`之类的指令，结合`(1)`最大程度加快日常项目的构建速度。
+
+3. 
 
 
 ### 2. 镜像大小
