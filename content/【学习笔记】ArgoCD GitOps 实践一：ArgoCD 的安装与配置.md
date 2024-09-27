@@ -39,3 +39,16 @@ resources:
 - install.yaml
 ```
 
+- `resources`里也可以直接引用 YAML 的 URL 下载地址，但不推荐，因为将 YAML 下到本地一方面可以避免因网络环境问题导致在某些环境部署失败，另一方面也方便后续升级时对比前后差异。
+- `patches`里引入自定义配置，对官方提供的 YAML 进行 patch，这里主要是对 ArgoCD 的 ConfigMap 进行 patch。
+
+创建`argocd-cm-patch`:
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+data:
+  application.instanceLabelKey: argocd.argoproj.io/instance
+  kustomize.buildOptions: --enable-helm --load-restrictor=LoadRestrictionsNone
+```
