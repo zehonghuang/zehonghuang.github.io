@@ -111,7 +111,23 @@ COPY --link --from=depot.ai/runwayml/stable-diffusion-v1-5 /v1-5-pruned.ckpt .
 2. 不同公司对规范可能不太一样，对于最终的派生镜像Dockerfile而言，**尽量精简到只编译最终产物以及启动脚本，任何需要依赖下载的行为都在基础镜像提前做好**，
 例如在Base Image提前执行`mvn dependency:go-offline`之类的指令，结合`(1)`最大程度加快日常项目的构建速度。
 
-3. 
-
+3. 较新版本的Docker有BuildKit这么一个功能，`DOCKER_BUILDKIT=1 docker build .`构建时可以临时启用，或者通过修改`/etc/docker/daemon.json`配置来启动。
 
 ### 2. 镜像大小
+
+1. 上一节说到**尽量精简到只编译最终产物**，这其实是对Dockerfile来说。但是镜像希望保留最终产物，比如可执行文件。
+```dockerfile
+# 第一阶段：构建应用
+FROM golang:1.16 AS builder
+WORKDIR /app
+COPY . .
+RUN go build -o myapp
+
+# 第二阶段：生产环境
+FROM alpine:latest
+WORKDIR /app
+COPY --from=builder /app/myapp .
+CMD ["./myapp"]
+```
+
+2. 第二个就是用`COPY --link --from=`，在需要引入大型文件的时候，是不太可能将其复制到镜像中的，所以通过宿主机目录映射到镜像文件系统才是解决途径。
