@@ -68,3 +68,17 @@ kubectl apply -k .
 ### 安装 argocd 命令行工具
 
 如果有`homebrew`，可以一键安装：
+```shell
+brew install argocd
+```
+也可以从 release 页面下载安装二进制: https://github.com/argoproj/argo-cd/releases
+
+### 暴露 ArgoCD API Server
+
+`argocd`命令行工具是与`argocd-server`通信来实现交互的，所以需要让`argocd`命令行工具访问到`argocd-server`暴露的端口，有以下几种方式。
+
+#### 使用 LoadBalancer Service 暴露
+
+#### 使用 Ingress 或 Gateway API 暴露
+
+#### 使用 kubectl port-forward
