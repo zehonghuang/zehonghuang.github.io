@@ -6,6 +6,7 @@ tags = [
     "云原生",
     "Kubernetes",
     "容器化",
+    "GitOps"
 ]
 categories = [
     "Kubernetes"

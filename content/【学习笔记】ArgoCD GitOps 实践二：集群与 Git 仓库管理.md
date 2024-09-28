@@ -1,5 +1,14 @@
 +++
 title = '【学习笔记】ArgoCD GitOps 实践二：集群与 Git 仓库管理'
-date = 2024-09-28T13:03:52+08:00
-draft = true
+date = 2022-07-05T20:43:26+08:00
+draft = false
+tags = [
+    "云原生",
+    "Kubernetes",
+    "容器化",
+    "GitOps"
+]
+categories = [
+    "Kubernetes"
+]
 +++
