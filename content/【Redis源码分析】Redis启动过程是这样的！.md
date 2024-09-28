@@ -2,13 +2,10 @@
 title = '【Redis源码分析】Redis启动过程是这样的！'
 date = 2020-07-21T10:18:45+08:00
 draft = false
-tags = [
+categories = [
     "redis",
     "Linux内核",
-    "Linux编程"
-]
-categories = [
-    "C/C++"
+    "C/C++",
 ]
 +++
 

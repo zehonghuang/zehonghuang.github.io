@@ -2,14 +2,11 @@
 title = '【JRaft源码分析02】心跳机制以及日志复制'
 date = 2021-03-14T10:17:55+08:00
 draft = false
-tags = [
+categories = [
     "CAP理论",
     "RAFT算法",
     "分布式一致性",
     "java"
-]
-categories = [
-    "分布式框架"
 ]
 +++
 

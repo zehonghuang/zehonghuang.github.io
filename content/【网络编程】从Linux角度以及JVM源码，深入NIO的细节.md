@@ -2,14 +2,11 @@
 title = '【网络编程】从Linux角度以及JVM源码，深入NIO的细节'
 date = 2020-01-07T10:51:17+08:00
 draft = false
-tags = [
+categories = [
     "NIO",
     "C/C++",
     "Linux内核",
     "网络编程"
-]
-categories = [
-    "Java"
 ]
 +++
 

@@ -2,13 +2,10 @@
 title = '【问题小排查】Pod状态一直Terminating'
 date = 2021-02-11T16:50:46+08:00
 draft = false
-tags = [
+categories = [
     "云原生",
     "Kubernetes",
     "容器化",
-]
-categories = [
-    "Kubernetes"
 ]
 +++
 

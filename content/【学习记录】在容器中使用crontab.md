@@ -2,11 +2,6 @@
 title = '【学习记录】在容器中使用crontab'
 date = 2021-05-07T15:38:15+08:00
 draft = false
-tags = [
-    "云原生",
-    "Docker",
-    "镜像",
-]
 categories = [
     "Kubernetes",
     "Docker",

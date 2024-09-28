@@ -2,14 +2,11 @@
 title = '【JRaft源码分析01】启用以及选举过程'
 date = 2021-03-04T10:18:15+08:00
 draft = false
-tags = [
+categories = [
     "CAP理论",
     "RAFT算法",
     "分布式一致性",
     "java"
-]
-categories = [
-    "分布式框架"
 ]
 +++
 

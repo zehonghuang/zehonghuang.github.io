@@ -2,13 +2,10 @@
 title = '【学习笔记】ArgoCD GitOps 实践一：ArgoCD 的安装与配置'
 date = 2022-07-23T23:43:26+08:00
 draft = false
-tags = [
+categories = [
     "云原生",
     "Kubernetes",
     "GitOps"
-]
-categories = [
-    "Kubernetes"
 ]
 +++
 

@@ -2,14 +2,11 @@
 title = '【生产问题】在容器中运行多进程服务OOMKilled未能被K8s检测识别的解决方案'
 date = 2022-11-23T16:17:10+08:00
 draft = false
-tags = [
+categories = [
     "云原生",
     "Kubernetes",
     "容器化",
     "Python", "AI训练"
-]
-categories = [
-    "Kubernetes"
 ]
 +++
 

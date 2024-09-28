@@ -2,14 +2,11 @@
 title = '【JRaft源码分析03】成员变化'
 date = 2021-03-17T10:14:50+08:00
 draft = false
-tags = [
+categories = [
     "CAP理论",
     "RAFT算法",
     "分布式一致性",
     "java"
-]
-categories = [
-    "分布式框架"
 ]
 +++
 

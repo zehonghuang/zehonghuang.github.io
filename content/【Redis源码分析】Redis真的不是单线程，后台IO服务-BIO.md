@@ -2,13 +2,10 @@
 title = '【Redis源码分析】Redis真的不是单线程，后台IO服务 BIO'
 date = 2020-07-24T10:18:33+08:00
 draft = false
-tags = [
+categories = [
     "redis",
     "Linux内核",
-    "Linux编程"
-]
-categories = [
-    "C/C++"
+    "C/C++",
 ]
 +++
 
