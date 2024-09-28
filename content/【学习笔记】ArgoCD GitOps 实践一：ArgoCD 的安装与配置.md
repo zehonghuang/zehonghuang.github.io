@@ -1,5 +1,5 @@
 +++
-title = '【学习】ArgoCD GitOps 实践一：ArgoCD 的安装与配置'
+title = '【学习笔记】ArgoCD GitOps 实践一：ArgoCD 的安装与配置'
 date = 2022-07-03T23:43:26+08:00
 draft = false
 tags = [
@@ -54,3 +54,17 @@ data:
   application.instanceLabelKey: argocd.argoproj.io/instance
   kustomize.buildOptions: --enable-helm --load-restrictor=LoadRestrictionsNone
 ```
+
+- kustomize 默认不支持引用本目录之外的资源，如果引用会报错，可通过`kustomize.buildOptions`让 ArgoCD 给 kustomize 传入`--load-restrictor=LoadRestrictionsNone`这个参数来允许这种引用。
+
+- argocd 默认会给管理的应用打上`app.kubernetes.io/instance`这个常见注解，而其它很多开源项目部署的应用也使用了这个注解，会导致冲突，通过`application.instanceLabelKey`配置项改成其它的注解以避免冲突。
+
+安装：
+```shell
+kubectl create namespace argocd
+kubectl apply -k .
+```
+
+### 安装 argocd 命令行工具
+
+如果有`homebrew`，可以一键安装：
