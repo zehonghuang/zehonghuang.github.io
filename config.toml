@@ -70,13 +70,13 @@ copyright = "&copy; Copyright 2017 Foo Bar"
 
 [[params.author.social]]
   name = "Custom social link1"
-  iclass = "fa-brands fa-github"
-  url = "https://example.com/whiteplain"
+  iclass = "fa-brands fa-github-alt"
+  url = "https://github.com/zehonghuang"
 
-[[params.author.social]]
-  name = "Custom social link2"
-  iclass = "fa-brands fa-google"
-  url = "https://example.com/whiteplain"
+#[[params.author.social]]
+#  name = "Custom social link2"
+#  iclass = "fa-brands fa-google"
+#  url = "https://example.com/whiteplain"
 
 [taxonomies]
   category = "categories"
