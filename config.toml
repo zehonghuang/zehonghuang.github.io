@@ -23,7 +23,7 @@ copyright = "&copy; Copyright 2017 Foo Bar"
   # Date format
   dateFormat = "2006-01-02"
   # Put images/favicon.ico file
-  #favicon = "images/favicon.ico"
+  favicon = "images/favicon.ico"
 
 # This is displayer in About page.
 [params.author]

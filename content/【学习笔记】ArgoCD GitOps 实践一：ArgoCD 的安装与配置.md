@@ -102,4 +102,38 @@ patches:
 
 #### 使用 Ingress 或 Gateway API 暴露
 
+如果你的集群有 Ingress 或 Gateway API 的实现，可以定义 Ingress 或 Gateway API 的资源来暴露 argocd-server。
+
 #### 使用 kubectl port-forward
+
+通常我们并不想将 argocd-server 暴露给其它人用，可以使用 kubectl port-forward 将 argocd-server 的端口转发到本机端口：
+
+```shell
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+```
+
+### 登录 ArgoCD
+
+ArgoCD 提供了命令行和网页两种方式来管理，且两种方式的访问入口地址是一致的，都可以实现相同的管理功能，不过我更推荐使用命令行的方式。
+
+#### 通过命令行工具登录
+
+argocd 安装时会自动生成 admin 的初始密码，确保 kubeconfig 的当前 context 指向的是 argocd 所在集群，使用以下命令获取初始密码:
+
+```shell
+argocd admin initial-password -n argocd
+```
+
+然后使用初始密码登录：
+```shell
+argocd login 127.0.0.1:8080
+```
+
+登录后建议修改下密码：
+```shell
+argocd account update-password
+```
+
+#### 通过网页登录
+
+与命令行登录类似，打开浏览器，输入 argocd-server 的访问地址（与命令行登录地址一致），然后输入用户名密码即可进入 argocd 管理页面。
