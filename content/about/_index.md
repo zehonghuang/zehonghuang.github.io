@@ -11,7 +11,3 @@ author = "Hugo Authors"
 - 邮箱：740762239@qq.com
 - Java开发入行两年后，工作原因逐渐转向运维开发、SRE
 - 五年+的 Kubernetes 的运维经验，曾在凉屋游戏、腾讯云Coding、屈臣氏中国等公司任职
-
-- 目前在做的事
-    - 攻读redis 5.0源码
-    - 在深入阅读SOFA-JRaft源码，后面先把笔记发上来，比较乱，记录思路而已。
