@@ -1,4 +1,4 @@
-baseurl = "https://example.com/"
+baseurl = "https://huangzehong.me/"
 title = "金汤力的Pit房"
 # themesDir = "../../"
 theme = ["whiteplain"]
@@ -17,6 +17,7 @@ copyright = "&copy; Copyright 2017 Foo Bar"
   [services.googleAnalytics]
     ID = 'G-16F0MHER15'
 [params]
+  baidu_analytics = "test"
   # useCDN = false
   # showShareIcons = true
   # Date format

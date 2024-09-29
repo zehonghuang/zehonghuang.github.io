@@ -76,6 +76,30 @@ brew install argocd
 
 #### 使用 LoadBalancer Service 暴露
 
+如果你的集群环境有 LoadBalancer Service 的实现，可以直接将`argocd-server`的 service 类型改成`LoadBalancer`:
+
+```shell
+kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}''
+```
+
+不过还是不建议直接用 kubectl 改，遵循 GitOps 理念，任何改动都应变成声明式的文件，如果用`kustomize`部署，可以像下面一样加下 patch：
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: argocd
+resources:
+  - install.yaml
+
+patches:
+  - target:
+      name: argocd-server
+      kind: Service
+    patch: |
+      - path: "/spec/type"
+        op: add
+        value: "LoadBalancer"
+```
+
 #### 使用 Ingress 或 Gateway API 暴露
 
 #### 使用 kubectl port-forward
