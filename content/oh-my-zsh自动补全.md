@@ -67,3 +67,19 @@ zsh-syntax-highlighting
 | zsh-autosuggestions  | 自动提示输入提示  |  https://github.com/zsh-users/zsh-autosuggestions |
 |  zsh-syntax-highlighting |  高亮命令输入 |  https://github.com/zsh-users/zsh-syntax-highlighting |
 |  zsh-history-substring-search |  查找匹配前缀的历史输入 |  https://github.com/zsh-users/zsh-history-substring-search |
+
+`zsh-autosuggestions`默认使用方向右键来将建议的历史填充到命令行输入，
+按这个键需要挪下右手，不方便，可以映射下，我这里使用`ctrl+space`
+
+```shell
+bindkey '^ ' autosuggest-accept
+```
+
+再给`zsh-history-substring-search`绑下快捷键，上下翻匹配输入前缀的历史输入，我这里使用`ctrl+n`和`ctrl+p`
+
+```shell
+bindkey -M emacs '^P' history-substring-search-up
+bindkey -M emacs '^N' history-substring-search-down
+```
+
+**注: 以上插件的快捷键绑定的配置写在`~/.zshrc`中`source $ZSH/oh-my-zsh.sh`这句下面的位置**
