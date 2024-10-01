@@ -34,9 +34,17 @@ categories = [
 7. 深入看内核代码，当磁盘满的时候会调用 flush 刷磁盘所有数据，这个会一直在内核态运行很久，相当于对这个文件系统做 sync。
 ![img.png](../images/img02.png)
 
+8. 节点上 df -h 看并没有磁盘满。
 
+9. 容器内 df -h 看根目录空间满了.
+![img.png](../images/img03.png)
 
+10. 看到 docker daemon.json 配置，限制了容器内 rootfs 最大只能占用 200G
+![img_1.png](../images/img04.png)
 
+11. 容器内一级级的 du -sh * 排查发现主要是一个 nohup.log 文件占满了磁盘。
 
+### 结论
 
+容器内空间满了继续写数据会导致内核不断刷盘对文件系统同步，会导致内核态 CPU 占用升高，设置了 cpu limit 通常会被 throttle，导致服务处理慢，影响业务。
 
