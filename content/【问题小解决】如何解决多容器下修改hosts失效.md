@@ -2,6 +2,11 @@
 title = '【问题小解决】如何解决多容器下修改hosts失效'
 date = 2023-06-22T20:24:18+08:00
 draft = false
+categories = [
+    "云原生",
+    "Kubernetes",
+    "容器化",
+]
 +++
 
 ### 问题现象
