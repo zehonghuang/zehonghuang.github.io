@@ -33,6 +33,8 @@ categories = [
 
 如果只是某一个 workload 需要 hosts，可以用 HostAliases:
 
+<!--more-->
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
