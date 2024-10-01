@@ -36,17 +36,17 @@ categories = [
 
 ![img.png](../images/img02.png)
 
-8. 节点上 df -h 看并没有磁盘满。
+8. 节点上`df -h`看并没有磁盘满。
 
-9. 容器内 df -h 看根目录空间满了.
+9. 容器内`df -h`看根目录空间满了.
 
 ![img.png](../images/img03.png)
 
-10. 看到 docker daemon.json 配置，限制了容器内 rootfs 最大只能占用 200G
+10. 看到`docker daemon.json`配置，限制了容器内 rootfs 最大只能占用 200G
 
 ![img_1.png](../images/img04.png)
 
-11. 容器内一级级的 du -sh * 排查发现主要是一个 nohup.log 文件占满了磁盘。
+11. 容器内一级级的`du -sh *`排查发现主要是一个 nohup.log 文件占满了磁盘。
 
 ### 结论
 
