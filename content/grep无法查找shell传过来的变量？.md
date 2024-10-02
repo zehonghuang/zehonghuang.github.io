@@ -34,3 +34,33 @@ categories = [
 [12 11 2014 19:25,198 INFO] userId:0003 gilettype:2
 ```
 <!--more-->
+
+3. 现在他要求循环取出 userid.txt 中每一行 ID 值，然后去 record.txt 去查找并保存结果。
+
+实现这个需求原本很简单，根本难不倒他，只要使用 while read + grep 就能搞定。可问题是明明 record.txt 里面包含这些 id，却无法输出结果？？
+
+我顺便写了一个测试脚本测试了下：
+```shell
+#!/bin/bash
+while read userId;
+do
+        echo $userId
+        grep $userId record.txt
+done <userid.txt
+```
+发现脚本可以打印 echo $userId，却无法 grep 到？？而实际上 record.txt 里面是有这个 id 的！还真诡异！
+
+先百度搜索了一下【grep 无法搜索变量】，还真有不少类似问题，比如：http://bbs.chinaunix.net/thread-123113-1-1.html
+
+根据经验，对于这种诡异的问题，我首先会想到是不是系统有问题，要是系统有问题你怎么折腾都是错！
+
+于是把他的文件拷贝到其他服务器，发现居然可以了！！！难道真是系统问题么？
+
+第一台是 SUSE Linux，第二台是 Centos，难道和系统发行版有关系？
+
+后来，同事在第二台服务器上完成了他的项目。但这个问题却一直留在我的脑子里，挥之不去。
+
+---
+
+周末，我决定再次研究下这个问题，看看是不是有其他原因。我先在那台 SUSE Linux 上，手工编写所需文件：
+
