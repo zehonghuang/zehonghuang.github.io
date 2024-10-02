@@ -2,9 +2,9 @@
 <script>
     function encodePlantUML(text) {
         var data = unescape(encodeURIComponent(text));
-        var deflated = pako.deflate(data, { level: 9 });
-        var encoded = encode64(deflated);
-        return "~1" + encoded;
+        var deflated = pako.deflate(text, { level: 9 });
+        var encoded = Base64.encode(deflated, true);
+        return "" + encoded;
     }
 
     function encode64(bytes) {
@@ -36,5 +36,5 @@
 
     var pumlCode = `{{ .Inner }}`;
     var encodedUML = encodePlantUML(pumlCode);
-    document.getElementById('plantuml').innerHTML = '<img src="https://www.plantuml.com/plantuml/svg/' + encodedUML + '" alt="PlantUML diagram">';
+    document.getElementById('plantuml').innerHTML = '<img src="https://www.plantuml.com/plantuml/png/' + encodedUML + '" alt="PlantUML diagram">';
 </script>

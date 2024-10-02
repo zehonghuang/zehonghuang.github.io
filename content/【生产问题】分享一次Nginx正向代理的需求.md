@@ -12,12 +12,4 @@ categories = [
 
 部门的生产环境异常复杂，有部分第三方引入的系统位于特殊网络隔离区域，请求这些系统需要通过 2 层网络代理，如图所示：
 
-{{< plantuml >}}
-@startuml
-Alice -> Bob: Hello
-Bob --> Alice: Hi
-@enduml
-{{< /plantuml >}}
-
-
 ![12](../images/12.png)
