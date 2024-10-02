@@ -1,0 +1,40 @@
+<div id="plantuml"></div>
+<script>
+    function encodePlantUML(text) {
+        var data = unescape(encodeURIComponent(text));
+        var deflated = pako.deflate(data, { level: 9 });
+        var encoded = encode64(deflated);
+        return "~1" + encoded;
+    }
+
+    function encode64(bytes) {
+        var base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+        var result = '';
+        var i, current;
+        for (i = 0; i < bytes.length; i += 3) {
+            if (i + 2 == bytes.length) {
+                current = (bytes[i] << 16) | (bytes[i + 1] << 8);
+                result += base64Chars[(current >> 18) & 63];
+                result += base64Chars[(current >> 12) & 63];
+                result += base64Chars[(current >> 6) & 63];
+                result += '=';
+            } else if (i + 1 == bytes.length) {
+                current = (bytes[i] << 16);
+                result += base64Chars[(current >> 18) & 63];
+                result += base64Chars[(current >> 12) & 63];
+                result += '==';
+            } else {
+                current = (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2];
+                result += base64Chars[(current >> 18) & 63];
+                result += base64Chars[(current >> 12) & 63];
+                result += base64Chars[(current >> 6) & 63];
+                result += base64Chars[current & 63];
+            }
+        }
+        return result;
+    }
+
+    var pumlCode = `{{ .Inner }}`;
+    var encodedUML = encodePlantUML(pumlCode);
+    document.getElementById('plantuml').innerHTML = '<img src="https://www.plantuml.com/plantuml/svg/' + encodedUML + '" alt="PlantUML diagram">';
+</script>
