@@ -4,9 +4,7 @@ date = 2020-09-29T17:21:23+08:00
 draft = false
 categories = [
     "Kubernetes",
-    "云原生",
-    "网络通讯",
-    "CNI"
+    "问题小排查",
 ]
 +++
 

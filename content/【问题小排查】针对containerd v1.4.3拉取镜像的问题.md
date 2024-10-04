@@ -4,8 +4,7 @@ date = 2021-06-11T15:06:48+08:00
 draft = false
 categories = [
     "Kubernetes",
-    "Containerd",
-    "云原生",
+    "问题小排查",
 ]
 +++
 

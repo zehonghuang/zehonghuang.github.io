@@ -1,12 +1,10 @@
 +++
-title = '【长文】详细梳理Kubernetes的网络模型，总结网络故障排查核心思路'
+title = '【深度解析】详细梳理Kubernetes的网络模型，总结网络故障排查核心思路'
 date = 2022-07-03T14:26:11+08:00
 draft = false
 categories = [
-    "云原生",
+    "深度解析",
     "Kubernetes",
-    "网络通讯",
-    "CNI"
 ]
 +++
 

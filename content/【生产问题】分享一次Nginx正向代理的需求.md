@@ -4,7 +4,8 @@ date = 2020-04-17T11:26:41+08:00
 draft = false
 categories = [
     "Linux",
-    "Nginx"
+    "Nginx",
+    "生产问题"
 ]
 +++
 
