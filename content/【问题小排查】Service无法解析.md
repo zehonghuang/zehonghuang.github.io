@@ -38,7 +38,7 @@ Endpoints:         172.16.0.156:53,172.16.0.167:53
 $ kubectl -n kube-system get pod -o wide | grep 172.16.0.156  
 kube-dns-898dbbfc6-hvwlr            3/3       Running   0          8d        172.16.0.156   10.0.0.3
 ```
-
+<!--more-->
 
 ### dns 服务正常，pod 与 dns 服务之间网络不通
 
