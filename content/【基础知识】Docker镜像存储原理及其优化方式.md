@@ -81,7 +81,7 @@ COPY --link --from=depot.ai/runwayml/stable-diffusion-v1-5 /v1-5-pruned.ckpt .
 
 > 我觉得需要搞明白一件事情就是，Docker不是VM，任意基础镜像都不存在安装一个完整的操作系统。
 
-![docker-image.png](../images/Docker-image.jpg)
+![docker-image.png](images/Docker-image.jpg)
 
 <!--more-->
 
