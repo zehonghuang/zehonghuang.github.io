@@ -118,7 +118,7 @@ ports:
 
 下面是kube-proxy的代码主流程，没有太复杂的内容
 
-![kube-proxy.png](../images/kube-proxy.png)
+![kube-proxy.png](/images/kube-proxy.png)
 <!--more-->
 
 ### 1. Kube-Proxy的相关配置
@@ -210,7 +210,7 @@ func construct(name string, fn func(), minInterval, maxInterval time.Duration, b
 
 每个interface都有个XXXSynced()的方法，写过控制器的都知道`cache.WaitForNamedCacheSync()`，其实是为了infomer.start()后第一次拉去apiserver准备的，同步本地缓存后才执行
 
-![Proxier继承图.png](../images/Proxier基础图.png)
+![Proxier继承图.png](/images/Proxier基础图.png)
 
 ### 2.1 Informer回调方法
 
