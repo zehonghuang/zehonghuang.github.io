@@ -46,3 +46,40 @@ spec:
 
 - CPU 的扩缩容策略是`NotRequired`，即不重启 Pod；
 - 内存的扩缩容策略是`RestartContainer`，即重启 Pod。
+  
+将上述内容提交到 Kubernetes 中运行。启动之后，如果运行`kubectl get po stress -o yaml`，会发现状态字段中加入了如下内容：
+
+```yaml
+- allocatedResources:
+    cpu: 200m
+    memory: 200Mi
+```
+
+说明此时分配给容器的资源。如果这时候对 CPU 进行修改，例如修改为：
+
+```yaml
+resources:
+  limits:
+    cpu: 800m
+    memory: 200Mi
+  requests:
+    cpu: 100m
+    memory: 100Mi
+```
+
+修改后查看 Pod 列表，会发现 Pod 没有重启：
+
+```shell
+$ kubectl get pods
+NAME    READY   STATUS    RESTARTS   AGE
+stress   1/1     Running   0          4m14s
+```
+重新获取 YAML，会看到状态字段的一些变化：
+
+1. `resize: InProgress`：表示正在扩缩容；
+2. 当前分配的资源也发生了变化
+```yaml
+- allocatedResources:
+  cpu: 100m
+  memory: 100Mi
+```
