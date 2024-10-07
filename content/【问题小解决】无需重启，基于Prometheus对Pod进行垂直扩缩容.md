@@ -46,7 +46,8 @@ spec:
 
 - CPU 的扩缩容策略是`NotRequired`，即不重启 Pod；
 - 内存的扩缩容策略是`RestartContainer`，即重启 Pod。
-  
+<!--more-->
+
 将上述内容提交到 Kubernetes 中运行。启动之后，如果运行`kubectl get po stress -o yaml`，会发现状态字段中加入了如下内容：
 
 ```yaml
