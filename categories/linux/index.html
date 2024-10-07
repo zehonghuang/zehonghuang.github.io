@@ -1,0 +1,150 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>Linux - 金汤力的Pit房</title>
+<meta property="og:title" content="Linux - 金汤力的Pit房"><meta name=twitter:title content="Linux - 金汤力的Pit房"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="金汤力的Pit房"><meta property="og:url" content="/categories/linux/"><meta property="og:type" content="website"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><link href=/categories/linux/index.xml rel=alternate type=application/rss+xml title=金汤力的Pit房><link href=/categories/linux/index.xml rel=feed type=application/rss+xml title=金汤力的Pit房><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>金汤力的Pit房</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><section class="list term-list"><article class=article><a href=/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E6%97%B6%E9%9A%94%E5%A4%A7%E5%8D%8A%E5%B9%B4%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E5%8F%8D%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/ class=article-titles><h2 class=article-title>【生产问题】时隔大半年，分享一次Nginx反向代理的需求</h2></a><ul class=article-meta><li class=article-meta-date><time>2020-11-13</time></li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/nginx/><i class="fa-solid fa-folder"></i>
+Nginx
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98/><i class="fa-solid fa-folder"></i>
+生产问题
+</a>&nbsp;</li></ul><div class=article-content><blockquote><p>博客前面分享了一篇<a href=https://huangzehong.me/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E6%AD%A3%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/>《分享一个 Nginx 正向代理的另类应用案例》</a>，时隔不久，身为救火队员、万金油的博主又再一次接到了一个奇葩需求：</p></blockquote><blockquote><p>场景和上次有些类似，也是部门引进的第三方应用，部署在各个网络区域，从 OA 办公区域无法直接访问。目前，运营人员都需要登陆 Windows 跳板机，才能打开这些应用的 WEB 控制台。既不方便，而且还有一定 Windows 服务器的维护工作量，于是找到我们团队，希望通过运维手段来解决。</p></blockquote><p>拿到这个需求后，我先问了下各个应用的基本情况，得知每个应用的框架基本是一样的，都是通过 IP+端口直接访问，页面 path 也基本一样，没有唯一性。然后拿到了一个应用 WEB 控制台地址看了下，发现 html 引用的地址都是相对路径。</p><p>乍一想，这用 Nginx 代理不好弄吧？页面 path 一样，没法根据 location 来反代到不同的后端，只能通过不同 Nginx 端口来区分，那就太麻烦了！每次他们新上一个应用，我们就得多加一个新端口来映射，这种的尾大不掉、绵绵不绝事情坚决不干，Say pass。</p><p>再一想，我就想到了上次那个正向代理另类应用方案，感觉可以拿过来改改做动态代理。原理也简单：先和用户约定一个访问形式，比如:</p><blockquote><p>Nginx 代理地址为 myproxy.oa.com，需要代理到 IP 为 192.168.2.100:8080 的控制器，用户需要访问 <a href=http://myproxy.oa.com/192.168.2.100:8080/path>http://myproxy.oa.com/192.168.2.100:8080/path</a>。</p></blockquote></div><div class=article-readmore><a href=/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E6%97%B6%E9%9A%94%E5%A4%A7%E5%8D%8A%E5%B9%B4%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E5%8F%8D%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5linux%E4%BB%BB%E5%8A%A1%E8%AE%A1%E5%88%92crontab%E4%B8%8D%E6%89%A7%E8%A1%8C%E7%9A%84%E9%97%AE%E9%A2%98%E6%8E%92%E6%9F%A5/ class=article-titles><h2 class=article-title>【问题小排查】Linux任务计划crontab不执行的问题排查</h2></a><ul class=article-meta><li class=article-meta-date><time>2020-08-03</time></li><li class=article-meta-categories><a href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5/><i class="fa-solid fa-folder"></i>
+问题小排查
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li></ul><div class=article-content><p>朋友弄了一个小项目，要我帮忙做下 Linux 系统运维，上线一段时间后，发现项目偶尔会挂掉导致服务不可用。
+开发朋友一时之间也没空去研究项目奔溃的根因，只好由我这个运维先写一个项目进程自拉起脚本，
+通过 Linux 任务计划每分钟检查一下进程是否存在来避免项目挂了没人管的情况。</p><p>自拉起脚本很简单，随便写几行就搞定了：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=cp>#!/bin/bash
+</span></span></span><span class=line><span class=cl><span class=cp></span><span class=nv>processcount</span><span class=o>=</span><span class=k>$(</span>pgrep my_app<span class=p>|</span>wc -l<span class=k>)</span>
+</span></span><span class=line><span class=cl><span class=nb>cd</span> <span class=k>$(</span><span class=nb>cd</span> <span class=k>$(</span>dirname <span class=nv>$0</span><span class=k>)</span> <span class=o>&amp;&amp;</span> <span class=nb>pwd</span><span class=k>)</span>
+</span></span><span class=line><span class=cl><span class=k>if</span> <span class=o>[[</span> <span class=m>0</span> -eq <span class=nv>$processcount</span> <span class=o>]]</span>
+</span></span><span class=line><span class=cl><span class=k>then</span>
+</span></span><span class=line><span class=cl>        <span class=nb>echo</span> <span class=s2>&#34;[ </span><span class=k>$(</span>date<span class=k>)</span><span class=s2> ] : my_app is down, start it!&#34;</span> <span class=p>|</span> tee -ai ./checkprocess.log
+</span></span><span class=line><span class=cl>        bash ./start.sh <span class=c1>#这里是项目的重启脚本</span>
+</span></span><span class=line><span class=cl><span class=k>else</span>
+</span></span><span class=line><span class=cl>        <span class=nb>echo</span> my_app is OK!
+</span></span><span class=line><span class=cl><span class=k>fi</span>
+</span></span></code></pre></td></tr></table></div></div><p>然后丢到 crontab，1 分钟执行一次：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>* * * * * bash /data/app_server/checkprocess.sh &gt;/dev/null 2&gt;<span class=p>&amp;</span><span class=m>1</span>
+</span></span></code></pre></td></tr></table></div></div><p>-_-不过进程还是挂了</p></div><div class=article-readmore><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5linux%E4%BB%BB%E5%8A%A1%E8%AE%A1%E5%88%92crontab%E4%B8%8D%E6%89%A7%E8%A1%8C%E7%9A%84%E9%97%AE%E9%A2%98%E6%8E%92%E6%9F%A5/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E6%AD%A3%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/ class=article-titles><h2 class=article-title>【生产问题】分享一次Nginx正向代理的需求</h2></a><ul class=article-meta><li class=article-meta-date><time>2020-04-17</time></li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/nginx/><i class="fa-solid fa-folder"></i>
+Nginx
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98/><i class="fa-solid fa-folder"></i>
+生产问题
+</a>&nbsp;</li></ul><div class=article-content><blockquote><p>最近接到了一个需求：通过 Nginx 代理把现网一个自研代理程序给替换掉，感觉有点意思，也有所收益，简单分享下。</p></blockquote><h3 id=需求背景>需求背景</h3><p>部门的生产环境异常复杂，有部分第三方引入的系统位于特殊网络隔离区域，请求这些系统需要通过 2 层网络代理，如图所示：</p><p><img src=/images/12.png alt=12></p><p>中心源系统请求目标系统 API 的形式各异，我简单收集了下，至少有如下 3 种：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>curl --digest -u admin:xxxxxx <span class=s1>&#39;http://10.xxx.xxx.xxx:8080/foo/boo?Id=123456789&amp;vId=1234&#39;</span> 
+</span></span><span class=line><span class=cl> 
+</span></span><span class=line><span class=cl>curl -d <span class=s1>&#39;{&#34;eventId&#34;: 20171116, &#34;timestamp&#34;: 123456, &#34;caller&#34;: &#34;XXP&#34;, &#34;version&#34;: &#34;1.0&#34;, &#34;interface&#34;: {&#34;interfaceName&#34;: &#34;XXPVC&#34;, &#34;para&#34;: {&#34;detail&#34;: {&#34;owner&#34;: &#34;xxxxxxx&#34;}}}, &#34;password&#34;: &#34;xxxxxx&#34;, &#34;callee&#34;: &#34;XXPVC&#34;}&#39;</span> http://10.x.x.x:8080/t/api
+</span></span><span class=line><span class=cl> 
+</span></span><span class=line><span class=cl>curl -X PUT -H <span class=s2>&#34;Content-Type: application/json&#34;</span> -d<span class=s1>&#39;{&#34;vp&#34;:{&#34;id&#34;:&#34;ab27adc8-xxx-xxxx-a732-fbde162ebdd3&#34;}}&#39;</span> <span class=s2>&#34;http://10.x.x.x/v1.0/peers/show_connectioninfos&#34;</span>
+</span></span></code></pre></td></tr></table></div></div></div><div class=article-readmore><a href=/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E6%AD%A3%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86linux%E7%9A%84xargs%E5%91%BD%E4%BB%A4/ class=article-titles><h2 class=article-title>【基础知识】Linux的xargs命令</h2></a><ul class=article-meta><li class=article-meta-date><time>2020-01-14</time></li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E8%84%9A%E6%9C%AC%E8%AF%AD%E8%A8%80/><i class="fa-solid fa-folder"></i>
+脚本语言
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/><i class="fa-solid fa-folder"></i>
+基础知识
+</a>&nbsp;</li></ul><div class=article-content>昨天在给服务器做年终“大扫除”整理时，发现有个目录下因为文件过多而删除失败，最终使用xargs才搞定，于是顺便来记录下。
+在执行某些命令时，当 Linux 某个目录下文件过多就会因为“参数列表过长”而报错无法执行。比如，我要清空/var/spool/clientmqueue/下的庞大数量的临时文件， 如果直接执行rm -f *，有时就会会出现“参数列表过长”的错误提示，因为 linux 下一般的命令的参数的总长度不能超过 4096 个字节。
+这时，xargs就应该上场了了，由于服务器数量很多，我直接在每台服务器上执行如下命令，即可清理此文件夹内的所有文件：
+1 2 #代码中的$8，不通系统发行版本可能有所区别，具体使用 ls -l 查看文件名在那一列即可 cd /var/spool/clientmqueue/ && ls -l /var/spool/clientmqueue/ | awk {'print $8'} | xargs rm -f 下面就记录下xargs的用法好了：
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 用法: xargs [-0prtx] [--interactive] [--null] [-d|--delimiter=delim] [-E eof-str] [-e[eof-str]] [--eof[=eof-str]] [-L max-lines] [-l[max-lines]] [--max-lines[=max-lines]] [-I replace-str] [-i[replace-str]] [--replace[=replace-str]] [-n max-args] [--max-args=max-args] [-s max-chars] [--max-chars=max-chars] [-P max-procs] [--max-procs=max-procs] [--verbose] [--exit] [--no-run-if-empty] [--arg-file=file] [--version] [--help] [指令 [指令的參數]] 参数解释： -0 当 sdtin 含有特殊字元时候，将其当成一般字符，想/'空格等 例如：root@localhost:~/test#echo "//"|xargs echo root@localhost:~/test#echo "//"|xargs -0 echo / -a file 从文件中读入作为 sdtin，（看例一） -e flag ，注意有的时候可能会是-E，flag 必须是一个以空格分隔的标志，当 xargs 分析到含有 flag 这个标志的时候就停止。（例二） -p 当每次执行一个 argument 的时候询问一次用户。（例三） -n num 后面加次数，表示命令在执行的时候一次用的 argument 的个数，默认是用所有的。（例四） -t 表示先打印命令，然后再执行。（例五） -i 或者是-I，这得看 linux 支持了，将 xargs 的每项名称，一般是一行一行赋值给{}，可以用{}代替。（例六） -r no-run-if-empty 当 xargs 的输入为空的时候则停止 xargs，不用再去执行了。（例七） -s num 命令行的最好字符数，指的是 xargs 后面那个命令的最大命令行字符数。（例八） -L num Use at most max-lines nonblank input lines per command line.</div><div class=article-readmore><a href=/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86linux%E7%9A%84xargs%E5%91%BD%E4%BB%A4/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/oh-my-zsh%E8%87%AA%E5%8A%A8%E8%A1%A5%E5%85%A8/ class=article-titles><h2 class=article-title>Oh My Zsh自动补全</h2></a><ul class=article-meta><li class=article-meta-date><time>2019-01-22</time></li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E8%84%9A%E6%9C%AC%E8%AF%AD%E8%A8%80/><i class="fa-solid fa-folder"></i>
+脚本语言
+</a>&nbsp;</li></ul><div class=article-content>shell 有多种，大多数人接触比较多的是 bash， 不管是 mac 还是各个 linux 发行版，默认的 shell 基本都是 bash， 虽然 bash 功能已经丰富了，但对于极客们来说，界面不够炫，提示功能也不够强大。而 zsh 功能及其强大，只是配置过于复杂， 后来就有了 oh-my-zsh 开源项目，配置难度大大降低。
+Github地址: https://github.com/robbyrussell/oh-my-zsh
+安装 1 sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)" 更改系统默认 shell 1 chsh -s /bin/zsh 更改zsh配置文件 1 vim ~/.zshrc 修改主题 1 ZSH_THEME="robbyrussell" 配置插件 oh-my-zsh 还支持插件，插件存放目录为：
+1 ~/.oh-my-zsh/plugins 这个目录中每个子目录都是一个插件，目录名即为插件名，默认不开启，需要在~/.zshrc中该配置开启，比如:
+1 2 3 4 5 6 7 8 9 10 11 plugins=( git git-flow docker kubectl brew npm helm zsh-autosuggestions zsh-syntax-highlighting ) 这些插件可以给你常用的命令做用法提示，使用 tab 键触发。我这里再推荐另外三个不是内置的插件， 需要将它们单独下载到~/.</div><div class=article-readmore><a href=/oh-my-zsh%E8%87%AA%E5%8A%A8%E8%A1%A5%E5%85%A8/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/grep%E6%97%A0%E6%B3%95%E6%9F%A5%E6%89%BEshell%E4%BC%A0%E8%BF%87%E6%9D%A5%E7%9A%84%E5%8F%98%E9%87%8F/ class=article-titles><h2 class=article-title>Grep无法查找shell传过来的变量？</h2></a><ul class=article-meta><li class=article-meta-date><time>2018-08-23</time></li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E8%84%9A%E6%9C%AC%E8%AF%AD%E8%A8%80/><i class="fa-solid fa-folder"></i>
+脚本语言
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/grep/><i class="fa-solid fa-folder"></i>
+grep
+</a>&nbsp;</li></ul><div class=article-content><p>差不多两周前，同事告诉我发现一个诡异的问题，grep 无法搜索 shell 中的变量，着实很惊讶。到他所说的服务器上试了下，还真是不行！</p><p>大概就是这样一个要求：</p><ol><li>有个文本为 userid.txt，里面每一行一个用户 id，类似如下：</li></ol><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=m>0001</span>
+</span></span><span class=line><span class=cl><span class=m>0003</span>
+</span></span><span class=line><span class=cl><span class=m>0005</span>
+</span></span><span class=line><span class=cl><span class=m>0007</span>
+</span></span><span class=line><span class=cl><span class=m>0009</span>
+</span></span></code></pre></td></tr></table></div></div><ol start=2><li>另外还有一个文本为 record.txt，里面是所有用户的操作记录，一行一条，并且包含有 id，类似如下：</li></ol><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 11:03,198 INFO<span class=o>]</span> userId:0001 gilettype:3
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 12:12,198 INFO<span class=o>]</span> userId:0002 gilettype:3
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 13:02,198 INFO<span class=o>]</span> userId:0003 gilettype:1
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 14:33,198 INFO<span class=o>]</span> userId:0001 gilettype:3
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 15:13,198 INFO<span class=o>]</span> userId:0002 gilettype:2
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 16:43,198 INFO<span class=o>]</span> userId:0003 gilettype:1
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 17:32,198 INFO<span class=o>]</span> userId:0001 gilettype:3
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 18:16,198 INFO<span class=o>]</span> userId:0002 gilettype:1
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 19:25,198 INFO<span class=o>]</span> userId:0003 gilettype:2
+</span></span></code></pre></td></tr></table></div></div></div><div class=article-readmore><a href=/grep%E6%97%A0%E6%B3%95%E6%9F%A5%E6%89%BEshell%E4%BC%A0%E8%BF%87%E6%9D%A5%E7%9A%84%E5%8F%98%E9%87%8F/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E7%94%A8cat%E5%91%BD%E4%BB%A4%E6%9F%A5%E7%9C%8B%E4%B8%8D%E5%8F%AF%E8%A7%81%E5%AD%97%E7%AC%A6/ class=article-titles><h2 class=article-title>用cat命令查看不可见字符</h2></a><ul class=article-meta><li class=article-meta-date><time>2018-08-02</time></li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E8%84%9A%E6%9C%AC%E8%AF%AD%E8%A8%80/><i class="fa-solid fa-folder"></i>
+脚本语言
+</a>&nbsp;</li></ul><div class=article-content>时常，某个程序或软件并没有语法错误，并且你检查它的相关内容也确实没有发现问题。 这是因为你用普通文本编辑器软件来查看的时候，有许多字符没有显示出来，但在终端使用 cat 命令可以很容易地检测出是否存在这些字符。
+首先，我们创建一个简单的文本文件，写入一些特殊字符。打开终端，运行命令：
+1 printf 'testing\012\011\011testing\014\010\012more testing\012\011\000\013\000even more testing\012\011\011\011\012' > /tmp/testing.txt 现在用不同的编辑器软件打开，显示的结果会不同。用简单的 cat 打开将显示：
+1 2 3 4 5 $ cat /tmp/testing.txt testing testing more testing even more testing 如果用 nano 或者 vim 打开，将会看到：
+1 2 3 4 testing testing^L^H more testing ^@^K^@even more testing 现在我们给 cat 加上一些选项参数，以便能显示出特殊字符来。
+用 cat -T 命令来显示 TAB 键的字符^I
+1 2 3 4 5 6 cat -T /tmp/testing.txt testing ^I^Itesting more testing ^I even more testing ^I^I^I 用 cat -E 命令来显示行尾的结束字符$</div><div class=article-readmore><a href=/%E7%94%A8cat%E5%91%BD%E4%BB%A4%E6%9F%A5%E7%9C%8B%E4%B8%8D%E5%8F%AF%E8%A7%81%E5%AD%97%E7%AC%A6/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95%E5%88%9D%E5%AD%A6awk%E7%BC%96%E7%A8%8B/ class=article-titles><h2 class=article-title>初学awk编程</h2></a><ul class=article-meta><li class=article-meta-date><time>2018-06-11</time></li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E8%84%9A%E6%9C%AC%E8%AF%AD%E8%A8%80/><i class="fa-solid fa-folder"></i>
+脚本语言
+</a>&nbsp;</li></ul><div class=article-content><ul><li><h3 id=awk命令>awk命令</h3></li></ul><p>基本格式就这两种</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>awk -F<span class=s1>&#39;&lt;默认是空格，这里可正则表达式也可字符&gt;&#39;</span> <span class=s1>&#39;commands&#39;</span> file<span class=o>(</span>s<span class=o>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 也可以用管道，</span>
+</span></span><span class=line><span class=cl>ll -t <span class=p>|</span> awk -F<span class=s1>&#39;:&#39;</span> <span class=s1>&#39;{print $2}&#39;</span>
+</span></span></code></pre></td></tr></table></div></div><p>通常awk做文本处理前还需要做一次过滤。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>awk -F<span class=s1>&#39;:&#39;</span> <span class=s1>&#39;/&lt;正则表达式or普通字符串&gt;/{print $1}&#39;</span> /ect/passwd
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 例如，我先用SQL为关键字做一次过滤</span>
+</span></span><span class=line><span class=cl>awk -F<span class=s1>&#39;:&#39;</span> <span class=s1>&#39;/SQL/{print $1, $5}&#39;</span> /etc/passwd
+</span></span><span class=line><span class=cl><span class=c1>#_mysql MySQL Server</span>
+</span></span><span class=line><span class=cl><span class=c1>#_postgres PostgreSQL Server</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 现在匹配有zF字符的文本</span>
+</span></span><span class=line><span class=cl>awk -F<span class=s1>&#39;:&#39;</span> <span class=s1>&#39;/[zF]/{print $1, $5}&#39;</span> /etc/passwd
+</span></span><span class=line><span class=cl><span class=c1>#_ftp FTP Daemon</span>
+</span></span><span class=line><span class=cl><span class=c1>#_timezone AutoTimeZoneDaemon</span>
+</span></span><span class=line><span class=cl><span class=c1>#_krbfast Kerberos FAST Account</span>
+</span></span></code></pre></td></tr></table></div></div></div><div class=article-readmore><a href=/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95%E5%88%9D%E5%AD%A6awk%E7%BC%96%E7%A8%8B/>Read more...</a></div><div class=article-floatclear></div></article></section></div><div class=site-footer><div class=copyright>&copy; Copyright 2017 Foo Bar</div><ul class=site-footer-items><li class=site-footer-item-rsslink><a href=/categories/linux/index.xml type=application/rss+xml target=_blank title=RSS><i class="fa-solid fa-rss"></i></a></li><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

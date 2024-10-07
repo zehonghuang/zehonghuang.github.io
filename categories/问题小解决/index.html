@@ -1,0 +1,65 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>问题小解决 - 金汤力的Pit房</title>
+<meta property="og:title" content="问题小解决 - 金汤力的Pit房"><meta name=twitter:title content="问题小解决 - 金汤力的Pit房"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="金汤力的Pit房"><meta property="og:url" content="/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3/"><meta property="og:type" content="website"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><link href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3/index.xml rel=alternate type=application/rss+xml title=金汤力的Pit房><link href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3/index.xml rel=feed type=application/rss+xml title=金汤力的Pit房><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>金汤力的Pit房</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><section class="list term-list"><article class=article><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E6%97%A0%E9%9C%80%E9%87%8D%E5%90%AF%E5%9F%BA%E4%BA%8Eprometheus%E5%AF%B9pod%E8%BF%9B%E8%A1%8C%E5%9E%82%E7%9B%B4%E6%89%A9%E7%BC%A9%E5%AE%B9/ class=article-titles><h2 class=article-title>【问题小解决】无需重启，基于Prometheus对Pod进行垂直扩缩容</h2></a><ul class=article-meta><li class=article-meta-date><time>2024-03-07</time></li><li class=article-meta-categories><a href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3/><i class="fa-solid fa-folder"></i>
+问题小解决
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/prometheus/><i class="fa-solid fa-folder"></i>
+Prometheus
+</a>&nbsp;</li></ul><div class=article-content><p>通常情况下，要修改 Pod 的资源定义，是需要重启 Pod 的。
+在<strong>Kubernetes 1.27</strong>中，有一个 Alpha 状态的<code>InPlacePodVerticalScaling</code>开关，开启这一特性，
+就能在不重启 Pod 的情况下，修改 Pod 的资源定义。</p><p>要使用这个功能，需要在<code>kube-apiserver</code>的<code>featureGates</code>中显式地设置启用，启用这一特性之后，就可以进行测试了。</p><h3 id=测试一下>测试一下</h3><p>假设下面的 Pod 定义：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>v1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Pod</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>stress</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>containers</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>stress</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>myimages/stress-ng:latest</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>resizePolicy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>resourceName</span><span class=p>:</span><span class=w> </span><span class=l>cpu</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>restartPolicy</span><span class=p>:</span><span class=w> </span><span class=l>NotRequired</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>resourceName</span><span class=p>:</span><span class=w> </span><span class=l>memory</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>restartPolicy</span><span class=p>:</span><span class=w> </span><span class=l>RestartContainer    </span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>command</span><span class=p>:</span><span class=w> </span><span class=p>[</span><span class=s2>&#34;sleep&#34;</span><span class=p>,</span><span class=w> </span><span class=s2>&#34;3600&#34;</span><span class=p>]</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>resources</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>limits</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>cpu</span><span class=p>:</span><span class=w> </span><span class=l>200m</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>memory</span><span class=p>:</span><span class=w> </span><span class=l>200M</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>requests</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>cpu</span><span class=p>:</span><span class=w> </span><span class=l>200m</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>memory</span><span class=p>:</span><span class=w> </span><span class=l>200M</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>可以看到，spec 中加入了<code>resizePolicy</code>字段，用来指定对 CPU 和内存的扩缩容策略。内容很直白：</p><ul><li>CPU 的扩缩容策略是<code>NotRequired</code>，即不重启 Pod；</li><li>内存的扩缩容策略是<code>RestartContainer</code>，即重启 Pod。</li></ul></div><div class=article-readmore><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E6%97%A0%E9%9C%80%E9%87%8D%E5%90%AF%E5%9F%BA%E4%BA%8Eprometheus%E5%AF%B9pod%E8%BF%9B%E8%A1%8C%E5%9E%82%E7%9B%B4%E6%89%A9%E7%BC%A9%E5%AE%B9/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E5%A6%82%E4%BD%95%E8%A7%A3%E5%86%B3%E5%A4%9A%E5%AE%B9%E5%99%A8%E4%B8%8B%E4%BF%AE%E6%94%B9hosts%E5%A4%B1%E6%95%88/ class=article-titles><h2 class=article-title>【问题小解决】如何解决多容器下修改hosts失效</h2></a><ul class=article-meta><li class=article-meta-date><time>2023-06-22</time></li><li class=article-meta-categories><a href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3/><i class="fa-solid fa-folder"></i>
+问题小解决
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li></ul><div class=article-content><h3 id=问题现象>问题现象</h3><p>业务容器启动的逻辑中，修改了<code>/etc/hosts</code>文件，当 Pod 只存在这一个业务容器时，文件可以修改成功，
+但存在多个时 (比如注入了 istio 的 sidecar)，修改可能会失效。</p><h3 id=分析>分析</h3><ol><li>容器中的<code>/etc/hosts</code>是由 kubelet 生成并挂载到 Pod 中所有容器，
+如果 Pod 有多个容器，它们挂载的<code>/etc/hosts</code>文件都对应宿主机上同一个文件，
+路径通常为<code>/var/lib/kubelet/pods/&lt;pod-uid>/etc-hosts</code>。</li></ol><blockquote><p>如果是 docker 运行时，可以通过<code>docker inspect &lt;container-id> -f {{.HostsPath}}</code>查看。</p></blockquote><ol start=2><li>kubelet 在启动容器时，都会走如下的调用链<code>（makeMounts->makeHostsMount->ensureHostsFile）</code>来给容器挂载 /etc/hosts，
+而在 ensureHostsFile 函数中都会重新创建一个新的 etc-hosts 文件，导致在其他容器中对 /etc/hosts 文件做的任何修改都被还原了。</li></ol><p>所以，当 Pod 中存在多个容器时，容器内修改 /etc/hosts 的操作可能会被覆盖回去。</p><h3 id=解决方案>解决方案</h3><h4 id=使用-hostaliases>使用 HostAliases</h4><p>如果只是某一个 workload 需要 hosts，可以用 HostAliases:</p></div><div class=article-readmore><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E5%A6%82%E4%BD%95%E8%A7%A3%E5%86%B3%E5%A4%9A%E5%AE%B9%E5%99%A8%E4%B8%8B%E4%BF%AE%E6%94%B9hosts%E5%A4%B1%E6%95%88/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E8%A7%A3%E5%86%B3%E5%AE%B9%E5%99%A8%E5%86%85%E6%97%B6%E5%8C%BA%E4%B8%8D%E4%B8%80%E8%87%B4%E9%97%AE%E9%A2%98/ class=article-titles><h2 class=article-title>【问题小解决】解决容器内时区不一致问题</h2></a><ul class=article-meta><li class=article-meta-date><time>2023-03-17</time></li><li class=article-meta-categories><a href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3/><i class="fa-solid fa-folder"></i>
+问题小解决
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li></ul><div class=article-content><blockquote><p>业务程序在使用时间的时候(比如打印日志)，没有指定时区，使用的系统默认时区，
+而基础镜像一般默认使用 UTC 时间，程序输出时间戳的时候，就与国内的时间相差 8 小时。</p><blockquote><p>游戏<strong>全球对战服</strong>场景这个问题更要命，开发需要通过时间计算同步帧的偏移量，如果这个时候还要重新计算时区是非常浪费计算资源的（-_-）</p></blockquote></blockquote><h3 id=方案一指定-tz-环境变量>方案一：指定 TZ 环境变量</h3><p>很多编程语言都支持<code>TZ</code>这个用于设置时区的环境变量，可以在部署工作负载的时候，为容器指定该环境变量，示例：</p></div><div class=article-readmore><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E8%A7%A3%E5%86%B3%E5%AE%B9%E5%99%A8%E5%86%85%E6%97%B6%E5%8C%BA%E4%B8%8D%E4%B8%80%E8%87%B4%E9%97%AE%E9%A2%98/>Read more...</a></div><div class=article-floatclear></div></article></section></div><div class=site-footer><div class=copyright>&copy; Copyright 2017 Foo Bar</div><ul class=site-footer-items><li class=site-footer-item-rsslink><a href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3/index.xml type=application/rss+xml target=_blank title=RSS><i class="fa-solid fa-rss"></i></a></li><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>
