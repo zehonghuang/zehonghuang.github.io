@@ -84,3 +84,25 @@ stress   1/1     Running   0          4m14s
   cpu: 100m
   memory: 100Mi
 ```
+
+### 自动纵向扩缩容
+
+到目前为止，VPA 还没有支持这一特性。我们可以简地使用 Prometheus 对 Pod 资源压力进行监控，然后使用 Shell Operator 来实现自动扩缩容。总体思路就是，定期读取 Prometheus，获取指定 Pod 的 CPU 和使用情况，如果 CPU 使用率超过 80%，则将其 CPU 上限扩容一倍。
+
+### Prometheus 监控指标
+
+
+[**Awesome Prometheus alerts**](https://samber.github.io/awesome-prometheus-alerts/rules#kubernetes)提供了如下的告警定义，用于表达 CPU 用量和其 Limit 的关系：
+```yaml
+- alert: ContainerHighCpuUtilization
+    expr: (sum(rate(container_cpu_usage_seconds_total{container!=""}[5m])) by (pod, container) / sum(container_spec_cpu_quota{container!=""}/container_spec_cpu_period{container!=""}) by (pod, container) * 100) > 80
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: Container High CPU utilization (instance {{ $labels.instance }})
+      description: "Container CPU utilization is above 80%\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+```
+
+
+最后再用代码进行`Patch`即可
