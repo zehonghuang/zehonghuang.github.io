@@ -23,3 +23,19 @@ categories = [
 我这里直接按照阿里云传统的ECS环境迁移到自建K8s环境为例
 
 <!--more-->
+
+[ALB配置域名和路径的转发规则](https://help.aliyun.com/zh/slb/application-load-balancer/user-guide/create-a-domain-name-based-or-url-based-forwarding-rule?spm=a2c4g.11186623.0.0.15ea43b5Hz7twr)
+
+### 数据库迁移
+
+### 分布式数据库
+
+> 核心步骤就两个：
+> 1. 找到裸机部署的集群，确认是否允许在线添加新节点
+> 2. 确认分布式数据库是否支持云原生搭建，主流分布式数据基本上都支持
+> 3. 设置到通过Helm或其他工具部署在K8s部署新节点，并暴露NodePort
+
+
+#### 2. 传统单体数据库
+
+> 主要在于VIP
