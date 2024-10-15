@@ -1,13 +1,29 @@
 +++
 title = '【问题小解决】MySQL高可用集群之双主多从'
 date = 2020-05-14T21:03:49+08:00
-draft = true
+draft = false
 categories = [
     "问题小解决",
     "Linux",
 ]
 +++
 
+通常MySQL主从复制主要用来解决读写分离，分担服务器压力。MySQL互为主备实现服务的高可用；这里同时基于高可用和负载均衡。
+
+![mysql-ha](/images/mysql-ha.png)
+
+环境准备
+
+| 主机名/角色	       | VIP  | IP地址	        |  操作系统	 |  MySQL版本|
+|---------------|---|--------------|---|---|
+| Node0/master1 |  172.16.10.100	 | 172.16.10.10 | CentOS8.1.1911	  | 8.0.17  |
+|  Node1/master2          |   | 172.16.10.11 |  CentOS8.1.1911 |  8.0.17 |
+|     Node2/slave1	          |   | 172.16.10.12 | CentOS8.1.1911  | 8.0.17  |
+
+
+### 安装MySQL
+
+在所有节点上执行`dnf -y install mysql mysql-server`，并在master节点上配置server-id并开启bin-log
 
 ```shell
 vi /etc/my.cnf.d/mysql-server.cnf
@@ -32,9 +48,16 @@ expire_logs_days = 7
 # 将函数复制到slave
 log_bin_trust_function_creators = 1
 ```
-...
+
+执行`systemctl enable --now mysqld`运行Mysql
+
+
+### 配置双主集群
+
+在master1/master2节点上创建replication用户
 
 ```shell
+## master1
 create user replication@'172.16.10.%' identified by 'replication';
 grant replication slave on *.* to replication@'172.16.10.%';
 show master status;
@@ -43,13 +66,9 @@ show master status;
 +------------------+----------+--------------+------------------+-------------------+
 | mysql-bin.000002 |      692 | test         |                  |                   |
 +------------------+----------+--------------+------------------+-------------------+
-```
-...
-
-```shell
+## master2
 create user replication@'172.16.10.%' identified by 'replication';
 grant replication slave on *.* to replication@'172.16.10.%';
-
 show master status;
 +------------------+----------+--------------+------------------+-------------------+
 | File             | Position | Binlog_Do_DB | Binlog_Ignore_DB | Executed_Gtid_Set |
