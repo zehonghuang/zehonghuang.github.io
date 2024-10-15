@@ -54,7 +54,9 @@ log_bin_trust_function_creators = 1
 
 ### 配置双主集群
 
-在master1/master2节点上创建replication用户
+#### 配置Master1
+
+在master1节点上创建replication用户
 
 ```shell
 ## master1
@@ -66,15 +68,74 @@ show master status;
 +------------------+----------+--------------+------------------+-------------------+
 | mysql-bin.000002 |      692 | test         |                  |                   |
 +------------------+----------+--------------+------------------+-------------------+
-## master2
+##  在master2上执行
+
+CHANGE MASTER TO
+ MASTER_HOST='172.16.10.10',
+ MASTER_USER='replication',
+ MASTER_PASSWORD='replication',
+ MASTER_LOG_FILE='mysql-bin.000002',
+ MASTER_LOG_POS=692;
+ 
+start slave;
+
+show slave status\G
+*************************** 1. row ***************************
+               Slave_IO_State: Waiting for master to send event
+                  Master_Host: 172.16.10.10
+                  Master_User: replication
+                  Master_Port: 3306
+                Connect_Retry: 60
+              Master_Log_File: mysql-bin.000002
+          Read_Master_Log_Pos: 692
+               Relay_Log_File: node1-relay-bin.000002
+                Relay_Log_Pos: 322
+        Relay_Master_Log_File: mysql-bin.000002
+             Slave_IO_Running: Yes
+            Slave_SQL_Running: Yes
+```
+
+#### 配置Master2
+
+在master2上创建replication用户
+
+```shell
 create user replication@'172.16.10.%' identified by 'replication';
 grant replication slave on *.* to replication@'172.16.10.%';
+
 show master status;
 +------------------+----------+--------------+------------------+-------------------+
 | File             | Position | Binlog_Do_DB | Binlog_Ignore_DB | Executed_Gtid_Set |
 +------------------+----------+--------------+------------------+-------------------+
 | mysql-bin.000002 |      692 | test         |                  |                   |
 +------------------+----------+--------------+------------------+-------------------+
+
+
+## 在master1节点上配置主从同步
+
+CHANGE MASTER TO
+ MASTER_HOST='172.16.10.11',
+ MASTER_USER='replication',
+ MASTER_PASSWORD='replication',
+ MASTER_LOG_FILE='mysql-bin.000002',
+ MASTER_LOG_POS=692;
+ 
+start slave;
+
+show slave status\G
+*************************** 1. row ***************************
+               Slave_IO_State: Waiting for master to send event
+                  Master_Host: 172.16.10.11
+                  Master_User: replication
+                  Master_Port: 3306
+                Connect_Retry: 60
+              Master_Log_File: mysql-bin.000002
+          Read_Master_Log_Pos: 692
+               Relay_Log_File: node0-relay-bin.000002
+                Relay_Log_Pos: 322
+        Relay_Master_Log_File: mysql-bin.000002
+             Slave_IO_Running: Yes
+            Slave_SQL_Running: Yes
 ```
 
 ```shell
