@@ -137,6 +137,102 @@ show slave status\G
              Slave_IO_Running: Yes
             Slave_SQL_Running: Yes
 ```
+现在master1和master2已经互为主从了。我们希望就是其中一个节点挂了不影响业务的正常运行。这里使用keepalived+lvs方案
+
+### 安装lvs
+
+```shell
+dnf -y install ipvsadm
+```
+
+### 安装keepalived
+
+```shell
+dnf -y install keepalived
+```
+
+### 配置keepalived
+
+master配置
+```shell
+vi /etc/keepalived/keepalived.conf
+global_defs {
+   router_id MySQL-HA
+}
+
+vrrp_sync_group VG1 {
+    group {
+        VI_1
+    }
+}
+
+vrrp_script check_run {
+    script "/usr/local/bin/mysql_check.sh"
+    interval 60
+}
+
+vrrp_instance VI_1 {
+    state BACKUP
+    interface eth1
+    virtual_router_id 51
+    priority 100
+    advert_int 1
+    nopreemt
+    authentication {
+        auth_type PASS
+        auth_pass 1234
+    }
+    track_script {
+        check_run
+    }
+    notify_master /usr/local/bin/mysql_master.sh
+    notify_stop   /usr/local/bin/mysql_stop.sh
+    virtual_ipaddress {
+        172.16.10.100
+    }
+}
+```
+backup配置
+
+```shell
+vi /etc/keepalived/keepalived.conf
+global_defs {
+   router_id MySQL-HA
+} 
+
+vrrp_script check_run {
+    script "/usr/local/bin/mysql_check.sh"
+    interval 60
+}
+
+vrrp_sync_group VG1 {
+    group {
+        VI_1
+    }
+}
+
+vrrp_instance VI_1 {
+    state BACKUP
+    interface eth1
+    virtual_router_id 51
+    priority 90  
+    advert_int 1
+    nopreempt
+    authentication {
+        auth_type PASS
+        auth_pass 1234
+    }
+    track_script {
+        check_run
+    }
+    notify_master /usr/local/bin/mysql_master.sh
+    notify_stop   /usr/local/bin/mysql_stop.sh
+
+    virtual_ipaddress {
+        172.16.10.100
+    }
+}
+```
 
 ```shell
 #!/bin/bash

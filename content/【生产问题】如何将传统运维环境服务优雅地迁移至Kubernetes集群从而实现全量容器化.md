@@ -104,4 +104,4 @@ spec
 > 
 > 假设此前也从未配置过热备，需要准备好keepalived以及检测脚本。
 >
-> 具体操作就在这里：[《MySQL高可用集群之双主多从》](https://huangzhongde.cn/post/Linux/MySQL_High_Avaliablity_Cluster/)
+> 具体操作就在这里：[《MySQL高可用集群之双主多从》](https://huangzehong.me/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3mysql%E9%AB%98%E5%8F%AF%E7%94%A8%E9%9B%86%E7%BE%A4%E4%B9%8B%E5%8F%8C%E4%B8%BB%E5%A4%9A%E4%BB%8E/)
