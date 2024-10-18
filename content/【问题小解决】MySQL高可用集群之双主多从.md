@@ -300,7 +300,7 @@ mysql -e "reset slave all;"
 mysql -e "reset master;"
 mysql -e "show master status;" > /tmp/master_status_$(date "+%y%m%d-%H%M").txt
 ```
-
+...
 ```shell
 #!/bin/bash
 
