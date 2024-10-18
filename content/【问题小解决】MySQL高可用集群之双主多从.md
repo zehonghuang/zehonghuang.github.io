@@ -234,6 +234,8 @@ vrrp_instance VI_1 {
 }
 ```
 
+`mysql_check.sh`脚本，用于检测 MySQL 服务的状态，并在服务不可用的情况下停止 Keepalived，触发 VIP 漂移到备节点
+
 ```shell
 #!/bin/bash
 count=1
@@ -265,6 +267,7 @@ done
 /usr/bin/systemctl stop keepalived
 ```
 
+下面是`mysql_master.sh`脚本，用于切换主从状态
 ```shell
 #!/bin/bash
 
