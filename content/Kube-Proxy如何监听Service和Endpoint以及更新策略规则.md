@@ -6,7 +6,6 @@ categories = [
     "Kubernetes",
     "深度解析",
 ]
-weight = 3
 +++
 
 本文会探讨Kubernetes另一个核心网络组件Kube-Proxy，它承担着Service及其后端Pod对宿主机配置的影响。
