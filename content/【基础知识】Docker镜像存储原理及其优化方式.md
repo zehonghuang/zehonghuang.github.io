@@ -6,6 +6,7 @@ categories = [
     "Kubernetes",
     "基础知识",
 ]
+weight = 7
 +++
 
 本文旨在通过Dockerfile的指令展开Docker镜像的原理，不再介绍Docker是什么了。
