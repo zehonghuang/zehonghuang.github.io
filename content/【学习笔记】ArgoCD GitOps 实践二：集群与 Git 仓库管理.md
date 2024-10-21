@@ -1,6 +1,6 @@
 +++
 title = '【学习笔记】ArgoCD GitOps 实践二：集群与 Git 仓库管理'
-date = 2022-07-25T20:43:26+08:00
+date = 2022-09-09T20:43:26+08:00
 draft = false
 categories = [
     "Kubernetes",
