@@ -24,6 +24,9 @@ categories = [
 
 <!--more-->
 
+> 默认使用阿里云负载均衡对接外网流量，主要就是针对二级域名流量权重的转移：
+> 
+
 [ALB配置域名和路径的转发规则](https://help.aliyun.com/zh/slb/application-load-balancer/user-guide/create-a-domain-name-based-or-url-based-forwarding-rule?spm=a2c4g.11186623.0.0.15ea43b5Hz7twr)
 
 ### 数据库迁移
