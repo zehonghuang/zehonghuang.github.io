@@ -29,7 +29,7 @@ Swap:  8388604k total,     5440k used,  8383164k free,  7982424k cached
 ```
 
 `%wa`(wait) 表示 IO WAIT 的 cpu 占用，默认看到的是所有核的平均值，要看每个核的`%wa`值需要按下 "1":
-
+<!--more-->
 ```shell
 top - 19:42:08 up 23:59,  2 users,  load average: 34.64, 35.80, 35.76
 Tasks: 679 total,   1 running, 678 sleeping,   0 stopped,   0 zombie

@@ -19,7 +19,7 @@ categories = [
 #代码中的$8，不通系统发行版本可能有所区别，具体使用 ls -l 查看文件名在那一列即可
 cd /var/spool/clientmqueue/  && ls -l /var/spool/clientmqueue/ | awk {'print $8'} | xargs rm -f
 ```
-
+<!--more-->
 下面就记录下`xargs`的用法好了：
 
 ```shell

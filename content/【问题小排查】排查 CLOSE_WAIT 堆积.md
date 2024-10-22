@@ -36,6 +36,7 @@ lsof -p $PID | grep CLOSE_WAIT | wc -l
 我们看下 TCP 四次挥手过程:
 
 ![tcp_established](/images/tcp_established.png)
+<!--more-->
 
 主动关闭的一方发出`FIN`包，被动关闭的一方响应`ACK`包，此时，被动关闭的一方就进入了`CLOSE_WAIT`状态。如果一切正常，稍后被动关闭的一方也会发出`FIN`包，然后迁移到`LAST_ACK`状态。
 

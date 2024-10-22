@@ -50,7 +50,7 @@ log_bin_trust_function_creators = 1
 ```
 
 执行`systemctl enable --now mysqld`运行Mysql
-
+<!--more-->
 
 ### 配置双主集群
 
