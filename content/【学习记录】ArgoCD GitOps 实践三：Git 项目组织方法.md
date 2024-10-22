@@ -63,3 +63,42 @@ apps
     ├── values.yaml
     └── vm-hostpath-pv.yaml
 ```
+这样，如果你要添加新的应用，只需要在 apps 下直接新增一个目录就行，不需要再去定义`Application`了，会由`ApplicationSet`自动生成。
+
+### submodules 管理
+
+多个集群可能会安装相同的应用，而我们采用一个集群的配置对应一个 Git 仓库的管理方法， 
+相同的依赖应用可以提取到单独的 Git 仓库，通过 git 的 submodule 方式引用。
+
+比如多个集群都会安装 EnvoyGateway，将 EnvoyGateway 用单独的 Git 仓库管理，文件结构如下：
+```shell
+install
+├── Makefile
+├── install.yaml
+└── kustomization.yaml
+```
+假设对于的Git仓库是`git@yourgit.com:your-org/envoygateway.git`，现将其作为依赖引入到当前Git仓库，首先添加git submodule:
+```shell
+git submodule add --depth=1 git@yourgit.com:your-org/envoygateway.git submodules/envoygateway
+```
+然后在 apps 目录下创建 envoygateway 的目录，并创建`kustomization.yaml`：
+```shell
+apps
+└── envoygateway
+    └── kustomization.yaml
+```
+`kustomization.yaml`的内容如下：
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../submodules/envoygateway/install
+```
+其它集群的 Git 仓库也一样的操作，这样就实现了多个集群共享同一个应用的 YAML，如果有细微自定义差别，
+可直接修改`kustomization.yaml`进行自定义。如果这个共同依赖的应用需要更新版本，
+就更新这个 submodules 对应的仓库，然后再更新集群对应仓库的 submodule：
+```yaml
+git submodule update --init --remote
+```
+
+> 每个集群对应仓库的 submodule 分开更新，可实现按集群灰度，避免更新出现问题一下子影响所有集群。
