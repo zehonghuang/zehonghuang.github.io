@@ -48,6 +48,16 @@ kubectl config use-context username-context --kubeconfig=$KUBECONFIG_FILE
 ```
 将文件给到开发同学即可
 
+## 为某个服务创建一个ServiceAccount
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ai-service
+  namespace: dev-ai
+```
+
 ## 配置 Role、ClusterRole
 
 ### 1. Role权限构成组件
@@ -74,19 +84,22 @@ resources: ["pods", "services"] # 表示该权限适用于 pods 和 services 资
 ```yaml
 verbs: ["get", "list", "watch"] # 表示权限适用于获取、列出以及监视资源
 ```
-创建一个完整的Role，允许其访问指定命名空间的
+创建一个完整的Role，允许其访问指定命名空间的常用操作
 
 ```yaml
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: example-clusterrole
+  name: example-role
   namespace: dev-ai
 rules:
 - apiGroups: [""]
-  resources: ["pods"]
+  resources: ["*"]
   verbs: ["get", "list", "watch"]
 - apiGroups: ["apps"]
-  resources: ["deployments"]
+  resources: ["deployments", "statefulsets"]
+  verbs: ["create", "update", "delete"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingress"]
   verbs: ["create", "update", "delete"]
 ```
