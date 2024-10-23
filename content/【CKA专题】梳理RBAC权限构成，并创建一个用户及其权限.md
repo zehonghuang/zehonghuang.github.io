@@ -52,4 +52,41 @@ kubectl config use-context username-context --kubeconfig=$KUBECONFIG_FILE
 
 ### 1. Role权限构成组件
 
-1. 
+1. apiGroups 官方API组可以看这里https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#api-groups
+```yaml
+apiGroups: ["apps"] # 表示权限适用于 apps API 组中的资源
+```
+2. 每个apiGroups都有自己属下的resources，例如核心组core(apiGroups可为空字符)有`pods`、`services`、`configmaps`、`nodes`，均可以在上面的链接中查到相关资源
+```yaml
+resources: ["pods", "services"] # 表示该权限适用于 pods 和 services 资源
+```
+3. 最后一个就是动词（Verbs），具体能做什么操作
+
+   get: 获取某个资源的详细信息
+   list: 列出某类资源的所有实例
+   watch: 监视资源的变化
+   create: 创建一个新的资源实例
+   update: 更新现有资源
+   patch: 对现有资源进行部分更新（使用 patch 操作）
+   delete: 删除某个资源实例
+   deletecollection: 删除一组资源实例
+   impersonate: 模拟其他用户、组、服务账号，常用于授权工具
+```yaml
+verbs: ["get", "list", "watch"] # 表示权限适用于获取、列出以及监视资源
+```
+创建一个完整的Role，允许其访问指定命名空间的
+
+```yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: example-clusterrole
+  namespace: dev-ai
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["create", "update", "delete"]
+```
