@@ -1,6 +1,6 @@
 +++
 title = '【CKA专题】梳理RBAC权限构成，并创建一个用户及其权限'
-date = 2024-10-23T15:34:55+08:00
+date = 2023-11-03T15:34:55+08:00
 draft = false
 categories = [
     "Kubernetes",
