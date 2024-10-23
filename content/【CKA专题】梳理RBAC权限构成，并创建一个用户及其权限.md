@@ -23,7 +23,7 @@ openssl req -new -key user.key -out user.csr -subj "/CN=username/O=groupname"
 ```
 在这里：
 - `/CN=username`：`username`表示用户的名字
-- /O=groupname：groupname表示用户所在的组，可以帮助后续RBAC授权（例如管理员、开发者等不同组）
+- `/O=groupname`：`groupname`表示用户所在的组，可以帮助后续RBAC授权（例如管理员、开发者等不同组）
 
 使用 Kubernetes 集群的 CA 签署 CSR，生成用户证书：
 ```shell
@@ -54,7 +54,7 @@ kubectl config use-context username-context --kubeconfig=$KUBECONFIG_FILE
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: ai-service
+  name: ai-sa
   namespace: dev-ai
 ```
 
@@ -90,7 +90,7 @@ verbs: ["get", "list", "watch"] # 表示权限适用于获取、列出以及监�
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: example-role
+  name: dev-ai-role
   namespace: dev-ai
 rules:
 - apiGroups: [""]
@@ -103,3 +103,44 @@ rules:
   resources: ["ingress"]
   verbs: ["create", "update", "delete"]
 ```
+
+## 创建角色绑定RoleBinding/ClusterRoleBinding
+
+这个是绑定一个ServiceAccount
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dev-ai-rolebinding
+  namespace: dev-ai
+subjects:
+- kind: ServiceAccount
+  name: ai-sa
+  namespace: dev-ai
+roleRef:
+  kind: Role
+  name: dev-ai-role
+  apiGroup: rbac.authorization.k8s.io
+```
+
+我们还可以为用户或者用户组绑定Role
+
+```yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: dev-ai-group-binding
+  namespace: dev-ai
+subjects:
+- kind: User
+  name: username  # 用户组的名称
+  piGroup: rbac.authorization.k8s.io
+- kind: Group
+  name: groupname  # 用户组的名称
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: pod-viewer
+  apiGroup: rbac.authorization.k8s.io
+```
+
