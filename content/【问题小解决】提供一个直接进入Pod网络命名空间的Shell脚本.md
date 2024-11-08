@@ -18,11 +18,12 @@ categories = [
 enter_netns() {
     local pod_name=$1
     local namespace=$2
+    local container_name=$3
     
-    # 获取指定 Pod 的容器 ID
-    container_id=$(kubectl -n $namespace describe pod $pod_name | grep -Eo 'containerd://[a-zA-Z0-9]+' | sed 's/containerd:\/\///')
+    # 获取指定 Pod 中指定容器的容器 ID
+    container_id=$(kubectl -n $namespace get pod $pod_name -o jsonpath="{.status.containerStatuses[?(@.name==\"$container_name\")].containerID}" | sed 's|containerd://||')
     if [ -z "$container_id" ]; then
-        echo "未找到 Pod $pod_name 在命名空间 $namespace 中的容器 ID"
+        echo "未找到 Pod $pod_name 中容器 $container_name 在命名空间 $namespace 中的容器 ID"
         exit 1
     fi
 
@@ -34,18 +35,18 @@ enter_netns() {
     fi
 
     # 进入容器的网络命名空间
-    echo "进入 Pod $pod_name 的网络命名空间，PID 为 $pid"
+    echo "进入 Pod $pod_name 中容器 $container_name 的网络命名空间，PID 为 $pid"
     nsenter -n --target $pid
 }
 
 # 检查是否提供了必要的参数
-if [ $# -ne 2 ]; then
-    echo "用法: $0 <pod_name> <namespace>"
+if [ $# -ne 3 ]; then
+    echo "用法: $0 <pod_name> <namespace> <container_name>"
     exit 1
 fi
 
 # 调用函数进入网络命名空间
-enter_netns $1 $2
+enter_netns $1 $2 $3
 ```
 
 ## 调试网络
