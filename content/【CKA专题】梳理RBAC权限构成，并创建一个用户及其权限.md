@@ -47,6 +47,7 @@ kubectl config set-context username-context --cluster=kubernetes-cluster --names
 kubectl config use-context username-context --kubeconfig=$KUBECONFIG_FILE
 ```
 将文件给到开发同学即可
+<!--more-->
 
 ## 为某个服务创建一个ServiceAccount
 
