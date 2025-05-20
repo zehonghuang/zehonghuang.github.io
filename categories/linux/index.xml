@@ -1,0 +1,579 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Linux on 维修区刷紫</title><link>/categories/linux/</link><description>Recent content in Linux on 维修区刷紫</description><generator>Hugo -- gohugo.io</generator><language>ja</language><copyright>© 2025 黄泽宏 | &lt;a href="https://beian.miit.gov.cn/" target="_blank">粤ICP备2025417888号-1&lt;/a></copyright><lastBuildDate>Fri, 13 Nov 2020 01:03:28 +0800</lastBuildDate><atom:link href="/categories/linux/index.xml" rel="self" type="application/rss+xml"/><item><title>【生产问题】时隔大半年，分享一次Nginx反向代理的需求</title><link>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E6%97%B6%E9%9A%94%E5%A4%A7%E5%8D%8A%E5%B9%B4%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E5%8F%8D%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/</link><pubDate>Fri, 13 Nov 2020 01:03:28 +0800</pubDate><guid>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E6%97%B6%E9%9A%94%E5%A4%A7%E5%8D%8A%E5%B9%B4%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E5%8F%8D%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/</guid><description>&lt;blockquote>
+&lt;p>博客前面分享了一篇&lt;a href="https://huangzehong.me/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E6%AD%A3%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/">《分享一个 Nginx 正向代理的另类应用案例》&lt;/a>，时隔不久，身为救火队员、万金油的博主又再一次接到了一个奇葩需求：&lt;/p>
+&lt;/blockquote>
+&lt;blockquote>
+&lt;p>场景和上次有些类似，也是部门引进的第三方应用，部署在各个网络区域，从 OA 办公区域无法直接访问。目前，运营人员都需要登陆 Windows 跳板机，才能打开这些应用的 WEB 控制台。既不方便，而且还有一定 Windows 服务器的维护工作量，于是找到我们团队，希望通过运维手段来解决。&lt;/p>
+&lt;/blockquote>
+&lt;p>拿到这个需求后，我先问了下各个应用的基本情况，得知每个应用的框架基本是一样的，都是通过 IP+端口直接访问，页面 path 也基本一样，没有唯一性。然后拿到了一个应用 WEB 控制台地址看了下，发现 html 引用的地址都是相对路径。&lt;/p>
+&lt;p>乍一想，这用 Nginx 代理不好弄吧？页面 path 一样，没法根据 location 来反代到不同的后端，只能通过不同 Nginx 端口来区分，那就太麻烦了！每次他们新上一个应用，我们就得多加一个新端口来映射，这种的尾大不掉、绵绵不绝事情坚决不干，Say pass。&lt;/p>
+&lt;p>再一想，我就想到了上次那个正向代理另类应用方案，感觉可以拿过来改改做动态代理。原理也简单：先和用户约定一个访问形式，比如:&lt;/p>
+&lt;blockquote>
+&lt;p>Nginx 代理地址为 myproxy.oa.com，需要代理到 IP 为 192.168.2.100:8080 的控制器，用户需要访问 &lt;a href="http://myproxy.oa.com/192.168.2.100:8080/path">http://myproxy.oa.com/192.168.2.100:8080/path&lt;/a>。&lt;/p>
+&lt;/blockquote></description></item><item><title>【问题小排查】排查 CLOSE_WAIT 堆积</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E6%8E%92%E6%9F%A5-close_wait-%E5%A0%86%E7%A7%AF/</link><pubDate>Wed, 21 Oct 2020 17:35:23 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E6%8E%92%E6%9F%A5-close_wait-%E5%A0%86%E7%A7%AF/</guid><description>&lt;blockquote>
+&lt;p>TCP 连接的 CLOSE_WAIT 状态，正常情况下是短暂的，如果出现堆积，一般说明应用有问题。&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="close_wait-堆积的危害">CLOSE_WAIT 堆积的危害&lt;/h3>
+&lt;p>每个&lt;code>CLOSE_WAIT&lt;/code>连接会占据一个文件描述，堆积大量的&lt;code>CLOSE_WAIT&lt;/code>可能造成文件描述符不够用，导致建连或打开文件失败，报错&lt;code>too many open files&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">dial udp 9.215.0.48:9073: socket: too many open files
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="如何判断">如何判断?&lt;/h3>
+&lt;p>检查系统&lt;code>CLOSE_WAIT&lt;/code>连接数:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">lsof &lt;span class="p">|&lt;/span> grep CLOSE_WAIT &lt;span class="p">|&lt;/span> wc -l
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>检查指定进程&lt;code>CLOSE_WAIT&lt;/code>连接数:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">lsof -p &lt;span class="nv">$PID&lt;/span> &lt;span class="p">|&lt;/span> grep CLOSE_WAIT &lt;span class="p">|&lt;/span> wc -l
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="为什么会产生大量-close_wait">为什么会产生大量 CLOSE_WAIT?&lt;/h3>
+&lt;p>我们看下 TCP 四次挥手过程:&lt;/p>
+&lt;p>&lt;img src="/images/tcp_established.png" alt="tcp_established">&lt;/p></description></item><item><title>【问题小排查】关于怎么查IO高负载</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%85%B3%E4%BA%8E%E6%80%8E%E4%B9%88%E6%9F%A5io%E9%AB%98%E8%B4%9F%E8%BD%BD/</link><pubDate>Fri, 11 Sep 2020 21:51:34 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%85%B3%E4%BA%8E%E6%80%8E%E4%B9%88%E6%9F%A5io%E9%AB%98%E8%B4%9F%E8%BD%BD/</guid><description>&lt;blockquote>
+&lt;p>系统如果出现 IO WAIT 高，说明 IO 设备的速度跟不上 CPU 的处理速度，CPU 需要在那里干等，
+这里的等待实际也占用了 CPU 时间，导致系统负载升高，可能就会影响业务进程的处理速度，导致业务超时。&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="如何判断-">如何判断 ？&lt;/h3>
+&lt;p>使用&lt;code>top&lt;/code>命令看下当前负载：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">top - 19:42:06 up 23:59, &lt;span class="m">2&lt;/span> users, load average: 34.64, 35.80, 35.76
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Tasks: &lt;span class="m">679&lt;/span> total, &lt;span class="m">1&lt;/span> running, &lt;span class="m">678&lt;/span> sleeping, &lt;span class="m">0&lt;/span> stopped, &lt;span class="m">0&lt;/span> zombie
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Cpu&lt;span class="o">(&lt;/span>s&lt;span class="o">)&lt;/span>: 15.6%us, 1.7%sy, 0.0%ni, 74.7%id, 7.9%wa, 0.0%hi, 0.1%si, 0.0%st
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Mem: 32865032k total, 30989168k used, 1875864k free, 370748k buffers
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Swap: 8388604k total, 5440k used, 8383164k free, 7982424k cached
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> PID USER PR NI VIRT RES SHR S %CPU %MEM TIME+ COMMAND
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="m">9783&lt;/span> mysql &lt;span class="m">20&lt;/span> &lt;span class="m">0&lt;/span> 17.3g 16g &lt;span class="m">8104&lt;/span> S 186.9 52.3 3752:33 mysqld
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="m">5700&lt;/span> nginx &lt;span class="m">20&lt;/span> &lt;span class="m">0&lt;/span> 1330m 66m &lt;span class="m">9496&lt;/span> S 8.9 0.2 0:20.82 php-fpm
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="m">6424&lt;/span> nginx &lt;span class="m">20&lt;/span> &lt;span class="m">0&lt;/span> 1330m 65m &lt;span class="m">8372&lt;/span> S 8.3 0.2 0:04.97 php-fpm
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>&lt;code>%wa&lt;/code>(wait) 表示 IO WAIT 的 cpu 占用，默认看到的是所有核的平均值，要看每个核的&lt;code>%wa&lt;/code>值需要按下 &amp;ldquo;1&amp;rdquo;:&lt;/p></description></item><item><title>【问题小排查】Linux任务计划crontab不执行的问题排查</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5linux%E4%BB%BB%E5%8A%A1%E8%AE%A1%E5%88%92crontab%E4%B8%8D%E6%89%A7%E8%A1%8C%E7%9A%84%E9%97%AE%E9%A2%98%E6%8E%92%E6%9F%A5/</link><pubDate>Mon, 03 Aug 2020 09:49:18 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5linux%E4%BB%BB%E5%8A%A1%E8%AE%A1%E5%88%92crontab%E4%B8%8D%E6%89%A7%E8%A1%8C%E7%9A%84%E9%97%AE%E9%A2%98%E6%8E%92%E6%9F%A5/</guid><description>&lt;p>朋友弄了一个小项目，要我帮忙做下 Linux 系统运维，上线一段时间后，发现项目偶尔会挂掉导致服务不可用。
+开发朋友一时之间也没空去研究项目奔溃的根因，只好由我这个运维先写一个项目进程自拉起脚本，
+通过 Linux 任务计划每分钟检查一下进程是否存在来避免项目挂了没人管的情况。&lt;/p>
+&lt;p>自拉起脚本很简单，随便写几行就搞定了：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">&lt;span class="cp">#!/bin/bash
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="cp">&lt;/span>&lt;span class="nv">processcount&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>pgrep my_app&lt;span class="p">|&lt;/span>wc -l&lt;span class="k">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nb">cd&lt;/span> &lt;span class="k">$(&lt;/span>&lt;span class="nb">cd&lt;/span> &lt;span class="k">$(&lt;/span>dirname &lt;span class="nv">$0&lt;/span>&lt;span class="k">)&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="nb">pwd&lt;/span>&lt;span class="k">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">if&lt;/span> &lt;span class="o">[[&lt;/span> &lt;span class="m">0&lt;/span> -eq &lt;span class="nv">$processcount&lt;/span> &lt;span class="o">]]&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">then&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nb">echo&lt;/span> &lt;span class="s2">&amp;#34;[ &lt;/span>&lt;span class="k">$(&lt;/span>date&lt;span class="k">)&lt;/span>&lt;span class="s2"> ] : my_app is down, start it!&amp;#34;&lt;/span> &lt;span class="p">|&lt;/span> tee -ai ./checkprocess.log
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> bash ./start.sh &lt;span class="c1">#这里是项目的重启脚本&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">else&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nb">echo&lt;/span> my_app is OK!
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">fi&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>然后丢到 crontab，1 分钟执行一次：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">* * * * * bash /data/app_server/checkprocess.sh &amp;gt;/dev/null 2&amp;gt;&lt;span class="p">&amp;amp;&lt;/span>&lt;span class="m">1&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>-_-不过进程还是挂了&lt;/p></description></item><item><title>【问题小解决】PID耗尽的危害</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3pid%E8%80%97%E5%B0%BD%E7%9A%84%E5%8D%B1%E5%AE%B3/</link><pubDate>Thu, 21 May 2020 18:14:19 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3pid%E8%80%97%E5%B0%BD%E7%9A%84%E5%8D%B1%E5%AE%B3/</guid><description>&lt;h3 id="如何判断-pid-耗尽">如何判断 PID 耗尽&lt;/h3>
+&lt;p>首先要确认当前的 PID 限制，检查全局 PID 最大限制:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">cat /proc/sys/kernel/pid_max
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>也检查下线程数限制：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">cat /proc/sys/kernel/threads-max
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>再检查下当前用户是否还有&lt;code>ulimit&lt;/code>限制最大进程数。&lt;/p>
+&lt;p>确认当前实际 PID 数量，检查当前用户的 PID 数量:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">ps -eLf &lt;span class="p">|&lt;/span> wc -l
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>如果发现实际 PID 数量接近最大限制说明 PID 就可能会爆满导致经常有进程无法启动，
+低版本内核可能报错:&lt;code>Cannot allocate memory&lt;/code>，这个报错信息不准确，
+在内核 4.1 以后改进了: &lt;a href="https://github.com/torvalds/linux/commit/35f71bc0a09a45924bed268d8ccd0d3407bc476f">https://github.com/torvalds/linux/commit/35f71bc0a09a45924bed268d8ccd0d3407bc476f&lt;/a>&lt;/p></description></item><item><title>【问题小解决】MySQL高可用集群之双主多从</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3mysql%E9%AB%98%E5%8F%AF%E7%94%A8%E9%9B%86%E7%BE%A4%E4%B9%8B%E5%8F%8C%E4%B8%BB%E5%A4%9A%E4%BB%8E/</link><pubDate>Thu, 14 May 2020 21:03:49 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3mysql%E9%AB%98%E5%8F%AF%E7%94%A8%E9%9B%86%E7%BE%A4%E4%B9%8B%E5%8F%8C%E4%B8%BB%E5%A4%9A%E4%BB%8E/</guid><description>&lt;p>通常MySQL主从复制主要用来解决读写分离，分担服务器压力。MySQL互为主备实现服务的高可用；这里同时基于高可用和负载均衡。&lt;/p>
+&lt;p>&lt;img src="/images/mysql-ha.png" alt="mysql-ha">&lt;/p>
+&lt;p>环境准备&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>主机名/角色&lt;/th>
+&lt;th>VIP&lt;/th>
+&lt;th>IP地址&lt;/th>
+&lt;th>操作系统&lt;/th>
+&lt;th>MySQL版本&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>Node0/master1&lt;/td>
+&lt;td>172.16.10.100&lt;/td>
+&lt;td>172.16.10.10&lt;/td>
+&lt;td>CentOS8.1.1911&lt;/td>
+&lt;td>8.0.17&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Node1/master2&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>172.16.10.11&lt;/td>
+&lt;td>CentOS8.1.1911&lt;/td>
+&lt;td>8.0.17&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Node2/slave1&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>172.16.10.12&lt;/td>
+&lt;td>CentOS8.1.1911&lt;/td>
+&lt;td>8.0.17&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;h3 id="安装mysql">安装MySQL&lt;/h3>
+&lt;p>在所有节点上执行&lt;code>dnf -y install mysql mysql-server&lt;/code>，并在master节点上配置server-id并开启bin-log&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">vi /etc/my.cnf.d/mysql-server.cnf
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>mysqld&lt;span class="o">]&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 主数据库端ID号，全局唯一，通常用IP地址最后一位&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nv">server_id&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">10&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 开启二进制日志&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">log-bin &lt;span class="o">=&lt;/span> mysql-bin
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 需要复制的数据库名，如果复制多个数据库，重复设置这个选项即可&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">binlog-do-db &lt;span class="o">=&lt;/span> &lt;span class="nb">test&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 将从服务器从主服务器收到的更新记入到从服务器自己的二进制日志文件中&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">log-slave-updates
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 控制binlog的写入频率。每执行多少次事务写入一次(这个参数性能消耗很大，但可减小MySQL崩溃造成的损失)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nv">sync_binlog&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">1&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 下面这两个参数非常重要&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 这个参数一般用在主主同步中，用来错开自增值, 防止键值冲突，master2上面改为2&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nv">auto_increment_offset&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">1&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 这个参数一般用在主主同步中，用来错开自增值, 防止键值冲突&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nv">auto_increment_increment&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">2&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 二进制日志自动删除的天数，默认值为0,表示“没有自动删除”，启动时和二进制日志循环时可能删除&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nv">expire_logs_days&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">7&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 将函数复制到slave&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nv">log_bin_trust_function_creators&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">1&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>执行&lt;code>systemctl enable --now mysqld&lt;/code>运行Mysql&lt;/p></description></item><item><title>【生产问题】分享一次Nginx正向代理的需求</title><link>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E6%AD%A3%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/</link><pubDate>Fri, 17 Apr 2020 11:26:41 +0800</pubDate><guid>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E6%AD%A3%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/</guid><description>&lt;blockquote>
+&lt;p>最近接到了一个需求：通过 Nginx 代理把现网一个自研代理程序给替换掉，感觉有点意思，也有所收益，简单分享下。&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="需求背景">需求背景&lt;/h3>
+&lt;p>部门的生产环境异常复杂，有部分第三方引入的系统位于特殊网络隔离区域，请求这些系统需要通过 2 层网络代理，如图所示：&lt;/p>
+&lt;p>&lt;img src="/images/12.png" alt="12">&lt;/p>
+&lt;p>中心源系统请求目标系统 API 的形式各异，我简单收集了下，至少有如下 3 种：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">curl --digest -u admin:xxxxxx &lt;span class="s1">&amp;#39;http://10.xxx.xxx.xxx:8080/foo/boo?Id=123456789&amp;amp;vId=1234&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">curl -d &lt;span class="s1">&amp;#39;{&amp;#34;eventId&amp;#34;: 20171116, &amp;#34;timestamp&amp;#34;: 123456, &amp;#34;caller&amp;#34;: &amp;#34;XXP&amp;#34;, &amp;#34;version&amp;#34;: &amp;#34;1.0&amp;#34;, &amp;#34;interface&amp;#34;: {&amp;#34;interfaceName&amp;#34;: &amp;#34;XXPVC&amp;#34;, &amp;#34;para&amp;#34;: {&amp;#34;detail&amp;#34;: {&amp;#34;owner&amp;#34;: &amp;#34;xxxxxxx&amp;#34;}}}, &amp;#34;password&amp;#34;: &amp;#34;xxxxxx&amp;#34;, &amp;#34;callee&amp;#34;: &amp;#34;XXPVC&amp;#34;}&amp;#39;&lt;/span> http://10.x.x.x:8080/t/api
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">curl -X PUT -H &lt;span class="s2">&amp;#34;Content-Type: application/json&amp;#34;&lt;/span> -d&lt;span class="s1">&amp;#39;{&amp;#34;vp&amp;#34;:{&amp;#34;id&amp;#34;:&amp;#34;ab27adc8-xxx-xxxx-a732-fbde162ebdd3&amp;#34;}}&amp;#39;&lt;/span> &lt;span class="s2">&amp;#34;http://10.x.x.x/v1.0/peers/show_connectioninfos&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item><item><title>【基础知识】Linux的xargs命令</title><link>/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86linux%E7%9A%84xargs%E5%91%BD%E4%BB%A4/</link><pubDate>Tue, 14 Jan 2020 18:05:35 +0800</pubDate><guid>/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86linux%E7%9A%84xargs%E5%91%BD%E4%BB%A4/</guid><description>&lt;p>昨天在给服务器做年终“大扫除”整理时，发现有个目录下因为文件过多而删除失败，最终使用&lt;code>xargs&lt;/code>才搞定，于是顺便来记录下。&lt;/p>
+&lt;p>在执行某些命令时，当 Linux 某个目录下文件过多就会因为“参数列表过长”而报错无法执行。比如，我要清空&lt;code>/var/spool/clientmqueue/&lt;/code>下的庞大数量的临时文件，
+如果直接执行&lt;code>rm -f *&lt;/code>，有时就会会出现“参数列表过长”的错误提示，因为 linux 下一般的命令的参数的总长度不能超过 4096 个字节。&lt;/p>
+&lt;p>这时，&lt;code>xargs&lt;/code>就应该上场了了，由于服务器数量很多，我直接在每台服务器上执行如下命令，即可清理此文件夹内的所有文件：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">&lt;span class="c1">#代码中的$8，不通系统发行版本可能有所区别，具体使用 ls -l 查看文件名在那一列即可&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nb">cd&lt;/span> /var/spool/clientmqueue/ &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> ls -l /var/spool/clientmqueue/ &lt;span class="p">|&lt;/span> awk &lt;span class="o">{&lt;/span>&lt;span class="s1">&amp;#39;print $8&amp;#39;&lt;/span>&lt;span class="o">}&lt;/span> &lt;span class="p">|&lt;/span> xargs rm -f
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item><item><title>Linux常用命令详解</title><link>/linux%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4%E8%AF%A6%E8%A7%A3/</link><pubDate>Thu, 02 May 2019 16:56:47 +0800</pubDate><guid>/linux%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4%E8%AF%A6%E8%A7%A3/</guid><description>&lt;ul>
+&lt;li>ls&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">ls &lt;span class="c1"># 显示当前目录的内容&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">ls -la &lt;span class="c1"># 显示当前目录的所有文件（包括隐藏文件），并显示详细信息&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">ls /home/user &lt;span class="c1"># 显示指定目录的内容&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">ls -R &lt;span class="c1"># 递归地列出目录内容，包括子目录及其内容&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">ls -h &lt;span class="c1"># 与 -l 结合使用，显示文件大小以可读形式（如 KB、MB）&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ul>
+&lt;li>touch&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">touch newfile.txt &lt;span class="c1"># 创建一个名为 newfile.txt 的空文件&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">touch file1 file2 &lt;span class="c1"># 创建多个文件（file1 和 file2）&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">touch -c existingfile.txt &lt;span class="c1"># 如果文件存在，则更新时间戳；如果不存在，不会创建新文件&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ul>
+&lt;li>cat&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;span class="lnt">22
+&lt;/span>&lt;span class="lnt">23
+&lt;/span>&lt;span class="lnt">24
+&lt;/span>&lt;span class="lnt">25
+&lt;/span>&lt;span class="lnt">26
+&lt;/span>&lt;span class="lnt">27
+&lt;/span>&lt;span class="lnt">28
+&lt;/span>&lt;span class="lnt">29
+&lt;/span>&lt;span class="lnt">30
+&lt;/span>&lt;span class="lnt">31
+&lt;/span>&lt;span class="lnt">32
+&lt;/span>&lt;span class="lnt">33
+&lt;/span>&lt;span class="lnt">34
+&lt;/span>&lt;span class="lnt">35
+&lt;/span>&lt;span class="lnt">36
+&lt;/span>&lt;span class="lnt">37
+&lt;/span>&lt;span class="lnt">38
+&lt;/span>&lt;span class="lnt">39
+&lt;/span>&lt;span class="lnt">40
+&lt;/span>&lt;span class="lnt">41
+&lt;/span>&lt;span class="lnt">42
+&lt;/span>&lt;span class="lnt">43
+&lt;/span>&lt;span class="lnt">44
+&lt;/span>&lt;span class="lnt">45
+&lt;/span>&lt;span class="lnt">46
+&lt;/span>&lt;span class="lnt">47
+&lt;/span>&lt;span class="lnt">48
+&lt;/span>&lt;span class="lnt">49
+&lt;/span>&lt;span class="lnt">50
+&lt;/span>&lt;span class="lnt">51
+&lt;/span>&lt;span class="lnt">52
+&lt;/span>&lt;span class="lnt">53
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 使用 -n 选项：为每行添加行号，包括空行&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">cat -n file.txt
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 输出示例：&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 1 This is a line.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 2 &lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 3 This is indented.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 4 Another line.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：此选项为文件中的每一行编号，从 1 开始计数。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 使用 -b 选项：为非空行添加行号，空行不编号&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">cat -b file.txt
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 输出示例：&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 1 This is a line.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># &lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 2 This is indented.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 3 Another line.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：与 -n 类似，但只为非空行编号。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 使用 -s 选项：压缩连续的空行，只显示一个空行&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">cat -s file.txt
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 输出示例：&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># This is a line.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># &lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># This is indented.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># Another line.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：多个连续空行会被压缩为一个空行。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 使用 -E 选项：显示每行末尾的 $ 符号，标示行的结束&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">cat -E file.txt
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 输出示例：&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># This is a line.$&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># $&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># This is indented.$&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># Another line.$&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：在每一行的末尾加上 &amp;#34;$&amp;#34; 以标示行结束，有助于确认行尾换行符的位置。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 使用 -T 选项：将 Tab 字符显示为 ^I&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">cat -T file.txt
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 输出示例：&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># This is a line.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># &lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># ^IThis is indented.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># Another line.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：将 Tab 字符用 ^I 进行可视化显示，这样方便辨认文件中的制表符。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 使用 -A 选项：显示所有不可见字符，等同于 -vET&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">cat -A file.txt
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 输出示例：&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># This is a line.$&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># $&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># ^IThis is indented.$&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># Another line.$&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：显示不可见字符、换行符 ($) 和制表符 (^I)，有助于检查文件中所有控制字符和隐藏字符。&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ul>
+&lt;li>kill&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">&lt;span class="nb">kill&lt;/span> -l
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 输出示例：&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 1) SIGHUP 2) SIGINT 3) SIGQUIT 4) SIGILL 5) SIGTRAP ...&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：列出系统支持的所有信号，以及信号的编号。每个信号都有不同的作用，例如 `SIGHUP` 代表挂起、`SIGKILL` 表示强制终止等。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nb">kill&lt;/span> -9 &lt;span class="m">1234&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：向进程 ID 为 1234 的进程发送 `SIGKILL` 信号（9），强制终止该进程。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 该信号会立即结束进程，无法被捕获或忽略，通常用于无法响应 `SIGTERM` 的进程。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 没有 -9，默认终止信号 (SIGTERM)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nb">kill&lt;/span> -HUP &lt;span class="m">1234&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：向进程 ID 为 1234 的进程发送 `SIGHUP` 信号（1）。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 通常用于让守护进程重新加载配置，而不是完全终止。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># SIGHUP (1)：挂起信号，通常用于让进程重新读取配置文件，比如 nginx、cron&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># SIGINT (2)：中断信号，通常由 Ctrl+C 发送&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># SIGQUIT (3)：退出信号，产生核心转储&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># SIGKILL (9)：强制终止信号，不能被忽略或捕获&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># SIGTERM (15)：请求终止信号，进程可以捕获并自行处理&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># SIGSTOP：停止进程，类似于 Ctrl+Z，不能被捕获&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item><item><title>Oh My Zsh自动补全</title><link>/oh-my-zsh%E8%87%AA%E5%8A%A8%E8%A1%A5%E5%85%A8/</link><pubDate>Tue, 22 Jan 2019 11:04:04 +0800</pubDate><guid>/oh-my-zsh%E8%87%AA%E5%8A%A8%E8%A1%A5%E5%85%A8/</guid><description>shell 有多种，大多数人接触比较多的是 bash， 不管是 mac 还是各个 linux 发行版，默认的 shell 基本都是 bash， 虽然 bash 功能已经丰富了，但对于极客们来说，界面不够炫，提示功能也不够强大。而 zsh 功能及其强大，只是配置过于复杂， 后来就有了 oh-my-zsh 开源项目，配置难度大大降低。
+Github地址: https://github.com/robbyrussell/oh-my-zsh
+安装 1 sh -c &amp;#34;$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)&amp;#34; 更改系统默认 shell 1 chsh -s /bin/zsh 更改zsh配置文件 1 vim ~/.zshrc 修改主题 1 ZSH_THEME=&amp;#34;robbyrussell&amp;#34; 配置插件 oh-my-zsh 还支持插件，插件存放目录为：
+1 ~/.oh-my-zsh/plugins 这个目录中每个子目录都是一个插件，目录名即为插件名，默认不开启，需要在~/.zshrc中该配置开启，比如:
+1 2 3 4 5 6 7 8 9 10 11 plugins=( git git-flow docker kubectl brew npm helm zsh-autosuggestions zsh-syntax-highlighting ) 这些插件可以给你常用的命令做用法提示，使用 tab 键触发。我这里再推荐另外三个不是内置的插件， 需要将它们单独下载到~/.</description></item><item><title>Grep无法查找shell传过来的变量？</title><link>/grep%E6%97%A0%E6%B3%95%E6%9F%A5%E6%89%BEshell%E4%BC%A0%E8%BF%87%E6%9D%A5%E7%9A%84%E5%8F%98%E9%87%8F/</link><pubDate>Thu, 23 Aug 2018 10:24:55 +0800</pubDate><guid>/grep%E6%97%A0%E6%B3%95%E6%9F%A5%E6%89%BEshell%E4%BC%A0%E8%BF%87%E6%9D%A5%E7%9A%84%E5%8F%98%E9%87%8F/</guid><description>&lt;p>差不多两周前，同事告诉我发现一个诡异的问题，grep 无法搜索 shell 中的变量，着实很惊讶。到他所说的服务器上试了下，还真是不行！&lt;/p>
+&lt;p>大概就是这样一个要求：&lt;/p>
+&lt;ol>
+&lt;li>有个文本为 userid.txt，里面每一行一个用户 id，类似如下：&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">&lt;span class="m">0001&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="m">0003&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="m">0005&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="m">0007&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="m">0009&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ol start="2">
+&lt;li>另外还有一个文本为 record.txt，里面是所有用户的操作记录，一行一条，并且包含有 id，类似如下：&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;span class="lnt">8
+&lt;/span>&lt;span class="lnt">9
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 11:03,198 INFO&lt;span class="o">]&lt;/span> userId:0001 gilettype:3
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 12:12,198 INFO&lt;span class="o">]&lt;/span> userId:0002 gilettype:3
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 13:02,198 INFO&lt;span class="o">]&lt;/span> userId:0003 gilettype:1
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 14:33,198 INFO&lt;span class="o">]&lt;/span> userId:0001 gilettype:3
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 15:13,198 INFO&lt;span class="o">]&lt;/span> userId:0002 gilettype:2
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 16:43,198 INFO&lt;span class="o">]&lt;/span> userId:0003 gilettype:1
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 17:32,198 INFO&lt;span class="o">]&lt;/span> userId:0001 gilettype:3
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 18:16,198 INFO&lt;span class="o">]&lt;/span> userId:0002 gilettype:1
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 19:25,198 INFO&lt;span class="o">]&lt;/span> userId:0003 gilettype:2
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item><item><title>用cat命令查看不可见字符</title><link>/%E7%94%A8cat%E5%91%BD%E4%BB%A4%E6%9F%A5%E7%9C%8B%E4%B8%8D%E5%8F%AF%E8%A7%81%E5%AD%97%E7%AC%A6/</link><pubDate>Thu, 02 Aug 2018 00:47:00 +0800</pubDate><guid>/%E7%94%A8cat%E5%91%BD%E4%BB%A4%E6%9F%A5%E7%9C%8B%E4%B8%8D%E5%8F%AF%E8%A7%81%E5%AD%97%E7%AC%A6/</guid><description>时常，某个程序或软件并没有语法错误，并且你检查它的相关内容也确实没有发现问题。 这是因为你用普通文本编辑器软件来查看的时候，有许多字符没有显示出来，但在终端使用 cat 命令可以很容易地检测出是否存在这些字符。
+首先，我们创建一个简单的文本文件，写入一些特殊字符。打开终端，运行命令：
+1 printf &amp;#39;testing\012\011\011testing\014\010\012more testing\012\011\000\013\000even more testing\012\011\011\011\012&amp;#39; &amp;gt; /tmp/testing.txt 现在用不同的编辑器软件打开，显示的结果会不同。用简单的 cat 打开将显示：
+1 2 3 4 5 $ cat /tmp/testing.txt testing testing more testing even more testing 如果用 nano 或者 vim 打开，将会看到：
+1 2 3 4 testing testing^L^H more testing ^@^K^@even more testing 现在我们给 cat 加上一些选项参数，以便能显示出特殊字符来。
+用 cat -T 命令来显示 TAB 键的字符^I
+1 2 3 4 5 6 cat -T /tmp/testing.txt testing ^I^Itesting more testing ^I even more testing ^I^I^I 用 cat -E 命令来显示行尾的结束字符$</description></item><item><title>初学awk编程</title><link>/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95%E5%88%9D%E5%AD%A6awk%E7%BC%96%E7%A8%8B/</link><pubDate>Mon, 11 Jun 2018 22:27:29 +0800</pubDate><guid>/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95%E5%88%9D%E5%AD%A6awk%E7%BC%96%E7%A8%8B/</guid><description>&lt;ul>
+&lt;li>
+&lt;h3 id="awk命令">awk命令&lt;/h3>
+&lt;/li>
+&lt;/ul>
+&lt;p>基本格式就这两种&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">awk -F&lt;span class="s1">&amp;#39;&amp;lt;默认是空格，这里可正则表达式也可字符&amp;gt;&amp;#39;&lt;/span> &lt;span class="s1">&amp;#39;commands&amp;#39;&lt;/span> file&lt;span class="o">(&lt;/span>s&lt;span class="o">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 也可以用管道，&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">ll -t &lt;span class="p">|&lt;/span> awk -F&lt;span class="s1">&amp;#39;:&amp;#39;&lt;/span> &lt;span class="s1">&amp;#39;{print $2}&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>通常awk做文本处理前还需要做一次过滤。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">awk -F&lt;span class="s1">&amp;#39;:&amp;#39;&lt;/span> &lt;span class="s1">&amp;#39;/&amp;lt;正则表达式or普通字符串&amp;gt;/{print $1}&amp;#39;&lt;/span> /ect/passwd
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 例如，我先用SQL为关键字做一次过滤&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">awk -F&lt;span class="s1">&amp;#39;:&amp;#39;&lt;/span> &lt;span class="s1">&amp;#39;/SQL/{print $1, $5}&amp;#39;&lt;/span> /etc/passwd
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">#_mysql MySQL Server&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">#_postgres PostgreSQL Server&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 现在匹配有zF字符的文本&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">awk -F&lt;span class="s1">&amp;#39;:&amp;#39;&lt;/span> &lt;span class="s1">&amp;#39;/[zF]/{print $1, $5}&amp;#39;&lt;/span> /etc/passwd
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">#_ftp FTP Daemon&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">#_timezone AutoTimeZoneDaemon&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">#_krbfast Kerberos FAST Account&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item></channel></rss>

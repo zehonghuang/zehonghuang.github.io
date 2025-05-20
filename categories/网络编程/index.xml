@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>网络编程 on 维修区刷紫</title><link>/categories/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/</link><description>Recent content in 网络编程 on 维修区刷紫</description><generator>Hugo -- gohugo.io</generator><language>ja</language><copyright>© 2025 黄泽宏 | &lt;a href="https://beian.miit.gov.cn/" target="_blank">粤ICP备2025417888号-1&lt;/a></copyright><lastBuildDate>Tue, 07 Jan 2020 10:51:17 +0800</lastBuildDate><atom:link href="/categories/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/index.xml" rel="self" type="application/rss+xml"/><item><title>【网络编程】从Linux角度以及JVM源码，深入NIO的细节</title><link>/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B%E4%BB%8Elinux%E8%A7%92%E5%BA%A6%E4%BB%A5%E5%8F%8Ajvm%E6%BA%90%E7%A0%81%E6%B7%B1%E5%85%A5nio%E7%9A%84%E7%BB%86%E8%8A%82/</link><pubDate>Tue, 07 Jan 2020 10:51:17 +0800</pubDate><guid>/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B%E4%BB%8Elinux%E8%A7%92%E5%BA%A6%E4%BB%A5%E5%8F%8Ajvm%E6%BA%90%E7%A0%81%E6%B7%B1%E5%85%A5nio%E7%9A%84%E7%BB%86%E8%8A%82/</guid><description>&lt;p>最近一段时间都在啃Linux内核， 也给了自己机会再度深入理解Java的NIO实现，希望能获得更多东西，尝试理解以前未能理解的，会涉及少量OpenJDK源码。&lt;/p>
+&lt;p>因为NIO本身的实现很多牵扯到操作系统，所以需要先稍微过一下，有理解不对的地方，请指出。&lt;/p>
+&lt;h2 id="1涉及的linux知识">1、涉及的Linux知识&lt;/h2>
+&lt;h3 id="11文件描述符">1.1、文件描述符&lt;/h3>
+&lt;p>对于Linux来说，一切皆为文件，设备文件、IO文件还是普通文件，都可以通过一个叫做文件描述符（FileDescriptor）的东西来进行操作，其涉及的数据结构可以自行了解VFS。&lt;/p>
+&lt;h4 id="111设备阻塞与非阻塞">1.1.1、设备阻塞与非阻塞&lt;/h4>
+&lt;p>任意对设备的操作都是默认为阻塞的，如果没有或有不可操作的资源，会被添加到&lt;code>wait_queue_head_t&lt;/code>中进行等待，直到被&lt;code>semaphore&lt;/code>通知允许执行。此时可以通过&lt;code>fcntl()&lt;/code>函数将文件描述符设置为非阻塞，若没有或有不可操作的资源，立即返回错误信息。&lt;/p>
+&lt;h3 id="12jvm内存结构--虚拟地址空间">1.2、JVM内存结构 &amp;amp; 虚拟地址空间&lt;/h3>
+&lt;p>众所周知，Linux下的每一进程都有自己的虚拟内存地址，而JVM也是一个进程，且JVM有自己的内存结构。既然如此，两者之间必有对应关系，OracleJDK7提供了NMT，用&lt;code>jcmd pid VM.native_memory detail&lt;/code>可以查看各类区域的reserved，被committed的内存大小及其地址区间，再通过&lt;code>pmap -p&lt;/code>可以看到进程内存信息。&lt;/p>
+&lt;p>肉眼对比地址区间可以发现，JVM heap是通过mmap分配内存的，位于进程的映射区内，而进程堆区可以被malloc进行分配，对应关系如图。
+&lt;img src="https://raw.githubusercontent.com/zehonghuang/github_blog_bak/master/source/image/jvm%E8%99%9A%E6%8B%9F%E5%86%85%E5%AD%98%E5%9C%B0%E5%9D%80.png" alt="jvm内存虚拟地址">&lt;/p></description></item></channel></rss>

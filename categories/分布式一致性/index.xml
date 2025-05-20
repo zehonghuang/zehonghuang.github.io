@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>分布式一致性 on 维修区刷紫</title><link>/categories/%E5%88%86%E5%B8%83%E5%BC%8F%E4%B8%80%E8%87%B4%E6%80%A7/</link><description>Recent content in 分布式一致性 on 维修区刷紫</description><generator>Hugo -- gohugo.io</generator><language>ja</language><copyright>© 2025 黄泽宏 | &lt;a href="https://beian.miit.gov.cn/" target="_blank">粤ICP备2025417888号-1&lt;/a></copyright><lastBuildDate>Wed, 17 Mar 2021 10:14:50 +0800</lastBuildDate><atom:link href="/categories/%E5%88%86%E5%B8%83%E5%BC%8F%E4%B8%80%E8%87%B4%E6%80%A7/index.xml" rel="self" type="application/rss+xml"/><item><title>【JRaft源码分析03】成员变化</title><link>/jraft%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%9003%E6%88%90%E5%91%98%E5%8F%98%E5%8C%96/</link><pubDate>Wed, 17 Mar 2021 10:14:50 +0800</pubDate><guid>/jraft%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%9003%E6%88%90%E5%91%98%E5%8F%98%E5%8C%96/</guid><description>&lt;p>第三篇说成员变化，有了对选举和日志复制的认识，这个模块就很轻松简单了。&lt;/p>
+&lt;p>成员变化就两种情况，增加删除更换节点，和转移领导人。&lt;/p>
+&lt;h2 id="1更改一般节点">1、更改一般节点&lt;/h2>
+&lt;p>&lt;img src="https://raw.githubusercontent.com/zehonghuang/github_blog_bak/master/source/image/%E4%B8%80%E8%88%AC%E8%8A%82%E7%82%B9%E6%88%90%E5%91%98%E5%8F%98%E5%8C%96.png" alt="一般成员节点变化">&lt;/p></description></item><item><title>【JRaft源码分析02】心跳机制以及日志复制</title><link>/jraft%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%9002%E5%BF%83%E8%B7%B3%E6%9C%BA%E5%88%B6%E4%BB%A5%E5%8F%8A%E6%97%A5%E5%BF%97%E5%A4%8D%E5%88%B6/</link><pubDate>Sun, 14 Mar 2021 10:17:55 +0800</pubDate><guid>/jraft%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%9002%E5%BF%83%E8%B7%B3%E6%9C%BA%E5%88%B6%E4%BB%A5%E5%8F%8A%E6%97%A5%E5%BF%97%E5%A4%8D%E5%88%B6/</guid><description>&lt;p>日志复制是所有分布式共识算法最重要也是最复杂的部分，需要考虑各种各样安全性，比如机器挂了持久化没做、网络分区导致term&amp;amp;logindex不一致、成员变化带来两个任期相同的leader、异步网络出现日志乱序等等。&lt;/p>
+&lt;p>很多个细节，我边看源码边照着论文理解，一个异常判断反复推敲它的作用，想象发生的场景。这是源码级熟悉raft的好处，多多少少能身临其境，获取更多的实战校验。&lt;/p>
+&lt;p>后面至少还有两篇，成员变化和日志压缩。&lt;/p>
+&lt;p>花了点时间做张较为直观的简化流程图，红色箭头是日志复制的过程。还是挺复杂的，包括不限于Node、LogManager、Replicator、BallotBox、StateMachine之间的调用，其实还有快照，以后再讲。&lt;/p>
+&lt;p>本文会分为三部分讲，写请求日志落盘、日志复制、commit执行StateMachine。
+&lt;img src="https://raw.githubusercontent.com/zehonghuang/github_blog_bak/master/source/image/jraft%E6%97%A5%E5%BF%97%E5%A4%8D%E5%88%B6%E7%8A%B6%E6%80%81%E6%9C%BA.png" alt="日志复制状态机">&lt;/p></description></item><item><title>【JRaft源码分析01】启用以及选举过程</title><link>/jraft%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%9001%E5%90%AF%E7%94%A8%E4%BB%A5%E5%8F%8A%E9%80%89%E4%B8%BE%E8%BF%87%E7%A8%8B/</link><pubDate>Thu, 04 Mar 2021 10:18:15 +0800</pubDate><guid>/jraft%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%9001%E5%90%AF%E7%94%A8%E4%BB%A5%E5%8F%8A%E9%80%89%E4%B8%BE%E8%BF%87%E7%A8%8B/</guid><description>&lt;p>最近潜心cap理论和raft算法，选用了蚂蚁金服的sofa-jraft，深入研究具体的实现。该框架参考自百度的BRAFT，可以说是非常优秀的分布式通用框架，很值得学习。&lt;/p>
+&lt;p>Raft算法的理论就不再多说了，感性认识的话可以看这个&lt;a href="http://thesecretlivesofdata.com/raft/">动画&lt;/a>，非常好懂。&lt;/p>
+&lt;h2 id="1启动入口">1、启动入口&lt;/h2>
+&lt;p>示例在github的&lt;a href="https://github.com/zehonghuang/sofa-jraft/tree/master/jraft-example">jraft-example&lt;/a>&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-java" data-lang="java">&lt;span class="line">&lt;span class="cl">&lt;span class="n">RaftGroupService&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">raftGroupService&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">new&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">RaftGroupService&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">groupId&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">serverId&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">nodeOptions&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">rpcServer&lt;/span>&lt;span class="p">);&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="c1">//依次实例化NodeManager、NodeImpl、RpcServer&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="n">Node&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">node&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">raftGroupService&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">start&lt;/span>&lt;span class="p">();&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="kd">public&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kd">synchronized&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">Node&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nf">start&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kd">final&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kt">boolean&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">startRpcServer&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="n">NodeManager&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">getInstance&lt;/span>&lt;span class="p">().&lt;/span>&lt;span class="na">addAddress&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">serverId&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">getEndpoint&lt;/span>&lt;span class="p">());&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">node&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">RaftServiceFactory&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">createAndInitRaftNode&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">groupId&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">serverId&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">nodeOptions&lt;/span>&lt;span class="p">);&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">if&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">startRpcServer&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">rpcServer&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">startup&lt;/span>&lt;span class="p">();&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="2包罗万象的node">2、包罗万象的Node&lt;/h2>
+&lt;p>分布式系统关键单体就是节点Node，它包括raft分布式算法中需要的所有行为，不限于选举、投票、日志、复制、接收rpc请求等，梦开始的地方。&lt;/p>
+&lt;p>&lt;img src="https://raw.githubusercontent.com/zehonghuang/github_blog_bak/master/source/image/Node%E7%BB%93%E6%9E%84%E5%9B%BE.png" alt="Node结构图">&lt;/p></description></item></channel></rss>

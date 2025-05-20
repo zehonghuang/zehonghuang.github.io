@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>问题小排查 on 维修区刷紫</title><link>/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5/</link><description>Recent content in 问题小排查 on 维修区刷紫</description><generator>Hugo -- gohugo.io</generator><language>ja</language><copyright>© 2025 黄泽宏 | &lt;a href="https://beian.miit.gov.cn/" target="_blank">粤ICP备2025417888号-1&lt;/a></copyright><lastBuildDate>Fri, 09 Jul 2021 17:48:03 +0800</lastBuildDate><atom:link href="/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5/index.xml" rel="self" type="application/rss+xml"/><item><title>【问题小排查】关于device or Resource Busy如何排查</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%85%B3%E4%BA%8Edevice-or-resource-busy%E5%A6%82%E4%BD%95%E6%8E%92%E6%9F%A5/</link><pubDate>Fri, 09 Jul 2021 17:48:03 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%85%B3%E4%BA%8Edevice-or-resource-busy%E5%A6%82%E4%BD%95%E6%8E%92%E6%9F%A5/</guid><description>背景 在 kubernetes 环境中，可能会遇到因目录被占用导致 pod 一直 terminating:
+1 Aug 27 15:52:22 VM-244-70-centos kubelet[906978]: E0827 15:52:22.816125 906978 nestedpendingoperations.go:270] Operation for &amp;#34;\&amp;#34;kubernetes.io/secret/b45f3af4-3574-472e-b263-c2b71c3b2ea0-default-token-fltdk\&amp;#34; (\&amp;#34;b45f3af4-3574-472e-b263-c2b71c3b2ea0\&amp;#34;)&amp;#34; failed. No retries permitted until 2021-08-27 15:54:24.816098325 +0800 CST m=+108994.575932846 (durationBeforeRetry 2m2s). Error: &amp;#34;UnmountVolume.TearDown failed for volume \&amp;#34;default-token-fltdk\&amp;#34; (UniqueName: \&amp;#34;kubernetes.io/secret/b45f3af4-3574-472e-b263-c2b71c3b2ea0-default-token-fltdk\&amp;#34;) pod \&amp;#34;b45f3af4-3574-472e-b263-c2b71c3b2ea0\&amp;#34; (UID: \&amp;#34;b45f3af4-3574-472e-b263-c2b71c3b2ea0\&amp;#34;) : unlinkat /var/lib/kubelet/pods/b45f3af4-3574-472e-b263-c2b71c3b2ea0/volumes/kubernetes.io~secret/default-token-fltdk: device or resource busy&amp;#34; 本文记录下排查方法。
+找出目录被谁占用的 看下目录哪个进程 mount 了:
+1 2 $ find /proc/*/mounts -exec grep /var/lib/kubelet/pods/0104ab85-d0ea-4ac5-a5f9-5bdd12cca589/volumes/kubernetes.io~secret/kube-proxy-token-nvthm {} + 2&amp;gt;/dev/null /proc/6076/mounts:tmpfs /var/lib/kubelet/pods/0104ab85-d0ea-4ac5-a5f9-5bdd12cca589/volumes/kubernetes.io~secret/kube-proxy-token-nvthm tmpfs rw,relatime 0 0 根据找出的进程号，看看是谁干的:</description></item><item><title>【问题小排查】针对containerd V1.4.3拉取镜像的问题</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E9%92%88%E5%AF%B9containerd-v1.4.3%E6%8B%89%E5%8F%96%E9%95%9C%E5%83%8F%E7%9A%84%E9%97%AE%E9%A2%98/</link><pubDate>Fri, 11 Jun 2021 15:06:48 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E9%92%88%E5%AF%B9containerd-v1.4.3%E6%8B%89%E5%8F%96%E9%95%9C%E5%83%8F%E7%9A%84%E9%97%AE%E9%A2%98/</guid><description>&lt;h3 id="问题描述">问题描述&lt;/h3>
+&lt;p>在 containerd 运行时的 kubernetes 线上环境中，出现了镜像无法下载的情况，具体报错如下：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">Failed to pull image&lt;span class="p">&amp;amp;&lt;/span>nbsp&lt;span class="p">;&lt;/span>&lt;span class="sb">`&lt;/span> &lt;span class="sb">`&lt;/span>&lt;span class="s2">&amp;#34;ccr.ccs.tencentyun.com/tkeimages/tke-hpc-controller:v1.0.0&amp;#34;&lt;/span>&lt;span class="sb">`&lt;/span> &lt;span class="sb">`&lt;/span>: rpc error: &lt;span class="nv">code&lt;/span> &lt;span class="o">=&lt;/span> NotFound &lt;span class="nv">desc&lt;/span> &lt;span class="o">=&lt;/span> failed to pull and unpack image&lt;span class="p">&amp;amp;&lt;/span>nbsp&lt;span class="p">;&lt;/span>&lt;span class="sb">`&lt;/span> &lt;span class="sb">`&lt;/span>&lt;span class="s2">&amp;#34;ccr.ccs.tencentyun.com/tkeimages/tke-hpc-controller:v1.0.0&amp;#34;&lt;/span>&lt;span class="sb">`&lt;/span> &lt;span class="sb">`&lt;/span>: failed to unpack image on snapshotter overlayfs: failed to extract layer sha256:d72a74c56330b347f7d18b64d2effd93edd695fde25dc301d52c37efbcf4844e: failed to get reader from content store: content digest sha256:2bf487c4beaa6fa7ea6e46ec1ff50029024ebf59f628c065432a16a940792b58: not found
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>containerd 的日志中也有相关日志：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">containerd&lt;span class="o">[&lt;/span>136&lt;span class="o">]&lt;/span>: &lt;span class="nv">time&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;2020-11-19T16:11:56.975489200Z&amp;#34;&lt;/span> &lt;span class="nv">level&lt;/span>&lt;span class="o">=&lt;/span>info &lt;span class="nv">msg&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;PullImage \&amp;#34;redis:2.8.23\&amp;#34;&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">containerd&lt;span class="o">[&lt;/span>136&lt;span class="o">]&lt;/span>: &lt;span class="nv">time&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;2020-11-19T16:12:00.140053300Z&amp;#34;&lt;/span> &lt;span class="nv">level&lt;/span>&lt;span class="o">=&lt;/span>warning &lt;span class="nv">msg&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;reference for unknown type: application/octet-stream&amp;#34;&lt;/span> &lt;span class="nv">digest&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;sha256:481995377a044d40ca3358e4203fe95eca1d58b98a1d4c2d9cec51c0c4569613&amp;#34;&lt;/span> &lt;span class="nv">mediatype&lt;/span>&lt;span class="o">=&lt;/span>application/octet-stream &lt;span class="nv">size&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="m">5946&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="尝试复现">尝试复现&lt;/h3>
+&lt;p>分析环境信息:&lt;/p>
+&lt;ul>
+&lt;li>container v1.4.3 运行时。&lt;/li>
+&lt;li>基于 1.10 版本的 docker 制作的镜像（比如 dockerhub 镜像仓库中的 redis:2.8.23）。&lt;/li>
+&lt;/ul>
+&lt;p>然后根据以上版本信息构造相同环境，通过如下命令拉取镜像：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">$ crictl pull docker.io/libraryredis:2.8.23
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">FATA&lt;span class="o">[&lt;/span>0001&lt;span class="o">]&lt;/span> pulling image failed: rpc error: &lt;span class="nv">code&lt;/span> &lt;span class="o">=&lt;/span> NotFound &lt;span class="nv">desc&lt;/span> &lt;span class="o">=&lt;/span> failed to pull and unpack image &lt;span class="s2">&amp;#34;docker.io/library/redis:2.8.23&amp;#34;&lt;/span>: failed to unpack image on snapshotter overlayfs: failed to extract layer sha256:4dcab49015d47e8f300ec33400a02cebc7b54cadd09c37e49eccbc655279da90: failed to get reader from content store: content digest sha256:51f5c6a04d83efd2d45c5fd59537218924bc46705e3de6ffc8bc07b51481610b: not found
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>问题复现，基本确认跟 containerd 版本与打包镜像的 docker 版本有关。&lt;/p></description></item><item><title>【问题小排查】Pod状态一直Terminating</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5pod%E7%8A%B6%E6%80%81%E4%B8%80%E7%9B%B4terminating/</link><pubDate>Thu, 11 Feb 2021 16:50:46 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5pod%E7%8A%B6%E6%80%81%E4%B8%80%E7%9B%B4terminating/</guid><description>&lt;h2 id="need-to-kill-pod">Need to kill Pod&lt;/h2>
+&lt;blockquote>
+&lt;p>$ kubectl describe pod/apigateway-6dc48bf8b6-clcwk -n cn-staging&lt;/p>
+&lt;p>Normal Killing 39s (x735 over 15h) kubelet, 10.179.80.31 Killing container with id docker://apigateway:Need to kill Pod&lt;/p>
+&lt;/blockquote>
+&lt;p>可能是磁盘满了，无法创建和删除 pod&lt;/p>
+&lt;p>处理建议是参考Kubernetes 最佳实践：&lt;a href="https://tencentcloudcontainerteam.github.io/tke-handbook/best-practice/kubernetes-best-practice-handle-disk-full.html">处理容器数据磁盘被写满&lt;/a>&lt;/p></description></item><item><title>【问题小排查】排查 CLOSE_WAIT 堆积</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E6%8E%92%E6%9F%A5-close_wait-%E5%A0%86%E7%A7%AF/</link><pubDate>Wed, 21 Oct 2020 17:35:23 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E6%8E%92%E6%9F%A5-close_wait-%E5%A0%86%E7%A7%AF/</guid><description>&lt;blockquote>
+&lt;p>TCP 连接的 CLOSE_WAIT 状态，正常情况下是短暂的，如果出现堆积，一般说明应用有问题。&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="close_wait-堆积的危害">CLOSE_WAIT 堆积的危害&lt;/h3>
+&lt;p>每个&lt;code>CLOSE_WAIT&lt;/code>连接会占据一个文件描述，堆积大量的&lt;code>CLOSE_WAIT&lt;/code>可能造成文件描述符不够用，导致建连或打开文件失败，报错&lt;code>too many open files&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">dial udp 9.215.0.48:9073: socket: too many open files
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="如何判断">如何判断?&lt;/h3>
+&lt;p>检查系统&lt;code>CLOSE_WAIT&lt;/code>连接数:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">lsof &lt;span class="p">|&lt;/span> grep CLOSE_WAIT &lt;span class="p">|&lt;/span> wc -l
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>检查指定进程&lt;code>CLOSE_WAIT&lt;/code>连接数:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">lsof -p &lt;span class="nv">$PID&lt;/span> &lt;span class="p">|&lt;/span> grep CLOSE_WAIT &lt;span class="p">|&lt;/span> wc -l
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="为什么会产生大量-close_wait">为什么会产生大量 CLOSE_WAIT?&lt;/h3>
+&lt;p>我们看下 TCP 四次挥手过程:&lt;/p>
+&lt;p>&lt;img src="/images/tcp_established.png" alt="tcp_established">&lt;/p></description></item><item><title>【问题小排查】Service无法解析</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5service%E6%97%A0%E6%B3%95%E8%A7%A3%E6%9E%90/</link><pubDate>Tue, 29 Sep 2020 17:21:23 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5service%E6%97%A0%E6%B3%95%E8%A7%A3%E6%9E%90/</guid><description>&lt;h3 id="检查kube-dns或coredns服务是否正常">检查kube-dns或CoreDNS服务是否正常&lt;/h3>
+&lt;ol>
+&lt;li>kubelet 启动参数 &amp;ndash;cluster-dns 可以看到 dns 服务的 cluster ip:&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">$ ps -ef &lt;span class="p">|&lt;/span> grep kubelet
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">... /usr/bin/kubelet --cluster-dns&lt;span class="o">=&lt;/span>172.16.14.217 ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ol start="2">
+&lt;li>找到 dns 的 service:&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">$ kubectl get svc -n kube-system &lt;span class="p">|&lt;/span> grep 172.16.14.217
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">kube-dns ClusterIP 172.16.14.217 &amp;lt;none&amp;gt; 53/TCP,53/UDP 47d
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ol start="3">
+&lt;li>看是否存在 endpoint:&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">$ kubectl -n kube-system describe svc kube-dns &lt;span class="p">|&lt;/span> grep -i endpoints
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Endpoints: 172.16.0.156:53,172.16.0.167:53
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Endpoints: 172.16.0.156:53,172.16.0.167:53
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ol start="4">
+&lt;li>检查 endpoint 的 对应 pod 是否正常:&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">$ kubectl -n kube-system get pod -o wide &lt;span class="p">|&lt;/span> grep 172.16.0.156
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">kube-dns-898dbbfc6-hvwlr 3/3 Running &lt;span class="m">0&lt;/span> 8d 172.16.0.156 10.0.0.3
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item><item><title>【问题小排查】关于怎么查IO高负载</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%85%B3%E4%BA%8E%E6%80%8E%E4%B9%88%E6%9F%A5io%E9%AB%98%E8%B4%9F%E8%BD%BD/</link><pubDate>Fri, 11 Sep 2020 21:51:34 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%85%B3%E4%BA%8E%E6%80%8E%E4%B9%88%E6%9F%A5io%E9%AB%98%E8%B4%9F%E8%BD%BD/</guid><description>&lt;blockquote>
+&lt;p>系统如果出现 IO WAIT 高，说明 IO 设备的速度跟不上 CPU 的处理速度，CPU 需要在那里干等，
+这里的等待实际也占用了 CPU 时间，导致系统负载升高，可能就会影响业务进程的处理速度，导致业务超时。&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="如何判断-">如何判断 ？&lt;/h3>
+&lt;p>使用&lt;code>top&lt;/code>命令看下当前负载：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">top - 19:42:06 up 23:59, &lt;span class="m">2&lt;/span> users, load average: 34.64, 35.80, 35.76
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Tasks: &lt;span class="m">679&lt;/span> total, &lt;span class="m">1&lt;/span> running, &lt;span class="m">678&lt;/span> sleeping, &lt;span class="m">0&lt;/span> stopped, &lt;span class="m">0&lt;/span> zombie
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Cpu&lt;span class="o">(&lt;/span>s&lt;span class="o">)&lt;/span>: 15.6%us, 1.7%sy, 0.0%ni, 74.7%id, 7.9%wa, 0.0%hi, 0.1%si, 0.0%st
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Mem: 32865032k total, 30989168k used, 1875864k free, 370748k buffers
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Swap: 8388604k total, 5440k used, 8383164k free, 7982424k cached
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> PID USER PR NI VIRT RES SHR S %CPU %MEM TIME+ COMMAND
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="m">9783&lt;/span> mysql &lt;span class="m">20&lt;/span> &lt;span class="m">0&lt;/span> 17.3g 16g &lt;span class="m">8104&lt;/span> S 186.9 52.3 3752:33 mysqld
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="m">5700&lt;/span> nginx &lt;span class="m">20&lt;/span> &lt;span class="m">0&lt;/span> 1330m 66m &lt;span class="m">9496&lt;/span> S 8.9 0.2 0:20.82 php-fpm
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="m">6424&lt;/span> nginx &lt;span class="m">20&lt;/span> &lt;span class="m">0&lt;/span> 1330m 65m &lt;span class="m">8372&lt;/span> S 8.3 0.2 0:04.97 php-fpm
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>&lt;code>%wa&lt;/code>(wait) 表示 IO WAIT 的 cpu 占用，默认看到的是所有核的平均值，要看每个核的&lt;code>%wa&lt;/code>值需要按下 &amp;ldquo;1&amp;rdquo;:&lt;/p></description></item><item><title>【问题小排查】Linux任务计划crontab不执行的问题排查</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5linux%E4%BB%BB%E5%8A%A1%E8%AE%A1%E5%88%92crontab%E4%B8%8D%E6%89%A7%E8%A1%8C%E7%9A%84%E9%97%AE%E9%A2%98%E6%8E%92%E6%9F%A5/</link><pubDate>Mon, 03 Aug 2020 09:49:18 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5linux%E4%BB%BB%E5%8A%A1%E8%AE%A1%E5%88%92crontab%E4%B8%8D%E6%89%A7%E8%A1%8C%E7%9A%84%E9%97%AE%E9%A2%98%E6%8E%92%E6%9F%A5/</guid><description>&lt;p>朋友弄了一个小项目，要我帮忙做下 Linux 系统运维，上线一段时间后，发现项目偶尔会挂掉导致服务不可用。
+开发朋友一时之间也没空去研究项目奔溃的根因，只好由我这个运维先写一个项目进程自拉起脚本，
+通过 Linux 任务计划每分钟检查一下进程是否存在来避免项目挂了没人管的情况。&lt;/p>
+&lt;p>自拉起脚本很简单，随便写几行就搞定了：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">&lt;span class="cp">#!/bin/bash
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="cp">&lt;/span>&lt;span class="nv">processcount&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>pgrep my_app&lt;span class="p">|&lt;/span>wc -l&lt;span class="k">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nb">cd&lt;/span> &lt;span class="k">$(&lt;/span>&lt;span class="nb">cd&lt;/span> &lt;span class="k">$(&lt;/span>dirname &lt;span class="nv">$0&lt;/span>&lt;span class="k">)&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="nb">pwd&lt;/span>&lt;span class="k">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">if&lt;/span> &lt;span class="o">[[&lt;/span> &lt;span class="m">0&lt;/span> -eq &lt;span class="nv">$processcount&lt;/span> &lt;span class="o">]]&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">then&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nb">echo&lt;/span> &lt;span class="s2">&amp;#34;[ &lt;/span>&lt;span class="k">$(&lt;/span>date&lt;span class="k">)&lt;/span>&lt;span class="s2"> ] : my_app is down, start it!&amp;#34;&lt;/span> &lt;span class="p">|&lt;/span> tee -ai ./checkprocess.log
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> bash ./start.sh &lt;span class="c1">#这里是项目的重启脚本&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">else&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nb">echo&lt;/span> my_app is OK!
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">fi&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>然后丢到 crontab，1 分钟执行一次：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">* * * * * bash /data/app_server/checkprocess.sh &amp;gt;/dev/null 2&amp;gt;&lt;span class="p">&amp;amp;&lt;/span>&lt;span class="m">1&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>-_-不过进程还是挂了&lt;/p></description></item></channel></rss>
