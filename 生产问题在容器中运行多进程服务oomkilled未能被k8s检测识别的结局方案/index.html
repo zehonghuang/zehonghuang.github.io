@@ -1,0 +1,1011 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>【生产问题】在容器中运行多进程服务OOMKilled未能被K8s检测识别的解决方案 - 维修区刷紫</title>
+<meta property="og:title" content="【生产问题】在容器中运行多进程服务OOMKilled未能被K8s检测识别的解决方案 - 维修区刷紫"><meta name=twitter:title content="【生产问题】在容器中运行多进程服务OOMKilled未能被K8s检测识别的解决方案 - 维修区刷紫"><meta name=description content="
+这是两个月前公司的图片AI训练模型集群出现的一个生产问题，是这样的：
+well-known, Python项目因为GIL普遍使用多进程代替多线程，使得container中存在1号进程之外的其他进程。
+
+
+算法组的同学曾在群里反馈模型服务并没有问题，但多次跑出来的数据有缺失
+开始运维方任务是算法代码问题，并没有在意，但随手发现相关的Pod内存曲线有断崖下降并且没有再回升
+直觉告诉内部有进程挂了，在算法同学允许下重跑了一边服务，ps aux命令观察了一下果然若干小时候被强退，预计OOMKilled了
+但主要问题是，监控系统并没有抓取到这一事件，无法发出OOMKilled告警
+
+
+
+一、container以及Pod的状态
+1. container的异常指标
+总所周知，这个异常指标可以用过kube-state-metrics获得
+kube_pod_container_status_terminated_reason{ container=&#34;nginx&#34;,  namespace=&#34;default&#34;, node=&#34;xxxx&#34;, pod=&#34;nginx-dep-123&#34;, reason=&#34;OOMKilled&#34;, service=&#34;kube-state-metrics&#34;}
+解读一下：意思是pod nginx-dep-123中的某个容器 nginx 的状态是terminated，并且它进入terminated状态的reason原因是因为OOMKilled
+
+值得注意的是，kubectl get展示的status即可能是容器也可能是pod的状态。
+具体可以参考这两个官方文档容器状态和Pod阶段
+
+容器状态只有三种：
+
+Waiting（等待）处于Waiting状态的容器仍在运行它完成启动所需要的操作：例如从某个容器镜像仓库拉取容器镜像，或者向容器应用Secret数据等等
+Running（运行中） 状态表明容器正在执行状态并且没有问题发生
+Terminated（已终止） 处于 Terminated 状态的容器已经开始执行并且或者正常结束或者因为某些原因失败。
+
+kubectl get打印的源码可以在kubernetes\pkg\printers\internalversion\printers.go这里看printPod()方法
+2. containerd如何获取容器状态的
+我们都知道的Pod状态均来自于CRI，kubelet的pleg会通过cri接口获取containerd的状态信息，pleg是个大坑回头有精力可以讲。
+可以直接定位到pod.Status.Reason获取的位置kubernetes\pkg\kubelet\pleg\generic.go
+
+
+ 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+
+
+func (g *GenericPLEG) updateCache(ctx context.Context, pod *kubecontainer.Pod, pid types.UID) (error, bool) {
+	if pod == nil {
+		klog.V(4).InfoS(&#34;PLEG: Delete status for pod&#34;, &#34;podUID&#34;, string(pid))
+		g.cache.Delete(pid)
+		return nil, true
+	}
+
+	g.podCacheMutex.Lock()
+	defer g.podCacheMutex.Unlock()
+	timestamp := g.clock.Now()
+
+	// 这里是pleg的非常重的逻辑就不展开了
+	// 1. 用m.runtimeService.PodSandboxStatus获取sandbox的网络容器状态
+	// 2. 再通过m.getPodContainerStatuses(uid, name, namespace)获取业务容器状态
+	//    a. 这里回去调用对应的CRI GRPC接口，即(r *remoteRuntimeService) ContainerStatus(containerID string)
+	// 3. 最后拼装为&amp;kubecontainer.PodStatus
+	status, err := g.runtime.GetPodStatus(ctx, pod.ID, pod.Name, pod.Namespace)
+	if err != nil {
+	} else {
+		// ...
+		status.IPs = g.getPodIPs(pid, status)
+	}
+	// ...
+
+	return err, g.cache.Set(pod.ID, status, err, timestamp)
+}
+
+
+"><meta property="og:description" content="
+这是两个月前公司的图片AI训练模型集群出现的一个生产问题，是这样的：
+well-known, Python项目因为GIL普遍使用多进程代替多线程，使得container中存在1号进程之外的其他进程。
+
+
+算法组的同学曾在群里反馈模型服务并没有问题，但多次跑出来的数据有缺失
+开始运维方任务是算法代码问题，并没有在意，但随手发现相关的Pod内存曲线有断崖下降并且没有再回升
+直觉告诉内部有进程挂了，在算法同学允许下重跑了一边服务，ps aux命令观察了一下果然若干小时候被强退，预计OOMKilled了
+但主要问题是，监控系统并没有抓取到这一事件，无法发出OOMKilled告警
+
+
+
+一、container以及Pod的状态
+1. container的异常指标
+总所周知，这个异常指标可以用过kube-state-metrics获得
+kube_pod_container_status_terminated_reason{ container=&#34;nginx&#34;,  namespace=&#34;default&#34;, node=&#34;xxxx&#34;, pod=&#34;nginx-dep-123&#34;, reason=&#34;OOMKilled&#34;, service=&#34;kube-state-metrics&#34;}
+解读一下：意思是pod nginx-dep-123中的某个容器 nginx 的状态是terminated，并且它进入terminated状态的reason原因是因为OOMKilled
+
+值得注意的是，kubectl get展示的status即可能是容器也可能是pod的状态。
+具体可以参考这两个官方文档容器状态和Pod阶段
+
+容器状态只有三种：
+
+Waiting（等待）处于Waiting状态的容器仍在运行它完成启动所需要的操作：例如从某个容器镜像仓库拉取容器镜像，或者向容器应用Secret数据等等
+Running（运行中） 状态表明容器正在执行状态并且没有问题发生
+Terminated（已终止） 处于 Terminated 状态的容器已经开始执行并且或者正常结束或者因为某些原因失败。
+
+kubectl get打印的源码可以在kubernetes\pkg\printers\internalversion\printers.go这里看printPod()方法
+2. containerd如何获取容器状态的
+我们都知道的Pod状态均来自于CRI，kubelet的pleg会通过cri接口获取containerd的状态信息，pleg是个大坑回头有精力可以讲。
+可以直接定位到pod.Status.Reason获取的位置kubernetes\pkg\kubelet\pleg\generic.go
+
+
+ 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+
+
+func (g *GenericPLEG) updateCache(ctx context.Context, pod *kubecontainer.Pod, pid types.UID) (error, bool) {
+	if pod == nil {
+		klog.V(4).InfoS(&#34;PLEG: Delete status for pod&#34;, &#34;podUID&#34;, string(pid))
+		g.cache.Delete(pid)
+		return nil, true
+	}
+
+	g.podCacheMutex.Lock()
+	defer g.podCacheMutex.Unlock()
+	timestamp := g.clock.Now()
+
+	// 这里是pleg的非常重的逻辑就不展开了
+	// 1. 用m.runtimeService.PodSandboxStatus获取sandbox的网络容器状态
+	// 2. 再通过m.getPodContainerStatuses(uid, name, namespace)获取业务容器状态
+	//    a. 这里回去调用对应的CRI GRPC接口，即(r *remoteRuntimeService) ContainerStatus(containerID string)
+	// 3. 最后拼装为&amp;kubecontainer.PodStatus
+	status, err := g.runtime.GetPodStatus(ctx, pod.ID, pod.Name, pod.Namespace)
+	if err != nil {
+	} else {
+		// ...
+		status.IPs = g.getPodIPs(pid, status)
+	}
+	// ...
+
+	return err, g.cache.Set(pod.ID, status, err, timestamp)
+}
+
+
+"><meta name=twitter:description content="
+这是两个月前公司的图片AI训练模型集群出现的一个生产问题，是这样的：
+well-known, Python项目因为GIL普遍使用多进程代替多线程，使得container中存在1号进程之外的其他进程。
+
+
+算法组的同学曾在群里反馈模型服务并没有问题，但多次跑出来的数据有缺失
+开始运维方任务是算法代码问题，并没有在意，但随手发现相关的Pod内存曲线有断崖下降并且没有再回升
+直觉告诉内部有进程挂了，在 …"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%9C%A8%E5%AE%B9%E5%99%A8%E4%B8%AD%E8%BF%90%E8%A1%8C%E5%A4%9A%E8%BF%9B%E7%A8%8B%E6%9C%8D%E5%8A%A1oomkilled%E6%9C%AA%E8%83%BD%E8%A2%ABk8s%E6%A3%80%E6%B5%8B%E8%AF%86%E5%88%AB%E7%9A%84%E7%BB%93%E5%B1%80%E6%96%B9%E6%A1%88/"><meta property="og:type" content="article"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><article class=article><h1 class=article-title>【生产问题】在容器中运行多进程服务OOMKilled未能被K8s检测识别的解决方案</h1><hr class=article-title-bottom><ul class=article-meta><li class=article-meta-date><time>2022-11-23</time></li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98/><i class="fa-solid fa-folder"></i>
+生产问题
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/ai%E8%AE%AD%E7%BB%83/><i class="fa-solid fa-folder"></i>
+AI训练
+</a>&nbsp;</li></ul><aside class=toc><nav id=TableOfContents><ul><li><a href=#一container以及pod的状态>一、container以及Pod的状态</a><ul><li><a href=#1-container的异常指标>1. container的异常指标</a></li><li><a href=#2-containerd如何获取容器状态的>2. containerd如何获取容器状态的</a></li></ul></li><li><a href=#二多进程容器oom场景再现>二、多进程容器OOM场景再现</a><ul><li><a href=#1-正常单进程的情况下的oom>1. 正常单进程的情况下的OOM</a></li><li><a href=#2-浅浅探究一下kubelet是如何监听并上报oom的>2. 浅浅探究一下kubelet是如何监听并上报OOM的</a></li><li><a href=#3-一个容器中有多个进程那会怎么样呢>3. 一个容器中有多个进程那会怎么样呢？</a></li></ul></li><li><a href=#三应该如何弥补这个缺陷>三、应该如何弥补这个缺陷？</a><ul><li><a href=#1-自定义一个metrics-kube_pod_container_oomkilled>1. 自定义一个metrics: kube_pod_container_oomkilled</a></li><li><a href=#2-梳理一下机器上关于进程oom信息>2. 梳理一下机器上关于进程OOM信息</a></li></ul></li><li><a href=#四实现一个oom-exporter>四、实现一个oom-exporter</a><ul><li><a href=#1-实现devkmsg的oomwatcher>1. 实现/dev/kmsg的OomWatcher</a></li><li><a href=#2-封装containerd客户端api>2. 封装containerd客户端API</a></li><li><a href=#3-自定义prometheus-collector>3. 自定义Prometheus Collector</a></li></ul></li><li><a href=#五总结>五、总结</a></li></ul></nav></aside><blockquote><p>这是两个月前公司的图片AI训练模型集群出现的一个生产问题，是这样的：</p><p>well-known, Python项目因为GIL普遍使用多进程代替多线程，使得container中存在1号进程之外的其他进程。</p><blockquote><ol><li>算法组的同学曾在群里反馈模型服务并没有问题，但多次跑出来的数据有缺失</li><li>开始运维方任务是算法代码问题，并没有在意，但随手发现相关的Pod内存曲线有断崖下降并且没有再回升</li><li>直觉告诉内部有进程挂了，在算法同学允许下重跑了一边服务，ps aux命令观察了一下果然若干小时候被强退，预计OOMKilled了</li><li>但主要问题是，监控系统并没有抓取到这一事件，无法发出OOMKilled告警</li></ol></blockquote></blockquote><h2 id=一container以及pod的状态>一、container以及Pod的状态</h2><h3 id=1-container的异常指标>1. container的异常指标</h3><p>总所周知，这个异常指标可以用过kube-state-metrics获得</p><pre tabindex=0><code>kube_pod_container_status_terminated_reason{ container=&#34;nginx&#34;,  namespace=&#34;default&#34;, node=&#34;xxxx&#34;, pod=&#34;nginx-dep-123&#34;, reason=&#34;OOMKilled&#34;, service=&#34;kube-state-metrics&#34;}
+</code></pre><p>解读一下：意思是pod nginx-dep-123中的某个容器 nginx 的状态是terminated，并且它进入terminated状态的reason原因是因为OOMKilled</p><blockquote><p>值得注意的是，kubectl get展示的status即可能是容器也可能是pod的状态。</p><p>具体可以参考这两个官方文档<a href=https://kubernetes.io/zh-cn/docs/concepts/workloads/pods/pod-lifecycle/#container-states>容器状态</a>和<a href=https://kubernetes.io/zh-cn/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase>Pod阶段</a></p></blockquote><p>容器状态只有三种：</p><ul><li>Waiting（等待）处于Waiting状态的容器仍在运行它完成启动所需要的操作：例如从某个容器镜像仓库拉取容器镜像，或者向容器应用Secret数据等等</li><li>Running（运行中） 状态表明容器正在执行状态并且没有问题发生</li><li>Terminated（已终止） 处于 Terminated 状态的容器已经开始执行并且或者正常结束或者因为某些原因失败。</li></ul><p><code>kubectl get</code>打印的源码可以在kubernetes\pkg\printers\internalversion\printers.go这里看<code>printPod()</code>方法</p><h3 id=2-containerd如何获取容器状态的>2. containerd如何获取容器状态的</h3><p>我们都知道的Pod状态均来自于CRI，kubelet的pleg会通过cri接口获取containerd的状态信息，pleg是个大坑回头有精力可以讲。</p><p>可以直接定位到pod.Status.Reason获取的位置<code>kubernetes\pkg\kubelet\pleg\generic.go</code></p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=kd>func</span> <span class=p>(</span><span class=nx>g</span> <span class=o>*</span><span class=nx>GenericPLEG</span><span class=p>)</span> <span class=nf>updateCache</span><span class=p>(</span><span class=nx>ctx</span> <span class=nx>context</span><span class=p>.</span><span class=nx>Context</span><span class=p>,</span> <span class=nx>pod</span> <span class=o>*</span><span class=nx>kubecontainer</span><span class=p>.</span><span class=nx>Pod</span><span class=p>,</span> <span class=nx>pid</span> <span class=nx>types</span><span class=p>.</span><span class=nx>UID</span><span class=p>)</span> <span class=p>(</span><span class=kt>error</span><span class=p>,</span> <span class=kt>bool</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=k>if</span> <span class=nx>pod</span> <span class=o>==</span> <span class=kc>nil</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>klog</span><span class=p>.</span><span class=nf>V</span><span class=p>(</span><span class=mi>4</span><span class=p>).</span><span class=nf>InfoS</span><span class=p>(</span><span class=s>&#34;PLEG: Delete status for pod&#34;</span><span class=p>,</span> <span class=s>&#34;podUID&#34;</span><span class=p>,</span> <span class=nb>string</span><span class=p>(</span><span class=nx>pid</span><span class=p>))</span>
+</span></span><span class=line><span class=cl>		<span class=nx>g</span><span class=p>.</span><span class=nx>cache</span><span class=p>.</span><span class=nf>Delete</span><span class=p>(</span><span class=nx>pid</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=k>return</span> <span class=kc>nil</span><span class=p>,</span> <span class=kc>true</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=nx>g</span><span class=p>.</span><span class=nx>podCacheMutex</span><span class=p>.</span><span class=nf>Lock</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>	<span class=k>defer</span> <span class=nx>g</span><span class=p>.</span><span class=nx>podCacheMutex</span><span class=p>.</span><span class=nf>Unlock</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>	<span class=nx>timestamp</span> <span class=o>:=</span> <span class=nx>g</span><span class=p>.</span><span class=nx>clock</span><span class=p>.</span><span class=nf>Now</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=c1>// 这里是pleg的非常重的逻辑就不展开了
+</span></span></span><span class=line><span class=cl><span class=c1></span>	<span class=c1>// 1. 用m.runtimeService.PodSandboxStatus获取sandbox的网络容器状态
+</span></span></span><span class=line><span class=cl><span class=c1></span>	<span class=c1>// 2. 再通过m.getPodContainerStatuses(uid, name, namespace)获取业务容器状态
+</span></span></span><span class=line><span class=cl><span class=c1></span>	<span class=c1>//    a. 这里回去调用对应的CRI GRPC接口，即(r *remoteRuntimeService) ContainerStatus(containerID string)
+</span></span></span><span class=line><span class=cl><span class=c1></span>	<span class=c1>// 3. 最后拼装为&amp;kubecontainer.PodStatus
+</span></span></span><span class=line><span class=cl><span class=c1></span>	<span class=nx>status</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>g</span><span class=p>.</span><span class=nx>runtime</span><span class=p>.</span><span class=nf>GetPodStatus</span><span class=p>(</span><span class=nx>ctx</span><span class=p>,</span> <span class=nx>pod</span><span class=p>.</span><span class=nx>ID</span><span class=p>,</span> <span class=nx>pod</span><span class=p>.</span><span class=nx>Name</span><span class=p>,</span> <span class=nx>pod</span><span class=p>.</span><span class=nx>Namespace</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span> <span class=k>else</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=c1>// ...
+</span></span></span><span class=line><span class=cl><span class=c1></span>		<span class=nx>status</span><span class=p>.</span><span class=nx>IPs</span> <span class=p>=</span> <span class=nx>g</span><span class=p>.</span><span class=nf>getPodIPs</span><span class=p>(</span><span class=nx>pid</span><span class=p>,</span> <span class=nx>status</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>	<span class=c1>// ...
+</span></span></span><span class=line><span class=cl><span class=c1></span>
+</span></span><span class=line><span class=cl>	<span class=k>return</span> <span class=nx>err</span><span class=p>,</span> <span class=nx>g</span><span class=p>.</span><span class=nx>cache</span><span class=p>.</span><span class=nf>Set</span><span class=p>(</span><span class=nx>pod</span><span class=p>.</span><span class=nx>ID</span><span class=p>,</span> <span class=nx>status</span><span class=p>,</span> <span class=nx>err</span><span class=p>,</span> <span class=nx>timestamp</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>我们可以稍微看下containerd的代码，大致在这位置<code>containerd\pkg\cri\server\instrumented_service.go</code>
+可以自行查看https://github.com/containerd/containerd，Kubernetes 1.20以上默认cri都是containerd了
+至于如何运行监听容器的运行，这不在本文讨论范围</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=kd>func</span> <span class=p>(</span><span class=nx>c</span> <span class=o>*</span><span class=nx>criService</span><span class=p>)</span> <span class=nf>ContainerStatus</span><span class=p>(</span><span class=nx>ctx</span> <span class=nx>context</span><span class=p>.</span><span class=nx>Context</span><span class=p>,</span> <span class=nx>r</span> <span class=o>*</span><span class=nx>runtime</span><span class=p>.</span><span class=nx>ContainerStatusRequest</span><span class=p>)</span> <span class=p>(</span><span class=o>*</span><span class=nx>runtime</span><span class=p>.</span><span class=nx>ContainerStatusResponse</span><span class=p>,</span> <span class=kt>error</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=nx>container</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nx>containerStore</span><span class=p>.</span><span class=nf>Get</span><span class=p>(</span><span class=nx>r</span><span class=p>.</span><span class=nf>GetContainerId</span><span class=p>())</span>
+</span></span><span class=line><span class=cl>	<span class=c1>// ...
+</span></span></span><span class=line><span class=cl><span class=c1></span>	<span class=nx>spec</span> <span class=o>:=</span> <span class=nx>container</span><span class=p>.</span><span class=nx>Config</span><span class=p>.</span><span class=nf>GetImage</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>	<span class=nx>imageRef</span> <span class=o>:=</span> <span class=nx>container</span><span class=p>.</span><span class=nx>ImageRef</span>
+</span></span><span class=line><span class=cl>	<span class=nx>image</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nx>imageStore</span><span class=p>.</span><span class=nf>Get</span><span class=p>(</span><span class=nx>imageRef</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=c1>//...
+</span></span></span><span class=line><span class=cl><span class=c1></span>	<span class=nx>status</span> <span class=o>:=</span> <span class=nf>toCRIContainerStatus</span><span class=p>(</span><span class=nx>container</span><span class=p>,</span> <span class=nx>spec</span><span class=p>,</span> <span class=nx>imageRef</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=c1>//...
+</span></span></span><span class=line><span class=cl><span class=c1></span>	<span class=nx>info</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nf>toCRIContainerInfo</span><span class=p>(</span><span class=nx>ctx</span><span class=p>,</span> <span class=nx>container</span><span class=p>,</span> <span class=nx>r</span><span class=p>.</span><span class=nf>GetVerbose</span><span class=p>())</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=k>return</span> <span class=o>&amp;</span><span class=nx>runtime</span><span class=p>.</span><span class=nx>ContainerStatusResponse</span><span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>Status</span><span class=p>:</span> <span class=nx>status</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>		<span class=nx>Info</span><span class=p>:</span>   <span class=nx>info</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>	<span class=p>},</span> <span class=kc>nil</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><h2 id=二多进程容器oom场景再现>二、多进程容器OOM场景再现</h2><p>我们这里用Golang模拟内存分配的场景，以及用Bash脚本作为启动程序调用Golang</p><h3 id=1-正常单进程的情况下的oom>1. 正常单进程的情况下的OOM</h3><p>我们写一个每30秒申请200mb内存的程序，先看看正常情况下OOM，Pod status会有什么状态</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=kn>package</span> <span class=nx>main</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kn>import</span> <span class=p>(</span>
+</span></span><span class=line><span class=cl>	<span class=s>&#34;flag&#34;</span>
+</span></span><span class=line><span class=cl>	<span class=s>&#34;os&#34;</span>
+</span></span><span class=line><span class=cl>	<span class=s>&#34;time&#34;</span>
+</span></span><span class=line><span class=cl><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=kd>var</span> <span class=nx>totalMemory</span> <span class=kt>int</span>
+</span></span><span class=line><span class=cl>	<span class=nx>flag</span><span class=p>.</span><span class=nf>IntVar</span><span class=p>(</span><span class=o>&amp;</span><span class=nx>totalMemory</span><span class=p>,</span> <span class=s>&#34;m&#34;</span><span class=p>,</span> <span class=mi>1</span><span class=p>,</span> <span class=s>&#34;Total amount of memory to allocate in MB&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=nx>flag</span><span class=p>.</span><span class=nf>Parse</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=nx>increment</span> <span class=o>:=</span> <span class=mi>200</span>
+</span></span><span class=line><span class=cl>	<span class=nx>allocatedMemory</span> <span class=o>:=</span> <span class=mi>0</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=k>if</span> <span class=nx>totalMemory</span> <span class=o>&lt;=</span> <span class=mi>0</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>os</span><span class=p>.</span><span class=nf>Exit</span><span class=p>(</span><span class=mi>1</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>	
+</span></span><span class=line><span class=cl>	<span class=k>for</span> <span class=nx>allocatedMemory</span> <span class=p>&lt;</span> <span class=nx>totalMemory</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>memoryToAllocate</span> <span class=o>:=</span> <span class=nx>increment</span>
+</span></span><span class=line><span class=cl>		<span class=k>if</span> <span class=nx>totalMemory</span><span class=o>-</span><span class=nx>allocatedMemory</span> <span class=p>&lt;</span> <span class=nx>increment</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>			<span class=nx>memoryToAllocate</span> <span class=p>=</span> <span class=nx>totalMemory</span> <span class=o>-</span> <span class=nx>allocatedMemory</span>
+</span></span><span class=line><span class=cl>		<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>		<span class=nf>allocateMemory</span><span class=p>(</span><span class=nx>memoryToAllocate</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>		<span class=nx>allocatedMemory</span> <span class=o>+=</span> <span class=nx>memoryToAllocate</span>
+</span></span><span class=line><span class=cl>		
+</span></span><span class=line><span class=cl>		<span class=k>if</span> <span class=nx>allocatedMemory</span> <span class=o>&gt;=</span> <span class=nx>totalMemory</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>			<span class=k>break</span>
+</span></span><span class=line><span class=cl>		<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>		<span class=nx>time</span><span class=p>.</span><span class=nf>Sleep</span><span class=p>(</span><span class=mi>30</span> <span class=o>*</span> <span class=nx>time</span><span class=p>.</span><span class=nx>Second</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=c1>// 阻止程序退出，保持内存分配状态
+</span></span></span><span class=line><span class=cl><span class=c1></span>	<span class=k>select</span> <span class=p>{}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=nf>allocateMemory</span><span class=p>(</span><span class=nx>mb</span> <span class=kt>int</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=nx>bytesToAllocate</span> <span class=o>:=</span> <span class=nx>mb</span> <span class=o>*</span> <span class=mi>1024</span> <span class=o>*</span> <span class=mi>1024</span>
+</span></span><span class=line><span class=cl>	<span class=nx>memory</span> <span class=o>:=</span> <span class=nb>make</span><span class=p>([]</span><span class=kt>byte</span><span class=p>,</span> <span class=nx>bytesToAllocate</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=k>for</span> <span class=nx>i</span> <span class=o>:=</span> <span class=k>range</span> <span class=nx>memory</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>memory</span><span class=p>[</span><span class=nx>i</span><span class=p>]</span> <span class=p>=</span> <span class=mi>0</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>resource.limits.memory只给300m看看Pod的变化，以及查看节点的其他地方输出什么内容</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>kubectl get pod -l <span class=nv>app</span><span class=o>=</span>go-oom-test -w
+</span></span><span class=line><span class=cl>NAME                               READY   STATUS     RESTARTS   AGE
+</span></span><span class=line><span class=cl>go-oom-test-7d9977c468-g7c6v       1/1     Running    <span class=m>0</span>          37s
+</span></span><span class=line><span class=cl>go-oom-test-7d9977c468-g7c6v       0/1     OOMKilled  <span class=m>0</span>          40s
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1>## 在看下syslog中的oom日志</span>
+</span></span><span class=line><span class=cl>grep -i oom /var/log/syslog <span class=p>|</span>grep <span class=nb>kill</span>
+</span></span><span class=line><span class=cl>Jul  <span class=m>6</span> 16:10:47 kernel: <span class=o>[</span>537752.873767<span class=o>]</span> go-oom-test invoked oom-killer: <span class=nv>gfp_mask</span><span class=o>=</span>0xcc0<span class=o>(</span>GFP_KERNEL<span class=o>)</span>, <span class=nv>order</span><span class=o>=</span>0, <span class=nv>oom_score_adj</span><span class=o>=</span>-997
+</span></span><span class=line><span class=cl>Jul  <span class=m>6</span> 16:10:47 kernel: <span class=o>[</span>537752.873800<span class=o>]</span>  oom_kill_process.cold+0xb/0x10
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1>## dmesg也有oom日志</span>
+</span></span><span class=line><span class=cl><span class=o>[</span>539381.757126<span class=o>]</span> oom-kill:constraint<span class=o>=</span>CONSTRAINT_MEMCG,nodemask<span class=o>=(</span>null<span class=o>)</span>,cpuset<span class=o>=</span>0f0ace7729716150acf57fcb9750f8199e8762c054912b944a3c436245cb9a43,mems_allowed<span class=o>=</span>0-1,oom_memcg<span class=o>=</span>/kubepods/poda41b2cd5-5451-4bbc-b740-c908d58d652e,task_memcg<span class=o>=</span>/kubepods/poda41b2cd5-5451-4bbc-b740-c908d58d652e/0f0ace7729716150acf57fcb9750f8199e8762c054912b944a3c436245cb9a43,task<span class=o>=</span>go-oom-test,pid<span class=o>=</span>238343,uid<span class=o>=</span><span class=m>0</span>
+</span></span><span class=line><span class=cl><span class=o>[</span>539381.757144<span class=o>]</span> Memory cgroup out of memory: Killed process <span class=m>238343</span> <span class=o>(</span>go-oom-test<span class=o>)</span> total-vm:3950264kB, anon-rss:204516kB, file-rss:1256kB, shmem-rss:0kB, UID:0 pgtables:488kB oom_score_adj:-997
+</span></span><span class=line><span class=cl><span class=o>[</span>539381.886383<span class=o>]</span> oom_reaper: reaped process <span class=m>238343</span> <span class=o>(</span>go-oom-test<span class=o>)</span>, now anon-rss:0kB, file-rss:0kB, shmem-rss:0kB
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1>## prometheus的监控指标可以看到</span>
+</span></span><span class=line><span class=cl>kube_pod_container_status_terminated_reason<span class=o>{</span><span class=nv>reason</span><span class=o>=</span><span class=s2>&#34;OOMKilled&#34;</span><span class=o>}==</span><span class=m>1</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1>## 同时节点对应的kubelet也会上报</span>
+</span></span><span class=line><span class=cl>kubectl describe node
+</span></span><span class=line><span class=cl>Events:
+</span></span><span class=line><span class=cl>  Type     Reason     Age    From     Message
+</span></span><span class=line><span class=cl>  ----     ------     ----   ----     -------
+</span></span><span class=line><span class=cl>  Warning  SystemOOM  6m57s  kubelet  System OOM encountered, victim process: go-oom-test, pid: <span class=m>3419</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=2-浅浅探究一下kubelet是如何监听并上报oom的>2. 浅浅探究一下kubelet是如何监听并上报OOM的</h3><p>其实kubelet有一个叫oomWatcher的监听器，底层就是打开/dev/kmsg获取内核日志</p><p><code>kubernetes\pkg\kubelet\kubelet.go</code>处有<code>oomwatcher.NewWatcher(kubeDeps.Recorder)</code>初始化kmsg的分析器</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=c1>// kubernetes\vendor\github.com\euank\go-kmsg-parser\kmsgparser\kmsgparser.go
+</span></span></span><span class=line><span class=cl><span class=c1></span><span class=kd>func</span> <span class=nf>NewParser</span><span class=p>()</span> <span class=p>(</span><span class=nx>Parser</span><span class=p>,</span> <span class=kt>error</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=nx>f</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Open</span><span class=p>(</span><span class=s>&#34;/dev/kmsg&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=k>return</span> <span class=kc>nil</span><span class=p>,</span> <span class=nx>err</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=nx>bootTime</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nf>getBootTime</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>	<span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=k>return</span> <span class=kc>nil</span><span class=p>,</span> <span class=nx>err</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=k>return</span> <span class=o>&amp;</span><span class=nx>parser</span><span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>log</span><span class=p>:</span>        <span class=o>&amp;</span><span class=nx>StandardLogger</span><span class=p>{</span><span class=kc>nil</span><span class=p>},</span>
+</span></span><span class=line><span class=cl>		<span class=nx>kmsgReader</span><span class=p>:</span> <span class=nx>f</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>		<span class=nx>bootTime</span><span class=p>:</span>   <span class=nx>bootTime</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>	<span class=p>},</span> <span class=kc>nil</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=3-一个容器中有多个进程那会怎么样呢>3. 一个容器中有多个进程那会怎么样呢？</h3><p>先说结论，只有1号进程oom之后的信息是能够同步到Pod的Status字段，OOMkilled状态，
+在一些复杂的业务场景，比如AI训练任务，通常是脚本启动训练进程。
+那么主服务在pod中不是1号进程了，这种case会导致oomKill信息不能正常显示。</p><p>我们来做下实验就知道了，写个Bash启动一下</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=cp>#!/bin/bash
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=k>if</span> <span class=o>[</span> <span class=nv>$#</span> -eq <span class=m>0</span> <span class=o>]</span><span class=p>;</span> <span class=k>then</span>
+</span></span><span class=line><span class=cl>    <span class=nb>echo</span> <span class=s2>&#34;Usage: </span><span class=nv>$0</span><span class=s2> &lt;memory in GB&gt;&#34;</span>
+</span></span><span class=line><span class=cl>    <span class=nb>exit</span> <span class=m>1</span>
+</span></span><span class=line><span class=cl><span class=k>fi</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>./allocate_memory -n <span class=s2>&#34;</span><span class=nv>$1</span><span class=s2>&#34;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nb>echo</span> <span class=s2>&#34;Bash script is still running. Press Ctrl+C to exit.&#34;</span>
+</span></span><span class=line><span class=cl><span class=k>while</span> true<span class=p>;</span> <span class=k>do</span>
+</span></span><span class=line><span class=cl>    sleep <span class=m>3600</span>
+</span></span><span class=line><span class=cl><span class=k>done</span>
+</span></span></code></pre></td></tr></table></div></div><p>再看看日志相关的信息，可以看出容器内内非1号进程（1号进程的child）OOM，（可能）不会导致pod的Failed</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>kubectl <span class=nb>exec</span> go-oom-test-subprocess-6db9764f46-hpdvw  -ti bash
+</span></span><span class=line><span class=cl>bash-5.1# ps
+</span></span><span class=line><span class=cl>PID   USER     TIME  COMMAND
+</span></span><span class=line><span class=cl>    <span class=m>1</span> root      0:00 bash ./startup.sh
+</span></span><span class=line><span class=cl>   <span class=m>11</span> root      0:00 ./go-oom-test
+</span></span><span class=line><span class=cl>   <span class=m>12</span> root      0:00 sleep <span class=m>3600</span>
+</span></span><span class=line><span class=cl>   <span class=m>16</span> root      0:00 bash
+</span></span><span class=line><span class=cl>   <span class=m>21</span> root      0:00 ps
+</span></span><span class=line><span class=cl>   
+</span></span><span class=line><span class=cl>kubectl get pod -l <span class=nv>app</span><span class=o>=</span>go-oom-test-subprocess
+</span></span><span class=line><span class=cl>NAME                                          READY   STATUS    RESTARTS   AGE
+</span></span><span class=line><span class=cl>go-oom-test-subprocess-6db9764f46-hz4hm   1/1     Running   <span class=m>0</span>          6s
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>Warning  SystemOOM  34s <span class=o>(</span>x12 over 34m<span class=o>)</span>  kubelet  <span class=o>(</span>combined from similar events<span class=o>)</span>: System OOM encountered, victim process: go-oom-test, pid: <span class=m>381348</span>
+</span></span></code></pre></td></tr></table></div></div><h2 id=三应该如何弥补这个缺陷>三、应该如何弥补这个缺陷？</h2><p>我们没办法去改变Pod的Status字段，只能通过metrics去补充这个异常情况。
+原来kube_pod_container_status_terminated_reason是读取的pod.status.containerStatuses.state.terminated.reason，类似以上情况，
+这个指标就无法满足我们的监控需求。</p><h3 id=1-自定义一个metrics-kube_pod_container_oomkilled>1. 自定义一个metrics: kube_pod_container_oomkilled</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>kube_pod_container_oomkilled <span class=o>{</span>
+</span></span><span class=line><span class=cl>  pod 
+</span></span><span class=line><span class=cl>  container <span class=c1>## 具体容器名称</span>
+</span></span><span class=line><span class=cl>  image_name
+</span></span><span class=line><span class=cl>  namespace
+</span></span><span class=line><span class=cl>  node
+</span></span><span class=line><span class=cl>  process_name <span class=c1>## 容器里具体的进程名称</span>
+</span></span><span class=line><span class=cl><span class=o>}</span>  <span class=m>1</span> <span class=c1>## 常量 1</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=2-梳理一下机器上关于进程oom信息>2. 梳理一下机器上关于进程OOM信息</h3><p>/dev/kmsg的输出如下</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>6,2697,3812808832,-<span class=p>;</span>oom-kill:constraint<span class=o>=</span>CONSTRAINT_MEMCG,nodemask<span class=o>=(</span>null<span class=o>)</span>,cpuset<span class=o>=</span>cri-containerd-8471f80af7984ef5d596dc9959c1d8f8b38fe0ac2b323dbbce301a05d836e45b.scope,mems_allowed<span class=o>=</span>0,oom_memcg<span class=o>=</span>/kubepods.slice/kubepods-pod57a0b3fe_c602_4585_b2f3_b07076fb3961.slice,task_memcg<span class=o>=</span>/kubepods.slice/kubepods-pod57a0b3fe_c602_4585_b2f3_b07076fb3961.slice/cri-containerd-8471f80af7984ef5d596dc9959c1d8f8b38fe0ac2b323dbbce301a05d836e45b.scope,task<span class=o>=</span>go-oom-test,pid<span class=o>=</span>61436,uid<span class=o>=</span><span class=m>0</span>
+</span></span></code></pre></td></tr></table></div></div><p>上面的日志信息只有<code>process_name</code>和cgroup id，那问题是怎么通过cgroup找到对应的container？</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=c1>## 用ctr命令查询容器列表其实能看到container id，似乎和kmsg的cpuset能对应起来</span>
+</span></span><span class=line><span class=cl>ctr -n k8s.io c ls
+</span></span><span class=line><span class=cl>CONTAINER                                                           IMAGE                                                          RUNTIME                  
+</span></span><span class=line><span class=cl>8471f80af7984ef5d596dc9959c1d8f8b38fe0ac2b323dbbce301a05d836e45b    registry.cn-hangzhou.aliyuncs.com/inmyimage/go-oom-test:v1     io.containerd.runc.v2    
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1>## 在看下用container id能查到什么？</span>
+</span></span><span class=line><span class=cl>ctr -n k8s.io c info 8471f80af7984ef5d596dc9959c1d8f8b38fe0ac2b323dbbce301a05d836e45b
+</span></span><span class=line><span class=cl><span class=o>{</span>
+</span></span><span class=line><span class=cl>    <span class=s2>&#34;ID&#34;</span>: <span class=s2>&#34;8471f80af7984ef5d596dc9959c1d8f8b38fe0ac2b323dbbce301a05d836e45b&#34;</span>,
+</span></span><span class=line><span class=cl>    <span class=s2>&#34;Labels&#34;</span>: <span class=o>{</span>
+</span></span><span class=line><span class=cl>        <span class=s2>&#34;io.cri-containerd.kind&#34;</span>: <span class=s2>&#34;container&#34;</span>,
+</span></span><span class=line><span class=cl>        <span class=s2>&#34;io.kubernetes.container.name&#34;</span>: <span class=s2>&#34;go-oom-test&#34;</span>,
+</span></span><span class=line><span class=cl>        <span class=s2>&#34;io.kubernetes.pod.name&#34;</span>: <span class=s2>&#34;go-oom-test-65b886d59c-2p57h&#34;</span>,
+</span></span><span class=line><span class=cl>        <span class=s2>&#34;io.kubernetes.pod.namespace&#34;</span>: <span class=s2>&#34;net-test&#34;</span>,
+</span></span><span class=line><span class=cl>        <span class=s2>&#34;io.kubernetes.pod.uid&#34;</span>: <span class=s2>&#34;7adc7989-b33d-44a1-b212-1edb88e2ffdd&#34;</span>
+</span></span><span class=line><span class=cl>    <span class=o>}</span>,
+</span></span><span class=line><span class=cl>    <span class=s2>&#34;Image&#34;</span>: <span class=s2>&#34;registry.cn-hangzhou.aliyuncs.com/inmyimage/go-oom-test:v1&#34;</span>,
+</span></span><span class=line><span class=cl>    <span class=s2>&#34;Runtime&#34;</span>: <span class=o>{</span>
+</span></span><span class=line><span class=cl>        <span class=s2>&#34;Name&#34;</span>: <span class=s2>&#34;io.containerd.runc.v2&#34;</span>,
+</span></span><span class=line><span class=cl>        <span class=s2>&#34;Options&#34;</span>: <span class=o>{</span>
+</span></span><span class=line><span class=cl>            <span class=s2>&#34;type_url&#34;</span>: <span class=s2>&#34;containerd.runc.v1.Options&#34;</span>,
+</span></span><span class=line><span class=cl>            <span class=s2>&#34;value&#34;</span>: <span class=s2>&#34;SAE=&#34;</span>
+</span></span><span class=line><span class=cl>        <span class=o>}</span>
+</span></span><span class=line><span class=cl>    <span class=o>}</span>,
+</span></span></code></pre></td></tr></table></div></div><p>很显然<code>Labels</code>字段已经可以满足我们定义的<code>kube_pod_container_oomkilled</code>了。</p><blockquote><p>也就是说，我们有了以下思路：</p><ol><li>通过监听/dev/kmsg的killed日志输出，匹配task=go-oom-test以及cpuset=cri-containerd-8471f80af7984ef5d596dc9959c1d8f8b38fe0ac2b323dbbce301a05d836e45b.scope</li><li>获取到container id后ctr -n k8s.io c info查到容器所在的pod信息</li><li>用prometheus/client_golang将信息push到监控系统</li></ol></blockquote><p>可以直接用golang来实现以上思路</p><h2 id=四实现一个oom-exporter>四、实现一个oom-exporter</h2><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=kd>type</span> <span class=nx>Exporter</span> <span class=kd>struct</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=nx>NodeName</span>           <span class=kt>string</span>
+</span></span><span class=line><span class=cl>	<span class=nx>client</span>             <span class=o>*</span><span class=nx>containerd</span><span class=p>.</span><span class=nx>Client</span>
+</span></span><span class=line><span class=cl>	<span class=nx>PromeMetricCache</span>   <span class=o>*</span><span class=nx>cache</span><span class=p>.</span><span class=nx>Cache</span>
+</span></span><span class=line><span class=cl>	<span class=nx>OOMInfoChan</span>         <span class=kd>chan</span> <span class=nx>OOMInfo</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>var</span> <span class=nx>conrtainerOOMKiiled</span> <span class=p>=</span> <span class=nx>prometheus</span><span class=p>.</span><span class=nf>NewDesc</span><span class=p>(</span>
+</span></span><span class=line><span class=cl>    <span class=s>&#34;kube_pod_container_oomkilled&#34;</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>    <span class=s>&#34;fetch oom info from containerd&#34;</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>    <span class=p>[]</span><span class=kt>string</span><span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=s>&#34;pod&#34;</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>        <span class=s>&#34;container&#34;</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>        <span class=s>&#34;image_name&#34;</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>        <span class=s>&#34;namespace&#34;</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>        <span class=s>&#34;node&#34;</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>        <span class=s>&#34;process_name &#34;</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>        <span class=s>&#34;mem_limit_gibs&#34;</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>    <span class=p>},</span> <span class=kc>nil</span><span class=p>)</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=1-实现devkmsg的oomwatcher>1. 实现/dev/kmsg的OomWatcher</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>  1
+</span><span class=lnt>  2
+</span><span class=lnt>  3
+</span><span class=lnt>  4
+</span><span class=lnt>  5
+</span><span class=lnt>  6
+</span><span class=lnt>  7
+</span><span class=lnt>  8
+</span><span class=lnt>  9
+</span><span class=lnt> 10
+</span><span class=lnt> 11
+</span><span class=lnt> 12
+</span><span class=lnt> 13
+</span><span class=lnt> 14
+</span><span class=lnt> 15
+</span><span class=lnt> 16
+</span><span class=lnt> 17
+</span><span class=lnt> 18
+</span><span class=lnt> 19
+</span><span class=lnt> 20
+</span><span class=lnt> 21
+</span><span class=lnt> 22
+</span><span class=lnt> 23
+</span><span class=lnt> 24
+</span><span class=lnt> 25
+</span><span class=lnt> 26
+</span><span class=lnt> 27
+</span><span class=lnt> 28
+</span><span class=lnt> 29
+</span><span class=lnt> 30
+</span><span class=lnt> 31
+</span><span class=lnt> 32
+</span><span class=lnt> 33
+</span><span class=lnt> 34
+</span><span class=lnt> 35
+</span><span class=lnt> 36
+</span><span class=lnt> 37
+</span><span class=lnt> 38
+</span><span class=lnt> 39
+</span><span class=lnt> 40
+</span><span class=lnt> 41
+</span><span class=lnt> 42
+</span><span class=lnt> 43
+</span><span class=lnt> 44
+</span><span class=lnt> 45
+</span><span class=lnt> 46
+</span><span class=lnt> 47
+</span><span class=lnt> 48
+</span><span class=lnt> 49
+</span><span class=lnt> 50
+</span><span class=lnt> 51
+</span><span class=lnt> 52
+</span><span class=lnt> 53
+</span><span class=lnt> 54
+</span><span class=lnt> 55
+</span><span class=lnt> 56
+</span><span class=lnt> 57
+</span><span class=lnt> 58
+</span><span class=lnt> 59
+</span><span class=lnt> 60
+</span><span class=lnt> 61
+</span><span class=lnt> 62
+</span><span class=lnt> 63
+</span><span class=lnt> 64
+</span><span class=lnt> 65
+</span><span class=lnt> 66
+</span><span class=lnt> 67
+</span><span class=lnt> 68
+</span><span class=lnt> 69
+</span><span class=lnt> 70
+</span><span class=lnt> 71
+</span><span class=lnt> 72
+</span><span class=lnt> 73
+</span><span class=lnt> 74
+</span><span class=lnt> 75
+</span><span class=lnt> 76
+</span><span class=lnt> 77
+</span><span class=lnt> 78
+</span><span class=lnt> 79
+</span><span class=lnt> 80
+</span><span class=lnt> 81
+</span><span class=lnt> 82
+</span><span class=lnt> 83
+</span><span class=lnt> 84
+</span><span class=lnt> 85
+</span><span class=lnt> 86
+</span><span class=lnt> 87
+</span><span class=lnt> 88
+</span><span class=lnt> 89
+</span><span class=lnt> 90
+</span><span class=lnt> 91
+</span><span class=lnt> 92
+</span><span class=lnt> 93
+</span><span class=lnt> 94
+</span><span class=lnt> 95
+</span><span class=lnt> 96
+</span><span class=lnt> 97
+</span><span class=lnt> 98
+</span><span class=lnt> 99
+</span><span class=lnt>100
+</span><span class=lnt>101
+</span><span class=lnt>102
+</span><span class=lnt>103
+</span><span class=lnt>104
+</span><span class=lnt>105
+</span><span class=lnt>106
+</span><span class=lnt>107
+</span><span class=lnt>108
+</span><span class=lnt>109
+</span><span class=lnt>110
+</span><span class=lnt>111
+</span><span class=lnt>112
+</span><span class=lnt>113
+</span><span class=lnt>114
+</span><span class=lnt>115
+</span><span class=lnt>116
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=kd>type</span> <span class=nx>OOMInfo</span> <span class=kd>struct</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=nx>Pid</span>             <span class=kt>int</span>
+</span></span><span class=line><span class=cl>	<span class=nx>ProcessName</span>     <span class=kt>string</span>
+</span></span><span class=line><span class=cl>	<span class=nx>TimeOfDeath</span>     <span class=nx>time</span><span class=p>.</span><span class=nx>Time</span>
+</span></span><span class=line><span class=cl>    <span class=nx>CgroupsPath</span>     <span class=kt>string</span>
+</span></span><span class=line><span class=cl>	<span class=nx>Namespace</span>       <span class=kt>string</span>
+</span></span><span class=line><span class=cl>	<span class=nx>PodName</span>         <span class=kt>string</span>
+</span></span><span class=line><span class=cl>	<span class=nx>MemoryLimit</span>     <span class=kt>string</span>
+</span></span><span class=line><span class=cl>	<span class=nx>ContainerId</span>     <span class=kt>string</span>
+</span></span><span class=line><span class=cl>	<span class=nx>Container</span>       <span class=kt>string</span>
+</span></span><span class=line><span class=cl>	<span class=nx>ImageName</span>       <span class=kt>string</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1>// kmsgWatcher 持续监听 /dev/kmsg 文件中的内核日志
+</span></span></span><span class=line><span class=cl><span class=c1></span><span class=kd>func</span> <span class=p>(</span><span class=nx>e</span> <span class=o>*</span><span class=nx>Exporter</span><span class=p>)</span> <span class=nf>kmsgWatcher</span><span class=p>(</span><span class=nx>ctx</span> <span class=nx>context</span><span class=p>.</span><span class=nx>Context</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=nx>file</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>os</span><span class=p>.</span><span class=nf>Open</span><span class=p>(</span><span class=s>&#34;/dev/kmsg&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>log</span><span class=p>.</span><span class=nf>Fatalf</span><span class=p>(</span><span class=s>&#34;failed to open /dev/kmsg: %v&#34;</span><span class=p>,</span> <span class=nx>err</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>	<span class=k>defer</span> <span class=nx>file</span><span class=p>.</span><span class=nf>Close</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>	<span class=nx>scanner</span> <span class=o>:=</span> <span class=nx>bufio</span><span class=p>.</span><span class=nf>NewScanner</span><span class=p>(</span><span class=nx>file</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=k>for</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>select</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>case</span> <span class=o>&lt;-</span><span class=nx>ctx</span><span class=p>.</span><span class=nf>Done</span><span class=p>():</span>
+</span></span><span class=line><span class=cl>            <span class=nx>klog</span><span class=p>.</span><span class=nf>Errorf</span><span class=p>(</span><span class=s>&#34;[receive.quit.signal.ReadKmesg.exit]&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>            <span class=k>return</span>
+</span></span><span class=line><span class=cl>        <span class=k>default</span><span class=p>:</span>
+</span></span><span class=line><span class=cl>        <span class=p>}</span>
+</span></span><span class=line><span class=cl>		
+</span></span><span class=line><span class=cl>		<span class=k>for</span> <span class=nx>scanner</span><span class=p>.</span><span class=nf>Scan</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>			<span class=nx>line</span> <span class=o>:=</span> <span class=nx>scanner</span><span class=p>.</span><span class=nf>Text</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>			<span class=c1>// 负责解析日志发现OOM事件
+</span></span></span><span class=line><span class=cl><span class=c1></span>			<span class=k>go</span> <span class=nf>encounterOOM</span><span class=p>(</span><span class=nx>line</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>		<span class=c1>// 检查是否发生了错误
+</span></span></span><span class=line><span class=cl><span class=c1></span>		<span class=k>if</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>scanner</span><span class=p>.</span><span class=nf>Err</span><span class=p>();</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>            <span class=nx>klog</span><span class=p>.</span><span class=nf>Errorf</span><span class=p>(</span><span class=s>&#34;Error reading /dev/kmsg: %v&#34;</span><span class=p>,</span> <span class=nx>err</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>			<span class=nx>time</span><span class=p>.</span><span class=nf>Sleep</span><span class=p>(</span><span class=mi>5</span> <span class=o>*</span> <span class=nx>time</span><span class=p>.</span><span class=nx>Second</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=p>}</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=p>(</span><span class=nx>e</span> <span class=o>*</span><span class=nx>Exporter</span><span class=p>)</span> <span class=nf>encounterOOM</span><span class=p>(</span><span class=nx>msg</span> <span class=kt>string</span><span class=p>)</span>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=nx>parts</span> <span class=o>:=</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>Split</span><span class=p>(</span><span class=nx>msg</span><span class=p>,</span> <span class=s>&#34;;&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>    <span class=k>if</span> <span class=nb>len</span><span class=p>(</span><span class=nx>parts</span><span class=p>)</span> <span class=o>!=</span> <span class=mi>2</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>return</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=nx>header</span> <span class=o>:=</span> <span class=nx>parts</span><span class=p>[</span><span class=mi>0</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>    <span class=nx>message</span> <span class=o>:=</span> <span class=nx>parts</span><span class=p>[</span><span class=mi>1</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=k>if</span> <span class=p>!</span><span class=nx>strings</span><span class=p>.</span><span class=nf>HasPrefix</span><span class=p>(</span><span class=nx>message</span><span class=p>,</span> <span class=s>&#34;oom-kill:constraint=CONSTRAINT_MEMCG&#34;</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=c1>// 如果不符合条件，跳过处理
+</span></span></span><span class=line><span class=cl><span class=c1></span>        <span class=k>return</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=nx>headerFields</span> <span class=o>:=</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>Split</span><span class=p>(</span><span class=nx>header</span><span class=p>,</span> <span class=s>&#34;,&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>    <span class=k>if</span> <span class=nb>len</span><span class=p>(</span><span class=nx>headerFields</span><span class=p>)</span> <span class=p>&lt;</span> <span class=mi>3</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>return</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=nx>timestampMicroStr</span> <span class=o>:=</span> <span class=nx>headerFields</span><span class=p>[</span><span class=mi>2</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>    <span class=nx>timestampMicro</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>strconv</span><span class=p>.</span><span class=nf>ParseInt</span><span class=p>(</span><span class=nx>timestampMicroStr</span><span class=p>,</span> <span class=mi>10</span><span class=p>,</span> <span class=mi>64</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>return</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>    
+</span></span><span class=line><span class=cl>    <span class=c1>// 计算日志的发生时间
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=nx>uptime</span> <span class=o>:=</span> <span class=nx>time</span><span class=p>.</span><span class=nf>Duration</span><span class=p>(</span><span class=nx>timestampMicro</span><span class=p>)</span> <span class=o>*</span> <span class=nx>time</span><span class=p>.</span><span class=nx>Microsecond</span>
+</span></span><span class=line><span class=cl>    <span class=nx>eventTime</span> <span class=o>:=</span> <span class=nx>time</span><span class=p>.</span><span class=nf>Now</span><span class=p>().</span><span class=nf>Add</span><span class=p>(</span><span class=o>-</span><span class=nx>uptime</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=c1>// 3. 解析消息部分，提取需要的字段
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=nx>fields</span> <span class=o>:=</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>Split</span><span class=p>(</span><span class=nx>message</span><span class=p>,</span> <span class=s>&#34;,&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>    <span class=kd>var</span> <span class=p>(</span>
+</span></span><span class=line><span class=cl>        <span class=nx>containerIdStr</span>   <span class=kt>string</span>
+</span></span><span class=line><span class=cl>        <span class=nx>task</span>             <span class=kt>string</span>
+</span></span><span class=line><span class=cl>		<span class=nx>pid</span>              <span class=kt>string</span>
+</span></span><span class=line><span class=cl>    <span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    <span class=k>for</span> <span class=nx>_</span><span class=p>,</span> <span class=nx>field</span> <span class=o>:=</span> <span class=k>range</span> <span class=nx>fields</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=nx>field</span> <span class=p>=</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>TrimSpace</span><span class=p>(</span><span class=nx>field</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>        <span class=k>if</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>HasPrefix</span><span class=p>(</span><span class=nx>field</span><span class=p>,</span> <span class=s>&#34;cpuset=&#34;</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>            <span class=nx>containerIdStr</span> <span class=p>=</span> <span class=nf>containerId</span><span class=p>(</span><span class=nx>strings</span><span class=p>.</span><span class=nf>TrimPrefix</span><span class=p>(</span><span class=nx>field</span><span class=p>,</span> <span class=s>&#34;cpuset=&#34;</span><span class=p>))</span>
+</span></span><span class=line><span class=cl>        <span class=p>}</span>
+</span></span><span class=line><span class=cl>        <span class=k>if</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>HasPrefix</span><span class=p>(</span><span class=nx>field</span><span class=p>,</span> <span class=s>&#34;task=&#34;</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>            <span class=nx>task</span> <span class=p>=</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>TrimPrefix</span><span class=p>(</span><span class=nx>field</span><span class=p>,</span> <span class=s>&#34;task=&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>        <span class=p>}</span>
+</span></span><span class=line><span class=cl>		<span class=k>if</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>HasPreifx</span><span class=p>(</span><span class=nx>field</span><span class=p>,</span> <span class=s>&#34;pid=&#34;</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>            <span class=nx>pid</span> <span class=p>=</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>TrimPrefix</span><span class=p>(</span><span class=nx>field</span><span class=p>,</span> <span class=s>&#34;pid=&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>        <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>	
+</span></span><span class=line><span class=cl>	<span class=nx>e</span><span class=p>.</span><span class=nx>OOMInfoChan</span> <span class=o>&lt;-</span> <span class=nx>OOMInfo</span><span class=p>{</span>
+</span></span><span class=line><span class=cl>	    	<span class=nx>Pid</span><span class=p>:</span>         <span class=nx>pid</span>
+</span></span><span class=line><span class=cl>			<span class=nx>ProcessName</span><span class=p>:</span> <span class=nx>task</span>
+</span></span><span class=line><span class=cl>			<span class=nx>ContainerId</span><span class=p>:</span> <span class=nx>containerIdStr</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=nf>containerId</span><span class=p>(</span><span class=nx>cpuset</span> <span class=kt>string</span><span class=p>)</span> <span class=kt>string</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=c1>// 假设格式为 &#34;cri-containerd-&lt;ID&gt;.scope&#34;
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=c1>// 首先去掉前缀 &#34;cri-containerd-&#34;，然后去掉后缀 &#34;.scope&#34;
+</span></span></span><span class=line><span class=cl><span class=c1></span>    
+</span></span><span class=line><span class=cl>    <span class=c1>// 去掉前缀 &#34;cri-containerd-&#34;
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=k>if</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>HasPrefix</span><span class=p>(</span><span class=nx>cpuset</span><span class=p>,</span> <span class=s>&#34;cri-containerd-&#34;</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=nx>cpuset</span> <span class=p>=</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>TrimPrefix</span><span class=p>(</span><span class=nx>cpuset</span><span class=p>,</span> <span class=s>&#34;cri-containerd-&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>    
+</span></span><span class=line><span class=cl>    <span class=c1>// 去掉后缀 &#34;.scope&#34;
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=k>if</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>HasSuffix</span><span class=p>(</span><span class=nx>cpuset</span><span class=p>,</span> <span class=s>&#34;.scope&#34;</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=nx>cpuset</span> <span class=p>=</span> <span class=nx>strings</span><span class=p>.</span><span class=nf>TrimSuffix</span><span class=p>(</span><span class=nx>cpuset</span><span class=p>,</span> <span class=s>&#34;.scope&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>    
+</span></span><span class=line><span class=cl>    <span class=k>return</span> <span class=nx>cpuset</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>用异步的方式将解析出来的containerId塞入<code>OOMInfoChan</code>，consumer负责读取并调用containerd客户端，然后塞入Metrics的缓存种。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=kd>func</span> <span class=p>(</span><span class=nx>e</span> <span class=o>*</span><span class=nx>Exporter</span><span class=p>)</span> <span class=nf>consumer</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=k>for</span> <span class=nx>oi</span> <span class=k>range</span> <span class=nx>e</span><span class=p>.</span><span class=nx>OOMInfoChan</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	    <span class=nx>labels</span><span class=p>,</span> <span class=nx>ok</span> <span class=o>:=</span> <span class=nx>e</span><span class=p>.</span><span class=nf>GetContainerd</span><span class=p>(</span><span class=nx>oi</span><span class=p>.</span><span class=nx>ContainerId</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=k>if</span> <span class=p>!</span><span class=nx>ok</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>            <span class=k>continue</span>	
+</span></span><span class=line><span class=cl>        <span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>        <span class=cm>/*
+</span></span></span><span class=line><span class=cl><span class=cm>          &#34;Labels&#34;: {
+</span></span></span><span class=line><span class=cl><span class=cm>            &#34;io.cri-containerd.kind&#34;: &#34;container&#34;,
+</span></span></span><span class=line><span class=cl><span class=cm>            &#34;io.kubernetes.container.name&#34;: &#34;go-mem-allocate&#34;,
+</span></span></span><span class=line><span class=cl><span class=cm>            &#34;io.kubernetes.pod.name&#34;: &#34;go-mem-allocate-7d55b48cff-7rz7v&#34;,
+</span></span></span><span class=line><span class=cl><span class=cm>            &#34;io.kubernetes.pod.namespace&#34;: &#34;default&#34;,
+</span></span></span><span class=line><span class=cl><span class=cm>            &#34;io.kubernetes.pod.uid&#34;: &#34;6a7b65f8-a63e-48f1-90f9-ddca01411259&#34;
+</span></span></span><span class=line><span class=cl><span class=cm>          },
+</span></span></span><span class=line><span class=cl><span class=cm>        */</span>
+</span></span><span class=line><span class=cl>        <span class=nx>podName</span> <span class=o>:=</span> <span class=nx>labels</span><span class=p>[</span><span class=s>&#34;io.kubernetes.pod.name&#34;</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>        <span class=nx>podNamespace</span> <span class=o>:=</span> <span class=nx>labels</span><span class=p>[</span><span class=s>&#34;io.kubernetes.pod.namespace&#34;</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>        <span class=nx>podUid</span> <span class=o>:=</span> <span class=nx>labels</span><span class=p>[</span><span class=s>&#34;io.kubernetes.pod.uid&#34;</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>        <span class=nx>containerName</span> <span class=o>:=</span> <span class=nx>labels</span><span class=p>[</span><span class=s>&#34;io.kubernetes.container.name&#34;</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>		<span class=nx>memLimitGibs</span> <span class=o>:=</span> <span class=nx>labels</span><span class=p>[</span><span class=s>&#34;resource.memory.limit&#34;</span><span class=p>]</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>        <span class=nx>mc</span> <span class=o>:=</span> <span class=nx>prometheus</span><span class=p>.</span><span class=nf>MustNewConstMetric</span><span class=p>(</span><span class=nx>conrtainerOOMKiiled</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>            <span class=nx>prometheus</span><span class=p>.</span><span class=nx>GaugeValue</span><span class=p>,</span> <span class=mi>1</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>            <span class=nx>podName</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>            <span class=nx>containerName</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>            <span class=nx>oi</span><span class=p>.</span><span class=nx>ImageName</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>            <span class=nx>podNamespace</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>            <span class=nx>p</span><span class=p>.</span><span class=nx>NodeName</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>            <span class=nx>oi</span><span class=p>.</span><span class=nx>ProcessName</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>			<span class=nx>memLimitGibs</span><span class=p>,</span>
+</span></span><span class=line><span class=cl>        <span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=nx>e</span><span class=p>.</span><span class=nx>PromeMetricCache</span><span class=p>.</span><span class=nf>SetDefault</span><span class=p>(</span><span class=nx>key</span><span class=p>,</span> <span class=nx>mc</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=2-封装containerd客户端api>2. 封装containerd客户端API</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=c1>// GetContainerd 根据容器 ID 返回容器信息
+</span></span></span><span class=line><span class=cl><span class=c1></span><span class=kd>func</span> <span class=p>(</span><span class=nx>e</span> <span class=o>*</span><span class=nx>Exporter</span><span class=p>)</span> <span class=nf>GetContainerd</span><span class=p>(</span><span class=nx>containerId</span> <span class=kt>string</span><span class=p>)</span> <span class=p>(</span><span class=kd>map</span><span class=p>[</span><span class=kt>string</span><span class=p>]</span><span class=kt>string</span><span class=p>,</span> <span class=kt>bool</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=c1>// 在指定的命名空间中获取容器
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=nx>ctx</span> <span class=o>:=</span> <span class=nx>namespaces</span><span class=p>.</span><span class=nf>WithNamespace</span><span class=p>(</span><span class=nx>context</span><span class=p>.</span><span class=nf>Background</span><span class=p>(),</span> <span class=s>&#34;k8s.io&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>    
+</span></span><span class=line><span class=cl>    <span class=c1>// 获取容器对象
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=nx>container</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>e</span><span class=p>.</span><span class=nx>client</span><span class=p>.</span><span class=nf>LoadContainer</span><span class=p>(</span><span class=nx>ctx</span><span class=p>,</span> <span class=nx>containerId</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>return</span> <span class=nx>containerd</span><span class=p>.</span><span class=nx>Container</span><span class=p>{},</span> <span class=kc>false</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>	
+</span></span><span class=line><span class=cl>	<span class=nx>labels</span> <span class=o>:=</span> <span class=nx>container</span><span class=p>.</span><span class=nf>Labels</span><span class=p>(</span><span class=nx>ctx</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=nx>spec</span> <span class=o>:=</span> <span class=nx>container</span><span class=p>.</span><span class=nf>Spec</span><span class=p>(</span><span class=nx>ctx</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=nx>resource</span> <span class=o>:=</span> <span class=nx>spec</span><span class=p>.</span><span class=nx>Linux</span><span class=p>.</span><span class=nx>Resources</span>
+</span></span><span class=line><span class=cl>    <span class=k>if</span> <span class=nx>resource</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=nx>mem</span> <span class=o>:=</span> <span class=nx>resource</span><span class=p>.</span><span class=nx>Memory</span>
+</span></span><span class=line><span class=cl>        <span class=k>if</span> <span class=nx>mem</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>            <span class=k>if</span> <span class=nx>mem</span><span class=p>.</span><span class=nx>Limit</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>                <span class=nx>labels</span><span class=p>[</span><span class=s>&#34;resource.memory.limit&#34;</span><span class=p>]</span> <span class=p>=</span> <span class=nx>fmt</span><span class=p>.</span><span class=nf>Sprintf</span><span class=p>(</span><span class=s>&#34;%.2f&#34;</span><span class=p>,</span> <span class=nb>float64</span><span class=p>(</span><span class=o>*</span><span class=nx>mem</span><span class=p>.</span><span class=nx>Limit</span><span class=p>)</span><span class=o>/</span><span class=nb>float64</span><span class=p>(</span><span class=mi>1024</span><span class=o>*</span><span class=mi>1024</span><span class=o>*</span><span class=mi>1024</span><span class=p>))</span>
+</span></span><span class=line><span class=cl>            <span class=p>}</span>
+</span></span><span class=line><span class=cl>        <span class=p>}</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>    
+</span></span><span class=line><span class=cl>    <span class=k>return</span> <span class=nx>container</span><span class=p>.</span><span class=nf>Labels</span><span class=p>(</span><span class=nx>ctx</span><span class=p>),</span> <span class=kc>true</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=3-自定义prometheus-collector>3. 自定义Prometheus Collector</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=kd>type</span> <span class=nx>Collector</span> <span class=kd>interface</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=nf>Describe</span><span class=p>(</span><span class=kd>chan</span><span class=o>&lt;-</span> <span class=o>*</span><span class=nx>Desc</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>    <span class=nf>Collect</span><span class=p>(</span><span class=kd>chan</span><span class=o>&lt;-</span> <span class=nx>Metric</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=p>(</span><span class=nx>e</span> <span class=o>*</span><span class=nx>Exporter</span><span class=p>)</span> <span class=nf>Describe</span><span class=p>(</span><span class=kd>chan</span><span class=o>&lt;-</span> <span class=o>*</span><span class=nx>Desc</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=nx>ch</span> <span class=o>&lt;-</span> <span class=nx>conrtainerOOMKiiled</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=p>(</span><span class=nx>e</span> <span class=o>*</span><span class=nx>Exporter</span><span class=p>)</span> <span class=nf>Collect</span><span class=p>(</span><span class=nx>ch</span> <span class=kd>chan</span><span class=o>&lt;-</span> <span class=nx>prometheus</span><span class=p>.</span><span class=nx>Metric</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>for</span> <span class=nx>key</span><span class=p>,</span> <span class=nx>v</span> <span class=o>:=</span> <span class=k>range</span> <span class=nx>e</span><span class=p>.</span><span class=nx>PromeMetricCache</span><span class=p>.</span><span class=nf>Items</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=nx>key</span> <span class=o>:=</span> <span class=nx>key</span>
+</span></span><span class=line><span class=cl>        
+</span></span><span class=line><span class=cl>        <span class=nx>v</span> <span class=o>:=</span> <span class=nx>v</span>
+</span></span><span class=line><span class=cl>        <span class=nx>mv</span> <span class=o>:=</span> <span class=nx>v</span><span class=p>.</span><span class=nx>Object</span><span class=p>.(</span><span class=nx>prometheus</span><span class=p>.</span><span class=nx>Metric</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>        <span class=nx>ch</span> <span class=o>&lt;-</span> <span class=nx>mv</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><h2 id=五总结>五、总结</h2><blockquote><p>类似这个问题其实不仅仅存在于AI训练的服务中，任何能fork子进程并且母进程未做好进程管理，必定会出现这种情况。</p><p>对于运维来说，无法去判断开发的代码是什么原因导致的这个问题，所以只能通过这种方式弥补Kubernetes监控的不足，加强集群的可观测性。</p><p>另外，这种多进程或者母子进程的服务还会出现僵尸进程的情况，会在下一篇文章详细说这个情况。</p></blockquote></article><ul class=article-share><li><a class=resp-sharing-button__link href="https://facebook.com/sharer/sharer.php?u=/%25E7%2594%259F%25E4%25BA%25A7%25E9%2597%25AE%25E9%25A2%2598%25E5%259C%25A8%25E5%25AE%25B9%25E5%2599%25A8%25E4%25B8%25AD%25E8%25BF%2590%25E8%25A1%258C%25E5%25A4%259A%25E8%25BF%259B%25E7%25A8%258B%25E6%259C%258D%25E5%258A%25A1oomkilled%25E6%259C%25AA%25E8%2583%25BD%25E8%25A2%25ABk8s%25E6%25A3%2580%25E6%25B5%258B%25E8%25AF%2586%25E5%2588%25AB%25E7%259A%2584%25E7%25BB%2593%25E5%25B1%2580%25E6%2596%25B9%25E6%25A1%2588/" target=_blank rel=noopener aria-label=Facebook><div class="resp-sharing-button resp-sharing-button--facebook resp-sharing-button--medium"><div aria-hidden=true class="resp-sharing-button__icon resp-sharing-button__icon--solid"><i class="fa-brands fa-facebook-f"></i></div>Facebook</div></a></li><li><a class=resp-sharing-button__link href="https://x.com/intent/tweet/?text=%e3%80%90%e7%94%9f%e4%ba%a7%e9%97%ae%e9%a2%98%e3%80%91%e5%9c%a8%e5%ae%b9%e5%99%a8%e4%b8%ad%e8%bf%90%e8%a1%8c%e5%a4%9a%e8%bf%9b%e7%a8%8b%e6%9c%8d%e5%8a%a1OOMKilled%e6%9c%aa%e8%83%bd%e8%a2%abK8s%e6%a3%80%e6%b5%8b%e8%af%86%e5%88%ab%e7%9a%84%e8%a7%a3%e5%86%b3%e6%96%b9%e6%a1%88%20-%20%e7%bb%b4%e4%bf%ae%e5%8c%ba%e5%88%b7%e7%b4%ab&amp;url=/%25E7%2594%259F%25E4%25BA%25A7%25E9%2597%25AE%25E9%25A2%2598%25E5%259C%25A8%25E5%25AE%25B9%25E5%2599%25A8%25E4%25B8%25AD%25E8%25BF%2590%25E8%25A1%258C%25E5%25A4%259A%25E8%25BF%259B%25E7%25A8%258B%25E6%259C%258D%25E5%258A%25A1oomkilled%25E6%259C%25AA%25E8%2583%25BD%25E8%25A2%25ABk8s%25E6%25A3%2580%25E6%25B5%258B%25E8%25AF%2586%25E5%2588%25AB%25E7%259A%2584%25E7%25BB%2593%25E5%25B1%2580%25E6%2596%25B9%25E6%25A1%2588/" target=_blank rel=noopener aria-label=Twitter><div class="resp-sharing-button resp-sharing-button--x resp-sharing-button--medium"><i class="fa-brands fa-x-twitter"></i></div></a></li></ul><ul class="pager article-pager"><li class=pager-newer><a href=/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98k8s%E9%80%80%E5%87%BA%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86%E5%92%8C%E5%83%B5%E5%B0%B8%E8%BF%9B%E7%A8%8B%E9%97%AE%E9%A2%98/ data-toggle=tooltip data-placement=top title=【生产问题】K8s退出信号处理和僵尸进程问题>&lt; Newer</a></li><li class=pager-older><a href=/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86docker%E9%95%9C%E5%83%8F%E5%AD%98%E5%82%A8%E5%8E%9F%E7%90%86%E5%8F%8A%E5%85%B6%E4%BC%98%E5%8C%96%E6%96%B9%E5%BC%8F/ data-toggle=tooltip data-placement=top title=【基础知识】Docker镜像存储原理及其优化方式>Older ></a></li></ul></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

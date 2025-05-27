@@ -1,0 +1,705 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>【问题小解决】MySQL高可用集群之双主多从 - 维修区刷紫</title>
+<meta property="og:title" content="【问题小解决】MySQL高可用集群之双主多从 - 维修区刷紫"><meta name=twitter:title content="【问题小解决】MySQL高可用集群之双主多从 - 维修区刷紫"><meta name=description content="通常MySQL主从复制主要用来解决读写分离，分担服务器压力。MySQL互为主备实现服务的高可用；这里同时基于高可用和负载均衡。
+
+环境准备
+
+
+
+主机名/角色
+VIP
+IP地址
+操作系统
+MySQL版本
+
+
+
+
+Node0/master1
+172.16.10.100
+172.16.10.10
+CentOS8.1.1911
+8.0.17
+
+
+Node1/master2
+
+172.16.10.11
+CentOS8.1.1911
+8.0.17
+
+
+Node2/slave1
+
+172.16.10.12
+CentOS8.1.1911
+8.0.17
+
+
+
+安装MySQL
+在所有节点上执行dnf -y install mysql mysql-server，并在master节点上配置server-id并开启bin-log
+
+
+ 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+
+
+vi /etc/my.cnf.d/mysql-server.cnf
+[mysqld]
+# 主数据库端ID号，全局唯一，通常用IP地址最后一位
+server_id = 10
+# 开启二进制日志
+log-bin = mysql-bin
+# 需要复制的数据库名，如果复制多个数据库，重复设置这个选项即可
+binlog-do-db = test
+# 将从服务器从主服务器收到的更新记入到从服务器自己的二进制日志文件中
+log-slave-updates
+# 控制binlog的写入频率。每执行多少次事务写入一次(这个参数性能消耗很大，但可减小MySQL崩溃造成的损失)
+sync_binlog = 1
+# 下面这两个参数非常重要
+# 这个参数一般用在主主同步中，用来错开自增值, 防止键值冲突，master2上面改为2
+auto_increment_offset = 1
+# 这个参数一般用在主主同步中，用来错开自增值, 防止键值冲突
+auto_increment_increment = 2
+# 二进制日志自动删除的天数，默认值为0,表示“没有自动删除”，启动时和二进制日志循环时可能删除
+expire_logs_days = 7
+# 将函数复制到slave
+log_bin_trust_function_creators = 1
+
+
+执行systemctl enable --now mysqld运行Mysql"><meta property="og:description" content="通常MySQL主从复制主要用来解决读写分离，分担服务器压力。MySQL互为主备实现服务的高可用；这里同时基于高可用和负载均衡。
+
+环境准备
+
+
+
+主机名/角色
+VIP
+IP地址
+操作系统
+MySQL版本
+
+
+
+
+Node0/master1
+172.16.10.100
+172.16.10.10
+CentOS8.1.1911
+8.0.17
+
+
+Node1/master2
+
+172.16.10.11
+CentOS8.1.1911
+8.0.17
+
+
+Node2/slave1
+
+172.16.10.12
+CentOS8.1.1911
+8.0.17
+
+
+
+安装MySQL
+在所有节点上执行dnf -y install mysql mysql-server，并在master节点上配置server-id并开启bin-log
+
+
+ 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+
+
+vi /etc/my.cnf.d/mysql-server.cnf
+[mysqld]
+# 主数据库端ID号，全局唯一，通常用IP地址最后一位
+server_id = 10
+# 开启二进制日志
+log-bin = mysql-bin
+# 需要复制的数据库名，如果复制多个数据库，重复设置这个选项即可
+binlog-do-db = test
+# 将从服务器从主服务器收到的更新记入到从服务器自己的二进制日志文件中
+log-slave-updates
+# 控制binlog的写入频率。每执行多少次事务写入一次(这个参数性能消耗很大，但可减小MySQL崩溃造成的损失)
+sync_binlog = 1
+# 下面这两个参数非常重要
+# 这个参数一般用在主主同步中，用来错开自增值, 防止键值冲突，master2上面改为2
+auto_increment_offset = 1
+# 这个参数一般用在主主同步中，用来错开自增值, 防止键值冲突
+auto_increment_increment = 2
+# 二进制日志自动删除的天数，默认值为0,表示“没有自动删除”，启动时和二进制日志循环时可能删除
+expire_logs_days = 7
+# 将函数复制到slave
+log_bin_trust_function_creators = 1
+
+
+执行systemctl enable --now mysqld运行Mysql"><meta name=twitter:description content="通常MySQL主从复制主要用来解决读写分离，分担服务器压力。MySQL互为主备实现服务的高可用；这里同时基于高可用和负载均衡。
+
+环境准备
+
+
+
+主机名/角色
+VIP
+IP地址
+操作系统
+MySQL版本
+
+
+
+
+Node0/master1
+172.16.10.100
+172.16.10.10
+CentOS8.1.1911
+8.0.17
+
+
+Node1/master2
+
+172.16.10.11 …"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3mysql%E9%AB%98%E5%8F%AF%E7%94%A8%E9%9B%86%E7%BE%A4%E4%B9%8B%E5%8F%8C%E4%B8%BB%E5%A4%9A%E4%BB%8E/"><meta property="og:type" content="article"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><article class=article><h1 class=article-title>【问题小解决】MySQL高可用集群之双主多从</h1><hr class=article-title-bottom><ul class=article-meta><li class=article-meta-date><time>2020-05-14</time></li><li class=article-meta-categories><a href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3/><i class="fa-solid fa-folder"></i>
+问题小解决
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li></ul><aside class=toc><nav id=TableOfContents><ul><li><ul><li><a href=#安装mysql>安装MySQL</a></li><li><a href=#配置双主集群>配置双主集群</a></li><li><a href=#安装lvs>安装lvs</a></li><li><a href=#安装keepalived>安装keepalived</a></li><li><a href=#配置keepalived>配置keepalived</a></li></ul></li></ul></nav></aside><p>通常MySQL主从复制主要用来解决读写分离，分担服务器压力。MySQL互为主备实现服务的高可用；这里同时基于高可用和负载均衡。</p><p><img src=/images/mysql-ha.png alt=mysql-ha></p><p>环境准备</p><table><thead><tr><th>主机名/角色</th><th>VIP</th><th>IP地址</th><th>操作系统</th><th>MySQL版本</th></tr></thead><tbody><tr><td>Node0/master1</td><td>172.16.10.100</td><td>172.16.10.10</td><td>CentOS8.1.1911</td><td>8.0.17</td></tr><tr><td>Node1/master2</td><td></td><td>172.16.10.11</td><td>CentOS8.1.1911</td><td>8.0.17</td></tr><tr><td>Node2/slave1</td><td></td><td>172.16.10.12</td><td>CentOS8.1.1911</td><td>8.0.17</td></tr></tbody></table><h3 id=安装mysql>安装MySQL</h3><p>在所有节点上执行<code>dnf -y install mysql mysql-server</code>，并在master节点上配置server-id并开启bin-log</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>vi /etc/my.cnf.d/mysql-server.cnf
+</span></span><span class=line><span class=cl><span class=o>[</span>mysqld<span class=o>]</span>
+</span></span><span class=line><span class=cl><span class=c1># 主数据库端ID号，全局唯一，通常用IP地址最后一位</span>
+</span></span><span class=line><span class=cl><span class=nv>server_id</span> <span class=o>=</span> <span class=m>10</span>
+</span></span><span class=line><span class=cl><span class=c1># 开启二进制日志</span>
+</span></span><span class=line><span class=cl>log-bin <span class=o>=</span> mysql-bin
+</span></span><span class=line><span class=cl><span class=c1># 需要复制的数据库名，如果复制多个数据库，重复设置这个选项即可</span>
+</span></span><span class=line><span class=cl>binlog-do-db <span class=o>=</span> <span class=nb>test</span>
+</span></span><span class=line><span class=cl><span class=c1># 将从服务器从主服务器收到的更新记入到从服务器自己的二进制日志文件中</span>
+</span></span><span class=line><span class=cl>log-slave-updates
+</span></span><span class=line><span class=cl><span class=c1># 控制binlog的写入频率。每执行多少次事务写入一次(这个参数性能消耗很大，但可减小MySQL崩溃造成的损失)</span>
+</span></span><span class=line><span class=cl><span class=nv>sync_binlog</span> <span class=o>=</span> <span class=m>1</span>
+</span></span><span class=line><span class=cl><span class=c1># 下面这两个参数非常重要</span>
+</span></span><span class=line><span class=cl><span class=c1># 这个参数一般用在主主同步中，用来错开自增值, 防止键值冲突，master2上面改为2</span>
+</span></span><span class=line><span class=cl><span class=nv>auto_increment_offset</span> <span class=o>=</span> <span class=m>1</span>
+</span></span><span class=line><span class=cl><span class=c1># 这个参数一般用在主主同步中，用来错开自增值, 防止键值冲突</span>
+</span></span><span class=line><span class=cl><span class=nv>auto_increment_increment</span> <span class=o>=</span> <span class=m>2</span>
+</span></span><span class=line><span class=cl><span class=c1># 二进制日志自动删除的天数，默认值为0,表示“没有自动删除”，启动时和二进制日志循环时可能删除</span>
+</span></span><span class=line><span class=cl><span class=nv>expire_logs_days</span> <span class=o>=</span> <span class=m>7</span>
+</span></span><span class=line><span class=cl><span class=c1># 将函数复制到slave</span>
+</span></span><span class=line><span class=cl><span class=nv>log_bin_trust_function_creators</span> <span class=o>=</span> <span class=m>1</span>
+</span></span></code></pre></td></tr></table></div></div><p>执行<code>systemctl enable --now mysqld</code>运行Mysql</p><h3 id=配置双主集群>配置双主集群</h3><h4 id=配置master1>配置Master1</h4><p>在master1节点上创建replication用户</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=c1>## master1</span>
+</span></span><span class=line><span class=cl>create user replication@<span class=s1>&#39;172.16.10.%&#39;</span> identified by <span class=s1>&#39;replication&#39;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>grant replication slave on *.* to replication@<span class=s1>&#39;172.16.10.%&#39;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>show master status<span class=p>;</span>
+</span></span><span class=line><span class=cl>+------------------+----------+--------------+------------------+-------------------+
+</span></span><span class=line><span class=cl><span class=p>|</span> File             <span class=p>|</span> Position <span class=p>|</span> Binlog_Do_DB <span class=p>|</span> Binlog_Ignore_DB <span class=p>|</span> Executed_Gtid_Set <span class=p>|</span>
+</span></span><span class=line><span class=cl>+------------------+----------+--------------+------------------+-------------------+
+</span></span><span class=line><span class=cl><span class=p>|</span> mysql-bin.000002 <span class=p>|</span>      <span class=m>692</span> <span class=p>|</span> <span class=nb>test</span>         <span class=p>|</span>                  <span class=p>|</span>                   <span class=p>|</span>
+</span></span><span class=line><span class=cl>+------------------+----------+--------------+------------------+-------------------+
+</span></span><span class=line><span class=cl><span class=c1>##  在master2上执行</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>CHANGE MASTER TO
+</span></span><span class=line><span class=cl> <span class=nv>MASTER_HOST</span><span class=o>=</span><span class=s1>&#39;172.16.10.10&#39;</span>,
+</span></span><span class=line><span class=cl> <span class=nv>MASTER_USER</span><span class=o>=</span><span class=s1>&#39;replication&#39;</span>,
+</span></span><span class=line><span class=cl> <span class=nv>MASTER_PASSWORD</span><span class=o>=</span><span class=s1>&#39;replication&#39;</span>,
+</span></span><span class=line><span class=cl> <span class=nv>MASTER_LOG_FILE</span><span class=o>=</span><span class=s1>&#39;mysql-bin.000002&#39;</span>,
+</span></span><span class=line><span class=cl> <span class=nv>MASTER_LOG_POS</span><span class=o>=</span>692<span class=p>;</span>
+</span></span><span class=line><span class=cl> 
+</span></span><span class=line><span class=cl>start slave<span class=p>;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>show slave status<span class=se>\G</span>
+</span></span><span class=line><span class=cl>*************************** 1. row ***************************
+</span></span><span class=line><span class=cl>               Slave_IO_State: Waiting <span class=k>for</span> master to send event
+</span></span><span class=line><span class=cl>                  Master_Host: 172.16.10.10
+</span></span><span class=line><span class=cl>                  Master_User: replication
+</span></span><span class=line><span class=cl>                  Master_Port: <span class=m>3306</span>
+</span></span><span class=line><span class=cl>                Connect_Retry: <span class=m>60</span>
+</span></span><span class=line><span class=cl>              Master_Log_File: mysql-bin.000002
+</span></span><span class=line><span class=cl>          Read_Master_Log_Pos: <span class=m>692</span>
+</span></span><span class=line><span class=cl>               Relay_Log_File: node1-relay-bin.000002
+</span></span><span class=line><span class=cl>                Relay_Log_Pos: <span class=m>322</span>
+</span></span><span class=line><span class=cl>        Relay_Master_Log_File: mysql-bin.000002
+</span></span><span class=line><span class=cl>             Slave_IO_Running: Yes
+</span></span><span class=line><span class=cl>            Slave_SQL_Running: Yes
+</span></span></code></pre></td></tr></table></div></div><h4 id=配置master2>配置Master2</h4><p>在master2上创建replication用户</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>create user replication@<span class=s1>&#39;172.16.10.%&#39;</span> identified by <span class=s1>&#39;replication&#39;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>grant replication slave on *.* to replication@<span class=s1>&#39;172.16.10.%&#39;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>show master status<span class=p>;</span>
+</span></span><span class=line><span class=cl>+------------------+----------+--------------+------------------+-------------------+
+</span></span><span class=line><span class=cl><span class=p>|</span> File             <span class=p>|</span> Position <span class=p>|</span> Binlog_Do_DB <span class=p>|</span> Binlog_Ignore_DB <span class=p>|</span> Executed_Gtid_Set <span class=p>|</span>
+</span></span><span class=line><span class=cl>+------------------+----------+--------------+------------------+-------------------+
+</span></span><span class=line><span class=cl><span class=p>|</span> mysql-bin.000002 <span class=p>|</span>      <span class=m>692</span> <span class=p>|</span> <span class=nb>test</span>         <span class=p>|</span>                  <span class=p>|</span>                   <span class=p>|</span>
+</span></span><span class=line><span class=cl>+------------------+----------+--------------+------------------+-------------------+
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1>## 在master1节点上配置主从同步</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>CHANGE MASTER TO
+</span></span><span class=line><span class=cl> <span class=nv>MASTER_HOST</span><span class=o>=</span><span class=s1>&#39;172.16.10.11&#39;</span>,
+</span></span><span class=line><span class=cl> <span class=nv>MASTER_USER</span><span class=o>=</span><span class=s1>&#39;replication&#39;</span>,
+</span></span><span class=line><span class=cl> <span class=nv>MASTER_PASSWORD</span><span class=o>=</span><span class=s1>&#39;replication&#39;</span>,
+</span></span><span class=line><span class=cl> <span class=nv>MASTER_LOG_FILE</span><span class=o>=</span><span class=s1>&#39;mysql-bin.000002&#39;</span>,
+</span></span><span class=line><span class=cl> <span class=nv>MASTER_LOG_POS</span><span class=o>=</span>692<span class=p>;</span>
+</span></span><span class=line><span class=cl> 
+</span></span><span class=line><span class=cl>start slave<span class=p>;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>show slave status<span class=se>\G</span>
+</span></span><span class=line><span class=cl>*************************** 1. row ***************************
+</span></span><span class=line><span class=cl>               Slave_IO_State: Waiting <span class=k>for</span> master to send event
+</span></span><span class=line><span class=cl>                  Master_Host: 172.16.10.11
+</span></span><span class=line><span class=cl>                  Master_User: replication
+</span></span><span class=line><span class=cl>                  Master_Port: <span class=m>3306</span>
+</span></span><span class=line><span class=cl>                Connect_Retry: <span class=m>60</span>
+</span></span><span class=line><span class=cl>              Master_Log_File: mysql-bin.000002
+</span></span><span class=line><span class=cl>          Read_Master_Log_Pos: <span class=m>692</span>
+</span></span><span class=line><span class=cl>               Relay_Log_File: node0-relay-bin.000002
+</span></span><span class=line><span class=cl>                Relay_Log_Pos: <span class=m>322</span>
+</span></span><span class=line><span class=cl>        Relay_Master_Log_File: mysql-bin.000002
+</span></span><span class=line><span class=cl>             Slave_IO_Running: Yes
+</span></span><span class=line><span class=cl>            Slave_SQL_Running: Yes
+</span></span></code></pre></td></tr></table></div></div><p>现在master1和master2已经互为主从了。我们希望就是其中一个节点挂了不影响业务的正常运行。这里使用keepalived+lvs方案</p><h3 id=安装lvs>安装lvs</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>dnf -y install ipvsadm
+</span></span></code></pre></td></tr></table></div></div><h3 id=安装keepalived>安装keepalived</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>dnf -y install keepalived
+</span></span></code></pre></td></tr></table></div></div><h3 id=配置keepalived>配置keepalived</h3><p>master配置</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>vi /etc/keepalived/keepalived.conf
+</span></span><span class=line><span class=cl>global_defs <span class=o>{</span>
+</span></span><span class=line><span class=cl>   router_id MySQL-HA
+</span></span><span class=line><span class=cl><span class=o>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>vrrp_sync_group VG1 <span class=o>{</span>
+</span></span><span class=line><span class=cl>    group <span class=o>{</span>
+</span></span><span class=line><span class=cl>        VI_1
+</span></span><span class=line><span class=cl>    <span class=o>}</span>
+</span></span><span class=line><span class=cl><span class=o>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>vrrp_script check_run <span class=o>{</span>
+</span></span><span class=line><span class=cl>    script <span class=s2>&#34;/usr/local/bin/mysql_check.sh&#34;</span>
+</span></span><span class=line><span class=cl>    interval <span class=m>60</span>
+</span></span><span class=line><span class=cl><span class=o>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>vrrp_instance VI_1 <span class=o>{</span>
+</span></span><span class=line><span class=cl>    state BACKUP
+</span></span><span class=line><span class=cl>    interface eth1
+</span></span><span class=line><span class=cl>    virtual_router_id <span class=m>51</span>
+</span></span><span class=line><span class=cl>    priority <span class=m>100</span>
+</span></span><span class=line><span class=cl>    advert_int <span class=m>1</span>
+</span></span><span class=line><span class=cl>    nopreemt
+</span></span><span class=line><span class=cl>    authentication <span class=o>{</span>
+</span></span><span class=line><span class=cl>        auth_type PASS
+</span></span><span class=line><span class=cl>        auth_pass <span class=m>1234</span>
+</span></span><span class=line><span class=cl>    <span class=o>}</span>
+</span></span><span class=line><span class=cl>    track_script <span class=o>{</span>
+</span></span><span class=line><span class=cl>        check_run
+</span></span><span class=line><span class=cl>    <span class=o>}</span>
+</span></span><span class=line><span class=cl>    notify_master /usr/local/bin/mysql_master.sh
+</span></span><span class=line><span class=cl>    notify_stop   /usr/local/bin/mysql_stop.sh
+</span></span><span class=line><span class=cl>    virtual_ipaddress <span class=o>{</span>
+</span></span><span class=line><span class=cl>        172.16.10.100
+</span></span><span class=line><span class=cl>    <span class=o>}</span>
+</span></span><span class=line><span class=cl><span class=o>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>backup配置</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>vi /etc/keepalived/keepalived.conf
+</span></span><span class=line><span class=cl>global_defs <span class=o>{</span>
+</span></span><span class=line><span class=cl>   router_id MySQL-HA
+</span></span><span class=line><span class=cl><span class=o>}</span> 
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>vrrp_script check_run <span class=o>{</span>
+</span></span><span class=line><span class=cl>    script <span class=s2>&#34;/usr/local/bin/mysql_check.sh&#34;</span>
+</span></span><span class=line><span class=cl>    interval <span class=m>60</span>
+</span></span><span class=line><span class=cl><span class=o>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>vrrp_sync_group VG1 <span class=o>{</span>
+</span></span><span class=line><span class=cl>    group <span class=o>{</span>
+</span></span><span class=line><span class=cl>        VI_1
+</span></span><span class=line><span class=cl>    <span class=o>}</span>
+</span></span><span class=line><span class=cl><span class=o>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>vrrp_instance VI_1 <span class=o>{</span>
+</span></span><span class=line><span class=cl>    state BACKUP
+</span></span><span class=line><span class=cl>    interface eth1
+</span></span><span class=line><span class=cl>    virtual_router_id <span class=m>51</span>
+</span></span><span class=line><span class=cl>    priority <span class=m>90</span>  
+</span></span><span class=line><span class=cl>    advert_int <span class=m>1</span>
+</span></span><span class=line><span class=cl>    nopreempt
+</span></span><span class=line><span class=cl>    authentication <span class=o>{</span>
+</span></span><span class=line><span class=cl>        auth_type PASS
+</span></span><span class=line><span class=cl>        auth_pass <span class=m>1234</span>
+</span></span><span class=line><span class=cl>    <span class=o>}</span>
+</span></span><span class=line><span class=cl>    track_script <span class=o>{</span>
+</span></span><span class=line><span class=cl>        check_run
+</span></span><span class=line><span class=cl>    <span class=o>}</span>
+</span></span><span class=line><span class=cl>    notify_master /usr/local/bin/mysql_master.sh
+</span></span><span class=line><span class=cl>    notify_stop   /usr/local/bin/mysql_stop.sh
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>    virtual_ipaddress <span class=o>{</span>
+</span></span><span class=line><span class=cl>        172.16.10.100
+</span></span><span class=line><span class=cl>    <span class=o>}</span>
+</span></span><span class=line><span class=cl><span class=o>}</span>
+</span></span></code></pre></td></tr></table></div></div><p><code>mysql_check.sh</code>脚本，用于检测 MySQL 服务的状态，并在服务不可用的情况下停止 Keepalived，触发 VIP 漂移到备节点</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=cp>#!/bin/bash
+</span></span></span><span class=line><span class=cl><span class=cp></span><span class=nv>count</span><span class=o>=</span><span class=m>1</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>while</span> <span class=nb>true</span>
+</span></span><span class=line><span class=cl><span class=k>do</span>
+</span></span><span class=line><span class=cl>  mysql -e <span class=s2>&#34;show status;&#34;</span> &gt; /dev/null 2&gt;<span class=p>&amp;</span><span class=m>1</span>
+</span></span><span class=line><span class=cl>  <span class=nv>i</span><span class=o>=</span><span class=nv>$?</span>
+</span></span><span class=line><span class=cl>  ps aux <span class=p>|</span> grep mysqld <span class=p>|</span> grep -v grep &gt; /dev/null 2&gt;<span class=p>&amp;</span><span class=m>1</span>
+</span></span><span class=line><span class=cl>  <span class=nv>j</span><span class=o>=</span><span class=nv>$?</span>
+</span></span><span class=line><span class=cl>  <span class=k>if</span> <span class=o>[</span> <span class=nv>$i</span> <span class=o>=</span> <span class=m>0</span> <span class=o>]</span> <span class=o>&amp;&amp;</span> <span class=o>[</span> <span class=nv>$j</span> <span class=o>=</span> <span class=m>0</span> <span class=o>]</span>
+</span></span><span class=line><span class=cl>  <span class=k>then</span>
+</span></span><span class=line><span class=cl>     <span class=nb>exit</span> <span class=m>0</span>
+</span></span><span class=line><span class=cl>  <span class=k>else</span>
+</span></span><span class=line><span class=cl>     <span class=k>if</span> <span class=o>[</span> <span class=nv>$i</span> <span class=o>=</span> <span class=m>1</span> <span class=o>]</span> <span class=o>&amp;&amp;</span> <span class=o>[</span> <span class=nv>$j</span> <span class=o>=</span> <span class=m>0</span> <span class=o>]</span>
+</span></span><span class=line><span class=cl>     <span class=k>then</span>
+</span></span><span class=line><span class=cl>         <span class=nb>exit</span> <span class=m>0</span>
+</span></span><span class=line><span class=cl>     <span class=k>else</span>
+</span></span><span class=line><span class=cl>          <span class=k>if</span> <span class=o>[</span> <span class=nv>$count</span> -gt <span class=m>5</span> <span class=o>]</span>
+</span></span><span class=line><span class=cl>          <span class=k>then</span>
+</span></span><span class=line><span class=cl>                <span class=nb>break</span>
+</span></span><span class=line><span class=cl>          <span class=k>fi</span>
+</span></span><span class=line><span class=cl>     <span class=nb>let</span> count++
+</span></span><span class=line><span class=cl>     <span class=k>continue</span>
+</span></span><span class=line><span class=cl>     <span class=k>fi</span>
+</span></span><span class=line><span class=cl>  <span class=k>fi</span>
+</span></span><span class=line><span class=cl><span class=k>done</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>/usr/bin/systemctl stop keepalived
+</span></span></code></pre></td></tr></table></div></div><p>下面是<code>mysql_master.sh</code>脚本，用于切换主从状态</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=cp>#!/bin/bash
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=nv>Master_Log_File</span><span class=o>=</span><span class=k>$(</span>mysql -e <span class=s2>&#34;show slave status\G&#34;</span> <span class=p>|</span> grep -w Master_Log_File <span class=p>|</span> awk -F<span class=s2>&#34;: &#34;</span> <span class=s1>&#39;{print $2}&#39;</span><span class=k>)</span>
+</span></span><span class=line><span class=cl><span class=nv>Relay_Master_Log_File</span><span class=o>=</span><span class=k>$(</span>mysql -e <span class=s2>&#34;show slave status\G&#34;</span> <span class=p>|</span> grep -w Relay_Master_Log_File <span class=p>|</span> awk -F<span class=s2>&#34;: &#34;</span> <span class=s1>&#39;{print $2}&#39;</span><span class=k>)</span>
+</span></span><span class=line><span class=cl><span class=nv>Read_Master_Log_Pos</span><span class=o>=</span><span class=k>$(</span>mysql -e <span class=s2>&#34;show slave status\G&#34;</span> <span class=p>|</span> grep -w Read_Master_Log_Pos <span class=p>|</span> awk -F<span class=s2>&#34;: &#34;</span> <span class=s1>&#39;{print $2}&#39;</span><span class=k>)</span>
+</span></span><span class=line><span class=cl><span class=nv>Exec_Master_Log_Pos</span><span class=o>=</span><span class=k>$(</span>mysql -e <span class=s2>&#34;show slave status\G&#34;</span> <span class=p>|</span> grep -w Exec_Master_Log_Pos <span class=p>|</span> awk -F<span class=s2>&#34;: &#34;</span> <span class=s1>&#39;{print $2}&#39;</span><span class=k>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nv>i</span><span class=o>=</span><span class=m>1</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>while</span> <span class=nb>true</span>
+</span></span><span class=line><span class=cl><span class=k>do</span>
+</span></span><span class=line><span class=cl>  <span class=k>if</span> <span class=o>[</span> <span class=nv>$Master_Log_File</span> <span class=o>=</span> <span class=nv>$Relay_Master_Log_File</span> <span class=o>]</span> <span class=o>&amp;&amp;</span> <span class=o>[</span> <span class=nv>$Read_Master_Log_Pos</span> -eq <span class=nv>$Exec_Master_Log_Pos</span> <span class=o>]</span>
+</span></span><span class=line><span class=cl>  <span class=k>then</span>
+</span></span><span class=line><span class=cl>     <span class=nb>echo</span> <span class=s2>&#34;ok&#34;</span>
+</span></span><span class=line><span class=cl>     <span class=nb>break</span>
+</span></span><span class=line><span class=cl>  <span class=k>else</span>
+</span></span><span class=line><span class=cl>     sleep <span class=m>1</span>
+</span></span><span class=line><span class=cl>     <span class=k>if</span> <span class=o>[</span> <span class=nv>$i</span> -gt <span class=m>60</span> <span class=o>]</span>
+</span></span><span class=line><span class=cl>     <span class=k>then</span>
+</span></span><span class=line><span class=cl>        <span class=nb>break</span>
+</span></span><span class=line><span class=cl>     <span class=k>fi</span>
+</span></span><span class=line><span class=cl>     <span class=k>continue</span>
+</span></span><span class=line><span class=cl>     <span class=nb>let</span> i++
+</span></span><span class=line><span class=cl>  <span class=k>fi</span>
+</span></span><span class=line><span class=cl><span class=k>done</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>mysql -e <span class=s2>&#34;stop slave;&#34;</span>
+</span></span><span class=line><span class=cl>mysql -e <span class=s2>&#34;reset slave all;&#34;</span>
+</span></span><span class=line><span class=cl>mysql -e <span class=s2>&#34;reset master;&#34;</span>
+</span></span><span class=line><span class=cl>mysql -e <span class=s2>&#34;show master status;&#34;</span> &gt; /tmp/master_status_<span class=k>$(</span>date <span class=s2>&#34;+%y%m%d-%H%M&#34;</span><span class=k>)</span>.txt
+</span></span></code></pre></td></tr></table></div></div><p>&mldr;</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=cp>#!/bin/bash
+</span></span></span><span class=line><span class=cl><span class=cp></span>
+</span></span><span class=line><span class=cl><span class=nv>M_File1</span><span class=o>=</span><span class=k>$(</span>mysql -e <span class=s2>&#34;show master status\G&#34;</span> <span class=p>|</span> awk -F<span class=s1>&#39;: &#39;</span> <span class=s1>&#39;/File/{print $2}&#39;</span><span class=k>)</span>
+</span></span><span class=line><span class=cl><span class=nv>M_Position1</span><span class=o>=</span><span class=k>$(</span>mysql -e <span class=s2>&#34;show master status\G&#34;</span> <span class=p>|</span> awk -F<span class=s1>&#39;: &#39;</span> <span class=s1>&#39;/Position/{print $2}&#39;</span><span class=k>)</span>
+</span></span><span class=line><span class=cl>sleep <span class=m>1</span>
+</span></span><span class=line><span class=cl><span class=nv>M_File2</span><span class=o>=</span><span class=k>$(</span>mysql -e <span class=s2>&#34;show master status\G&#34;</span> <span class=p>|</span> awk -F<span class=s1>&#39;: &#39;</span> <span class=s1>&#39;/File/{print $2}&#39;</span><span class=k>)</span>
+</span></span><span class=line><span class=cl><span class=nv>M_Position2</span><span class=o>=</span><span class=k>$(</span>mysql -e <span class=s2>&#34;show master status\G&#34;</span> <span class=p>|</span> awk -F<span class=s1>&#39;: &#39;</span> <span class=s1>&#39;/Position/{print $2}&#39;</span><span class=k>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nv>i</span><span class=o>=</span><span class=m>1</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=k>while</span> <span class=nb>true</span>
+</span></span><span class=line><span class=cl><span class=k>do</span>
+</span></span><span class=line><span class=cl>  <span class=k>if</span> <span class=o>[</span> <span class=nv>$M_File1</span> <span class=o>=</span> <span class=nv>$M_File1</span> <span class=o>]</span> <span class=o>&amp;&amp;</span> <span class=o>[</span> <span class=nv>$M_Position1</span> -eq <span class=nv>$M_Position2</span> <span class=o>]</span>
+</span></span><span class=line><span class=cl>  <span class=k>then</span>
+</span></span><span class=line><span class=cl>     <span class=nb>echo</span> <span class=s2>&#34;ok&#34;</span>
+</span></span><span class=line><span class=cl>     <span class=nb>break</span>
+</span></span><span class=line><span class=cl>  <span class=k>else</span>
+</span></span><span class=line><span class=cl>     sleep <span class=m>1</span>
+</span></span><span class=line><span class=cl>     <span class=k>if</span> <span class=o>[</span> <span class=nv>$i</span> -gt <span class=m>60</span> <span class=o>]</span>
+</span></span><span class=line><span class=cl>     <span class=k>then</span>
+</span></span><span class=line><span class=cl>        <span class=nb>break</span>
+</span></span><span class=line><span class=cl>     <span class=k>fi</span>
+</span></span><span class=line><span class=cl>     <span class=k>continue</span>
+</span></span><span class=line><span class=cl>     <span class=nb>let</span> i++
+</span></span><span class=line><span class=cl>  <span class=k>fi</span>
+</span></span><span class=line><span class=cl><span class=k>done</span>
+</span></span></code></pre></td></tr></table></div></div></article><ul class=article-share><li><a class=resp-sharing-button__link href="https://facebook.com/sharer/sharer.php?u=/%25E9%2597%25AE%25E9%25A2%2598%25E5%25B0%258F%25E8%25A7%25A3%25E5%2586%25B3mysql%25E9%25AB%2598%25E5%258F%25AF%25E7%2594%25A8%25E9%259B%2586%25E7%25BE%25A4%25E4%25B9%258B%25E5%258F%258C%25E4%25B8%25BB%25E5%25A4%259A%25E4%25BB%258E/" target=_blank rel=noopener aria-label=Facebook><div class="resp-sharing-button resp-sharing-button--facebook resp-sharing-button--medium"><div aria-hidden=true class="resp-sharing-button__icon resp-sharing-button__icon--solid"><i class="fa-brands fa-facebook-f"></i></div>Facebook</div></a></li><li><a class=resp-sharing-button__link href="https://x.com/intent/tweet/?text=%e3%80%90%e9%97%ae%e9%a2%98%e5%b0%8f%e8%a7%a3%e5%86%b3%e3%80%91MySQL%e9%ab%98%e5%8f%af%e7%94%a8%e9%9b%86%e7%be%a4%e4%b9%8b%e5%8f%8c%e4%b8%bb%e5%a4%9a%e4%bb%8e%20-%20%e7%bb%b4%e4%bf%ae%e5%8c%ba%e5%88%b7%e7%b4%ab&amp;url=/%25E9%2597%25AE%25E9%25A2%2598%25E5%25B0%258F%25E8%25A7%25A3%25E5%2586%25B3mysql%25E9%25AB%2598%25E5%258F%25AF%25E7%2594%25A8%25E9%259B%2586%25E7%25BE%25A4%25E4%25B9%258B%25E5%258F%258C%25E4%25B8%25BB%25E5%25A4%259A%25E4%25BB%258E/" target=_blank rel=noopener aria-label=Twitter><div class="resp-sharing-button resp-sharing-button--x resp-sharing-button--medium"><i class="fa-brands fa-x-twitter"></i></div></a></li></ul><ul class="pager article-pager"><li class=pager-newer><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3pid%E8%80%97%E5%B0%BD%E7%9A%84%E5%8D%B1%E5%AE%B3/ data-toggle=tooltip data-placement=top title=【问题小解决】PID耗尽的危害>&lt; Newer</a></li><li class=pager-older><a href=/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E6%AD%A3%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/ data-toggle=tooltip data-placement=top title=【生产问题】分享一次Nginx正向代理的需求>Older ></a></li></ul></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

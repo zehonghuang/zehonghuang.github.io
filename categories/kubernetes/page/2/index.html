@@ -1,0 +1,310 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>Kubernetes - 维修区刷紫</title>
+<meta property="og:title" content="Kubernetes - 维修区刷紫"><meta name=twitter:title content="Kubernetes - 维修区刷紫"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/categories/kubernetes/"><meta property="og:type" content="website"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><link href=/categories/kubernetes/index.xml rel=alternate type=application/rss+xml title=维修区刷紫><link href=/categories/kubernetes/index.xml rel=feed type=application/rss+xml title=维修区刷紫><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><section class="list term-list"><article class=article><a href=/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95argocd-gitops-%E5%AE%9E%E8%B7%B5%E4%B8%89git-%E9%A1%B9%E7%9B%AE%E7%BB%84%E7%BB%87%E6%96%B9%E6%B3%95/ class=article-titles><h2 class=article-title>【学习记录】ArgoCD GitOps 实践三：Git 项目组织方法</h2></a><ul class=article-meta><li class=article-meta-date><time>2022-09-18</time></li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95/><i class="fa-solid fa-folder"></i>
+学习记录
+</a>&nbsp;</li></ul><div class=article-content><h3 id=在根目录创建-applicationset>在根目录创建 ApplicationSet</h3><p>在 Git 仓库根目录下创建 argo-apps.yaml 的文件，定义 ArgoCD 的 ApplicationSet:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>argoproj.io/v1alpha1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>ApplicationSet</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>apps-mycluster</span><span class=w> </span><span class=c># ApplicationSet 名称，建议带集群名称后缀</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>argocd</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>goTemplate</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>goTemplateOptions</span><span class=p>:</span><span class=w> </span><span class=p>[</span><span class=s2>&#34;missingkey=error&#34;</span><span class=p>]</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>generators</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>git</span><span class=p>:</span><span class=w> </span><span class=c># 通过当前Git仓库的apps目录下的子目录自动生成Application</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>repoURL</span><span class=p>:</span><span class=w> </span><span class=l>git@yourgit.com:your-org/your-repo.git</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>revision</span><span class=p>:</span><span class=w> </span><span class=l>HEAD</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>directories</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span>- <span class=nt>path</span><span class=p>:</span><span class=w> </span><span class=l>apps/*</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>template</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;{{.path.basename}}-mycluster&#34;</span><span class=w> </span><span class=c># 自动创建的Application的名称格式为: 目录名-集群名</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>argocd</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>project</span><span class=p>:</span><span class=w> </span><span class=l>default</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>source</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>repoURL</span><span class=p>:</span><span class=w> </span><span class=l>git@yourgit.com:your-org/your-repo.git</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>targetRevision</span><span class=p>:</span><span class=w> </span><span class=l>HEAD</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>path</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;apps/{{.path.basename}}&#34;</span><span class=w> </span><span class=c># 自动生成的 Application 使用的 YAML 内容在对应子目录下</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>destination</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>mycluster # Application 被部署的目的集群</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>syncPolicy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>automated</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>prune</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>          </span><span class=nt>selfHeal</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div></div><div class=article-readmore><a href=/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95argocd-gitops-%E5%AE%9E%E8%B7%B5%E4%B8%89git-%E9%A1%B9%E7%9B%AE%E7%BB%84%E7%BB%87%E6%96%B9%E6%B3%95/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0argocd-gitops-%E5%AE%9E%E8%B7%B5%E4%BA%8C%E9%9B%86%E7%BE%A4%E4%B8%8E-git-%E4%BB%93%E5%BA%93%E7%AE%A1%E7%90%86/ class=article-titles><h2 class=article-title>【学习笔记】ArgoCD GitOps 实践二：集群与 Git 仓库管理</h2></a><ul class=article-meta><li class=article-meta-date><time>2022-09-09</time></li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/><i class="fa-solid fa-folder"></i>
+学习笔记
+</a>&nbsp;</li></ul><div class=article-content><h3 id=管理方法>管理方法</h3><p>推荐每个集群使用一个 Git 仓库来存储该集群所要部署的所有应用的 YAML 与配置。</p><p>如果多个集群要部署相同或相似的应用，可抽取成单独的 Git 仓库，作为 submodule 引用进来。</p><p>这样做的好处是既可以减少冗余配置，又可以控制爆炸半径。submodule 可能被多个 Git 仓库共享（即多个集群部署相同应用），
+但如果不执行<code>git submodule update --remote</code>的话，引用的 commit id 是不会变的，
+所以也不会因为上游应用更新而使所有使用了该应用的集群一下子全部都更新。</p><h3 id=添加集群>添加集群</h3></div><div class=article-readmore><a href=/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0argocd-gitops-%E5%AE%9E%E8%B7%B5%E4%BA%8C%E9%9B%86%E7%BE%A4%E4%B8%8E-git-%E4%BB%93%E5%BA%93%E7%AE%A1%E7%90%86/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0argocd-gitops-%E5%AE%9E%E8%B7%B5%E4%B8%80argocd-%E7%9A%84%E5%AE%89%E8%A3%85%E4%B8%8E%E9%85%8D%E7%BD%AE/ class=article-titles><h2 class=article-title>【学习笔记】ArgoCD GitOps 实践一：ArgoCD 的安装与配置</h2></a><ul class=article-meta><li class=article-meta-date><time>2022-09-01</time></li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/><i class="fa-solid fa-folder"></i>
+学习笔记
+</a>&nbsp;</li></ul><div class=article-content><h3 id=使用-kustomize-安装-argocd>使用 kustomize 安装 ArgoCD</h3><p>官方提供了安装 ArgoCD 的 YAML，可以使用 kubectl 一键安装，但我建议使用 kustomize 来安装，因为这样一来可以将自定义配置声明并持久化到文件中，避免直接集群中改配置，也利于后续 ArgoCD 的自举，即用 ArgoCD 自身来用 GitOps 管理自身。</p><p>准备一个目录：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>mkdir argocd
+</span></span><span class=line><span class=cl><span class=nb>cd</span> argocd
+</span></span></code></pre></td></tr></table></div></div><p>下载 argocd 部署 YAML：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>wget -O install.yaml https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>后续升级 argocd 时，可以用上面相同命令更新下 YAML 文件。</p></blockquote><p>创建<code>kustomization.yaml</code>:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>kustomize.config.k8s.io/v1beta1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Kustomization</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>argocd</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>patches</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>path</span><span class=p>:</span><span class=w> </span><span class=l>argocd-cm-patch.yaml</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>resources</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=l>install.yaml</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div></div><div class=article-readmore><a href=/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0argocd-gitops-%E5%AE%9E%E8%B7%B5%E4%B8%80argocd-%E7%9A%84%E5%AE%89%E8%A3%85%E4%B8%8E%E9%85%8D%E7%BD%AE/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/kube-proxy%E5%A6%82%E4%BD%95%E7%9B%91%E5%90%ACservice%E5%92%8Cendpoint%E4%BB%A5%E5%8F%8A%E6%9B%B4%E6%96%B0%E7%AD%96%E7%95%A5%E8%A7%84%E5%88%99/ class=article-titles><h2 class=article-title>【深度解析】Kube Proxy如何监听Service和Endpoint以及更新策略规则</h2></a><ul class=article-meta><li class=article-meta-date><time>2022-08-13</time></li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90/><i class="fa-solid fa-folder"></i>
+深度解析
+</a>&nbsp;</li></ul><div class=article-content><p>本文会探讨Kubernetes另一个核心网络组件Kube-Proxy，它承担着Service及其后端Pod对宿主机配置的影响。</p><h2 id=一-先聊一下三个核心api>一、 先聊一下三个核心API</h2><p>这三个API在不同版本下的Kube-Proxy发挥着主要作用，尤其是后两者。先上几个三个资源的常用配置一步步展开。</p><h3 id=1-service>1. Service</h3><p><code>Service</code>作用核心其实就是提供一个ClusterIP和域名的配置容器以及EP/EPS组织，并没有一个单独的controller进行管理，而是被endpointslice-controller所控制。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>v1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Service</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>my-service</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>default</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>my-app</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>annotations</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>description</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;This is a demo service&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>selector</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>my-app</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>tier</span><span class=p>:</span><span class=w> </span><span class=l>backend</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>type</span><span class=p>:</span><span class=w> </span><span class=l>ClusterIP</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>protocol</span><span class=p>:</span><span class=w> </span><span class=l>TCP</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>port</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>targetPort</span><span class=p>:</span><span class=w> </span><span class=m>8080</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>http</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=c>## 粘性会话，一般用于长连接并且开启ClusterIP的场景</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>sessionAffinity</span><span class=p>:</span><span class=w> </span><span class=l>None</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=c>## Cluster和Local，默认前者，后者用于本地流量请求</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=c>## 例如说，在Node1的PodA请求ServiceB，只能路由到Node1的ServiceB的Pod地址，如果本地没有则无法请求，报文会被iptables drop掉</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>externalTrafficPolicy</span><span class=p>:</span><span class=w> </span><span class=l>Cluster</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=c>## 控制NotReady的Pod是否要包含进Service，为true的话有可能导致流量损失</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>publishNotReadyAddresses</span><span class=p>:</span><span class=w> </span><span class=kc>false</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>ipFamilyPolicy</span><span class=p>:</span><span class=w> </span><span class=l>SingleStack</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>ipFamilies</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=l>IPv4</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>healthCheckNodePort</span><span class=p>:</span><span class=w> </span><span class=m>30009</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=2-endpointsendpointslice>2. Endpoints、EndpointSlice</h3><p><code>EndpointSlice</code>是在k8s 1.19版本开始默认支持的，相较于<code>Endpoints</code>能支持更大规模部署，受限于etcd的value值大小，ep即一个Service只能部署6000个节点，
+而eps理论上可以无上限，并且eps支持网络拓扑，它可以根据集群节点的资源信息，按需部署Pod数量。具体文档在这<a href=https://kubernetes.io/zh-cn/docs/concepts/services-networking/endpoint-slices/>K8s文档-EndpointSlice</a></p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>discovery.k8s.io/v1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>EndpointSlice</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>annotations</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c>## 每一次Service或Pod改动都会update这个字段</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>endpoints.kubernetes.io/last-change-trigger-time</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;2022-08-19T03:32:20Z&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>generateName</span><span class=p>:</span><span class=w> </span><span class=l>python-server-headless-</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>generation</span><span class=p>:</span><span class=w> </span><span class=m>27</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>endpointslice.kubernetes.io/managed-by</span><span class=p>:</span><span class=w> </span><span class=l>endpointslice-controller.k8s.io</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>kubernetes.io/service-name</span><span class=p>:</span><span class=w> </span><span class=l>python-server-headless</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>service.kubernetes.io/headless</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>python-server-headless-5xvm5</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>net-test</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>ownerReferences</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>v1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>blockOwnerDeletion</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>controller</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Service</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>python-server-headless</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>uid</span><span class=p>:</span><span class=w> </span><span class=l>fb7d24b3-c7cb-4b1a-8bc2-7caf2cb32101</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>resourceVersion</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;6538663&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>uid</span><span class=p>:</span><span class=w> </span><span class=l>d7475629-ac4f-46bc-9aeb-479417162ec3</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>addressType</span><span class=p>:</span><span class=w> </span><span class=l>IPv4</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>endpoints</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=nt>addresses</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=m>10.100.58.221</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>conditions</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ready</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>serving</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>terminating</span><span class=p>:</span><span class=w> </span><span class=kc>false</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>nodeName</span><span class=p>:</span><span class=w> </span><span class=l>k8s-node02</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=c>## 控制器基本上靠着这些信息对eps进行增删改查</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>targetRef</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Pod</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>python-server-65b886d59c-nnktx</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>net-test</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>uid</span><span class=p>:</span><span class=w> </span><span class=l>b3cf8828-5311-44cc-b9b1-6e8165f793f4</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>port</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>protocol</span><span class=p>:</span><span class=w> </span><span class=l>TCP</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h2 id=二kube-proxy的源码分析>二、Kube-Proxy的源码分析</h2><p>首先我们还是需要先认识一下Kube-Proxy的整体架构：</p><ul><li>cmd/kube-proxy/app/server.go 这是程序主入口，对宿主机的参数和启动参数进行注入<ul><li>cmd/kube-proxy/app/server_linux.go 对应不同编译平台的代码，这里会继续设置部分协议栈的一些配置，如nf_conntrack、iptables等<ul><li>这里就会应用到pkg/proxy中的各种 Proxy 创建器，根据不同设置有对应的代理<ul><li>pkg/proxy/iptables/proxier.go</li><li>pkg/proxy/ipvs/proxier.go</li></ul></li><li>pkg/util/async/bounded_frequency_runner.go 这是控制更新iptables/ipvs的核心组件，可以自定义更新的频率窗口</li><li>两个资源的同步器，被绑定在infomer的回调函数上，用来存储监听到的缓存<ul><li>pkg/proxy/endpointschangetracker.go</li><li>pkg/proxy/servicechangetracker.go</li></ul></li></ul></li></ul></li></ul><p>下面是kube-proxy的代码主流程，没有太复杂的内容</p><p><img src=/images/kube-proxy.png alt=kube-proxy.png></p></div><div class=article-readmore><a href=/kube-proxy%E5%A6%82%E4%BD%95%E7%9B%91%E5%90%ACservice%E5%92%8Cendpoint%E4%BB%A5%E5%8F%8A%E6%9B%B4%E6%96%B0%E7%AD%96%E7%95%A5%E8%A7%84%E5%88%99/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E5%85%AC%E5%8F%B8%E5%88%86%E4%BA%AB%E5%AD%A6%E4%B9%A0%E5%AE%B9%E5%99%A8%E7%A3%81%E7%9B%98%E5%8D%A0%E6%BB%A1%E5%AF%BC%E8%87%B4cpu%E9%A3%99%E9%AB%98/ class=article-titles><h2 class=article-title>【公司分享学习】容器磁盘占满导致CPU飙高</h2></a><ul class=article-meta><li class=article-meta-date><time>2022-03-08</time></li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/docker/><i class="fa-solid fa-folder"></i>
+Docker
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/><i class="fa-solid fa-folder"></i>
+云原生
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/linux%E5%86%85%E6%A0%B8/><i class="fa-solid fa-folder"></i>
+Linux内核
+</a>&nbsp;</li></ul><div class=article-content><blockquote><p>这是公司大佬的一次内部分享，我尝试简短总结一下</p></blockquote><h3 id=问题描述>问题描述</h3><p>某服务的其中两个副本异常，CPU 飙高。</p><h3 id=指标排查>指标排查</h3><ol><li><p>查看<code>container_cpu_usage_seconds_total</code>监控，CPU 飙升，逼近 limit。</p></li><li><p>查看<code>container_cpu_cfs_throttled_periods_total</code>监控，CPU 飙升伴随 CPU Throttle 飙升，所以服务异常应该是 CPU 被限流导致。</p></li><li><p>查看<code>container_cpu_system_seconds_total</code>监控，发现 CPU 飙升主要是 CPU system 占用导致，容器内<code>pidstat -u -t 5 1</code>可以看到进程<code>%system</code>占用分布情况。</p></li><li><p><code>perf top</code>看 system 占用高主要是 vfs_write 写数据导致。</p></li></ol><p><img src=/images/img.png alt=img.png></p></div><div class=article-readmore><a href=/%E5%85%AC%E5%8F%B8%E5%88%86%E4%BA%AB%E5%AD%A6%E4%B9%A0%E5%AE%B9%E5%99%A8%E7%A3%81%E7%9B%98%E5%8D%A0%E6%BB%A1%E5%AF%BC%E8%87%B4cpu%E9%A3%99%E9%AB%98/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%85%B3%E4%BA%8Edevice-or-resource-busy%E5%A6%82%E4%BD%95%E6%8E%92%E6%9F%A5/ class=article-titles><h2 class=article-title>【问题小排查】关于device or Resource Busy如何排查</h2></a><ul class=article-meta><li class=article-meta-date><time>2021-07-09</time></li><li class=article-meta-categories><a href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5/><i class="fa-solid fa-folder"></i>
+问题小排查
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li></ul><div class=article-content>背景 在 kubernetes 环境中，可能会遇到因目录被占用导致 pod 一直 terminating:
+1 Aug 27 15:52:22 VM-244-70-centos kubelet[906978]: E0827 15:52:22.816125 906978 nestedpendingoperations.go:270] Operation for "\"kubernetes.io/secret/b45f3af4-3574-472e-b263-c2b71c3b2ea0-default-token-fltdk\" (\"b45f3af4-3574-472e-b263-c2b71c3b2ea0\")" failed. No retries permitted until 2021-08-27 15:54:24.816098325 +0800 CST m=+108994.575932846 (durationBeforeRetry 2m2s). Error: "UnmountVolume.TearDown failed for volume \"default-token-fltdk\" (UniqueName: \"kubernetes.io/secret/b45f3af4-3574-472e-b263-c2b71c3b2ea0-default-token-fltdk\") pod \"b45f3af4-3574-472e-b263-c2b71c3b2ea0\" (UID: \"b45f3af4-3574-472e-b263-c2b71c3b2ea0\") : unlinkat /var/lib/kubelet/pods/b45f3af4-3574-472e-b263-c2b71c3b2ea0/volumes/kubernetes.io~secret/default-token-fltdk: device or resource busy" 本文记录下排查方法。
+找出目录被谁占用的 看下目录哪个进程 mount 了:
+1 2 $ find /proc/*/mounts -exec grep /var/lib/kubelet/pods/0104ab85-d0ea-4ac5-a5f9-5bdd12cca589/volumes/kubernetes.io~secret/kube-proxy-token-nvthm {} + 2>/dev/null /proc/6076/mounts:tmpfs /var/lib/kubelet/pods/0104ab85-d0ea-4ac5-a5f9-5bdd12cca589/volumes/kubernetes.io~secret/kube-proxy-token-nvthm tmpfs rw,relatime 0 0 根据找出的进程号，看看是谁干的:</div><div class=article-readmore><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%85%B3%E4%BA%8Edevice-or-resource-busy%E5%A6%82%E4%BD%95%E6%8E%92%E6%9F%A5/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E9%92%88%E5%AF%B9containerd-v1.4.3%E6%8B%89%E5%8F%96%E9%95%9C%E5%83%8F%E7%9A%84%E9%97%AE%E9%A2%98/ class=article-titles><h2 class=article-title>【问题小排查】针对containerd V1.4.3拉取镜像的问题</h2></a><ul class=article-meta><li class=article-meta-date><time>2021-06-11</time></li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5/><i class="fa-solid fa-folder"></i>
+问题小排查
+</a>&nbsp;</li></ul><div class=article-content><h3 id=问题描述>问题描述</h3><p>在 containerd 运行时的 kubernetes 线上环境中，出现了镜像无法下载的情况，具体报错如下：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>Failed to pull image<span class=p>&amp;</span>nbsp<span class=p>;</span><span class=sb>`</span>  <span class=sb>`</span><span class=s2>&#34;ccr.ccs.tencentyun.com/tkeimages/tke-hpc-controller:v1.0.0&#34;</span><span class=sb>`</span>  <span class=sb>`</span>: rpc error: <span class=nv>code</span> <span class=o>=</span> NotFound <span class=nv>desc</span> <span class=o>=</span> failed to pull and unpack image<span class=p>&amp;</span>nbsp<span class=p>;</span><span class=sb>`</span>  <span class=sb>`</span><span class=s2>&#34;ccr.ccs.tencentyun.com/tkeimages/tke-hpc-controller:v1.0.0&#34;</span><span class=sb>`</span>  <span class=sb>`</span>: failed to unpack image on snapshotter overlayfs: failed to extract layer sha256:d72a74c56330b347f7d18b64d2effd93edd695fde25dc301d52c37efbcf4844e: failed to get reader from content store: content digest sha256:2bf487c4beaa6fa7ea6e46ec1ff50029024ebf59f628c065432a16a940792b58: not found
+</span></span></code></pre></td></tr></table></div></div><p>containerd 的日志中也有相关日志：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>containerd<span class=o>[</span>136<span class=o>]</span>: <span class=nv>time</span><span class=o>=</span><span class=s2>&#34;2020-11-19T16:11:56.975489200Z&#34;</span> <span class=nv>level</span><span class=o>=</span>info <span class=nv>msg</span><span class=o>=</span><span class=s2>&#34;PullImage \&#34;redis:2.8.23\&#34;&#34;</span>
+</span></span><span class=line><span class=cl>containerd<span class=o>[</span>136<span class=o>]</span>: <span class=nv>time</span><span class=o>=</span><span class=s2>&#34;2020-11-19T16:12:00.140053300Z&#34;</span> <span class=nv>level</span><span class=o>=</span>warning <span class=nv>msg</span><span class=o>=</span><span class=s2>&#34;reference for unknown type: application/octet-stream&#34;</span> <span class=nv>digest</span><span class=o>=</span><span class=s2>&#34;sha256:481995377a044d40ca3358e4203fe95eca1d58b98a1d4c2d9cec51c0c4569613&#34;</span> <span class=nv>mediatype</span><span class=o>=</span>application/octet-stream <span class=nv>size</span><span class=o>=</span><span class=m>5946</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=尝试复现>尝试复现</h3><p>分析环境信息:</p><ul><li>container v1.4.3 运行时。</li><li>基于 1.10 版本的 docker 制作的镜像（比如 dockerhub 镜像仓库中的 redis:2.8.23）。</li></ul><p>然后根据以上版本信息构造相同环境，通过如下命令拉取镜像：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>$ crictl pull docker.io/libraryredis:2.8.23
+</span></span><span class=line><span class=cl>FATA<span class=o>[</span>0001<span class=o>]</span> pulling image failed: rpc error: <span class=nv>code</span> <span class=o>=</span> NotFound <span class=nv>desc</span> <span class=o>=</span> failed to pull and unpack image <span class=s2>&#34;docker.io/library/redis:2.8.23&#34;</span>: failed to unpack image on snapshotter overlayfs: failed to extract layer sha256:4dcab49015d47e8f300ec33400a02cebc7b54cadd09c37e49eccbc655279da90: failed to get reader from content store: content digest sha256:51f5c6a04d83efd2d45c5fd59537218924bc46705e3de6ffc8bc07b51481610b: not found
+</span></span></code></pre></td></tr></table></div></div><p>问题复现，基本确认跟 containerd 版本与打包镜像的 docker 版本有关。</p></div><div class=article-readmore><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E9%92%88%E5%AF%B9containerd-v1.4.3%E6%8B%89%E5%8F%96%E9%95%9C%E5%83%8F%E7%9A%84%E9%97%AE%E9%A2%98/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95%E5%A6%82%E4%BD%95%E5%9C%A8%E4%B8%8D%E5%AE%B9%E5%99%A8%E8%BF%9B%E8%A1%8C%E6%8A%93%E5%8C%85%E5%AD%A6%E4%B9%A0%E4%BD%BF%E7%94%A8ksniff/ class=article-titles><h2 class=article-title>【学习记录】如何在不容器进行抓包，学习使用ksniff</h2></a><ul class=article-meta><li class=article-meta-date><time>2021-05-16</time></li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95/><i class="fa-solid fa-folder"></i>
+学习记录
+</a>&nbsp;</li></ul><div class=article-content><p>Kubernetes 环境中遇到网络问题需要抓包排查怎么办？
+传统做法是登录 Pod 所在节点，然后 进入容器 netns，最后使用节点上 tcpdump 工具进行抓包。
+整个过程比较繁琐，好在社区出现了 ksniff 这个小工具，
+它是一个 kubectl 插件，可以让我们在 Kubernetes 中抓包变得更简单快捷。</p><p>本文将介绍如何使用 ksniff 这个工具来对 Pod 进行抓包。</p><h3 id=安装>安装</h3></div><div class=article-readmore><a href=/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95%E5%A6%82%E4%BD%95%E5%9C%A8%E4%B8%8D%E5%AE%B9%E5%99%A8%E8%BF%9B%E8%A1%8C%E6%8A%93%E5%8C%85%E5%AD%A6%E4%B9%A0%E4%BD%BF%E7%94%A8ksniff/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95%E5%9C%A8%E5%AE%B9%E5%99%A8%E4%B8%AD%E4%BD%BF%E7%94%A8crontab/ class=article-titles><h2 class=article-title>【学习记录】在容器中使用crontab</h2></a><ul class=article-meta><li class=article-meta-date><time>2021-05-07</time></li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95/><i class="fa-solid fa-folder"></i>
+学习记录
+</a>&nbsp;</li></ul><div class=article-content><h3 id=准备-crontab-配置文件>准备 crontab 配置文件</h3><p>新建一个名为<code>crontab</code>的配置文件，写定时任务规则:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>* * * * * <span class=nb>echo</span> <span class=s2>&#34;Crontab is working&#34;</span> &gt; /proc/1/fd/1
+</span></span></code></pre></td></tr></table></div></div><blockquote><p><code>/proc/1/fd/1</code>表示输出到容器主进程的标准输出，这样我们可以利用 kubectl logs 来查看到执行日志。</p></blockquote><h4 id=准备-dockerfile>准备 Dockerfile</h4><ul><li>CentOS 镜像</li></ul><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-dockerfile data-lang=dockerfile><span class=line><span class=cl><span class=k>FROM</span><span class=s> docker.io/centos:7</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>RUN</span> yum -y install crontabs <span class=o>&amp;&amp;</span> rm -rf /etc/cron.*/*<span class=err>
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>ADD</span> crontab /etc/crontab<span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>RUN</span> chmod <span class=m>0644</span> /etc/crontab<span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>RUN</span> crontab /etc/crontab<span class=err>
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>CMD</span> <span class=p>[</span><span class=s2>&#34;crond&#34;</span><span class=p>,</span> <span class=s2>&#34;-n&#34;</span><span class=p>]</span><span class=err>
+</span></span></span></code></pre></td></tr></table></div></div></div><div class=article-readmore><a href=/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95%E5%9C%A8%E5%AE%B9%E5%99%A8%E4%B8%AD%E4%BD%BF%E7%94%A8crontab/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5pod%E7%8A%B6%E6%80%81%E4%B8%80%E7%9B%B4terminating/ class=article-titles><h2 class=article-title>【问题小排查】Pod状态一直Terminating</h2></a><ul class=article-meta><li class=article-meta-date><time>2021-02-11</time></li><li class=article-meta-categories><a href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5/><i class="fa-solid fa-folder"></i>
+问题小排查
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li></ul><div class=article-content><h2 id=need-to-kill-pod>Need to kill Pod</h2><blockquote><p>$ kubectl describe pod/apigateway-6dc48bf8b6-clcwk -n cn-staging</p><p>Normal Killing 39s (x735 over 15h) kubelet, 10.179.80.31 Killing container with id docker://apigateway:Need to kill Pod</p></blockquote><p>可能是磁盘满了，无法创建和删除 pod</p><p>处理建议是参考Kubernetes 最佳实践：<a href=https://tencentcloudcontainerteam.github.io/tke-handbook/best-practice/kubernetes-best-practice-handle-disk-full.html>处理容器数据磁盘被写满</a></p></div><div class=article-readmore><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5pod%E7%8A%B6%E6%80%81%E4%B8%80%E7%9B%B4terminating/>Read more...</a></div><div class=article-floatclear></div></article></section><ul class="pagination pagination-default"><li class=page-item><a href=/categories/kubernetes/ aria-label=First class=page-link role=button><span aria-hidden=true>&#171;&#171;</span></a></li><li class=page-item><a href=/categories/kubernetes/ aria-label=Previous class=page-link role=button><span aria-hidden=true>&#171;</span></a></li><li class=page-item><a href=/categories/kubernetes/ aria-label="Page 1" class=page-link role=button>1</a></li><li class="page-item active"><a aria-current=page aria-label="Page 2" class=page-link role=button>2</a></li><li class=page-item><a href=/categories/kubernetes/page/3/ aria-label="Page 3" class=page-link role=button>3</a></li><li class=page-item><a href=/categories/kubernetes/page/3/ aria-label=Next class=page-link role=button><span aria-hidden=true>&#187;</span></a></li><li class=page-item><a href=/categories/kubernetes/page/3/ aria-label=Last class=page-link role=button><span aria-hidden=true>&#187;&#187;</span></a></li></ul></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-rsslink><a href=/categories/kubernetes/index.xml type=application/rss+xml target=_blank title=RSS><i class="fa-solid fa-rss"></i></a></li><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

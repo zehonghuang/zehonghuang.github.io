@@ -1,0 +1,167 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>Grep无法查找shell传过来的变量？ - 维修区刷紫</title>
+<meta property="og:title" content="Grep无法查找shell传过来的变量？ - 维修区刷紫"><meta name=twitter:title content="Grep无法查找shell传过来的变量？ - 维修区刷紫"><meta name=description content="差不多两周前，同事告诉我发现一个诡异的问题，grep 无法搜索 shell 中的变量，着实很惊讶。到他所说的服务器上试了下，还真是不行！
+大概就是这样一个要求：
+
+有个文本为 userid.txt，里面每一行一个用户 id，类似如下：
+
+
+
+1
+2
+3
+4
+5
+
+
+0001
+0003
+0005
+0007
+0009
+
+
+
+另外还有一个文本为 record.txt，里面是所有用户的操作记录，一行一条，并且包含有 id，类似如下：
+
+
+
+1
+2
+3
+4
+5
+6
+7
+8
+9
+
+
+[12 11 2014 11:03,198 INFO] userId:0001 gilettype:3
+[12 11 2014 12:12,198 INFO] userId:0002 gilettype:3
+[12 11 2014 13:02,198 INFO] userId:0003 gilettype:1
+[12 11 2014 14:33,198 INFO] userId:0001 gilettype:3
+[12 11 2014 15:13,198 INFO] userId:0002 gilettype:2
+[12 11 2014 16:43,198 INFO] userId:0003 gilettype:1
+[12 11 2014 17:32,198 INFO] userId:0001 gilettype:3
+[12 11 2014 18:16,198 INFO] userId:0002 gilettype:1
+[12 11 2014 19:25,198 INFO] userId:0003 gilettype:2
+
+
+"><meta property="og:description" content="差不多两周前，同事告诉我发现一个诡异的问题，grep 无法搜索 shell 中的变量，着实很惊讶。到他所说的服务器上试了下，还真是不行！
+大概就是这样一个要求：
+
+有个文本为 userid.txt，里面每一行一个用户 id，类似如下：
+
+
+
+1
+2
+3
+4
+5
+
+
+0001
+0003
+0005
+0007
+0009
+
+
+
+另外还有一个文本为 record.txt，里面是所有用户的操作记录，一行一条，并且包含有 id，类似如下：
+
+
+
+1
+2
+3
+4
+5
+6
+7
+8
+9
+
+
+[12 11 2014 11:03,198 INFO] userId:0001 gilettype:3
+[12 11 2014 12:12,198 INFO] userId:0002 gilettype:3
+[12 11 2014 13:02,198 INFO] userId:0003 gilettype:1
+[12 11 2014 14:33,198 INFO] userId:0001 gilettype:3
+[12 11 2014 15:13,198 INFO] userId:0002 gilettype:2
+[12 11 2014 16:43,198 INFO] userId:0003 gilettype:1
+[12 11 2014 17:32,198 INFO] userId:0001 gilettype:3
+[12 11 2014 18:16,198 INFO] userId:0002 gilettype:1
+[12 11 2014 19:25,198 INFO] userId:0003 gilettype:2
+
+
+"><meta name=twitter:description content="差不多两周前，同事告诉我发现一个诡异的问题，grep 无法搜索 shell 中的变量，着实很惊讶。到他所说的服务器上试了下，还真是不行！
+大概就是这样一个要求：
+
+有个文本为 userid.txt，里面每一行一个用户 id，类似如下：
+
+
+
+1
+2
+3
+4
+5
+
+
+0001
+0003
+0005
+0007
+0009
+
+
+
+另外还有一个文本为 record.txt，里面是所有用户的操作记录，一行一条， …"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/grep%E6%97%A0%E6%B3%95%E6%9F%A5%E6%89%BEshell%E4%BC%A0%E8%BF%87%E6%9D%A5%E7%9A%84%E5%8F%98%E9%87%8F/"><meta property="og:type" content="article"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><article class=article><h1 class=article-title>Grep无法查找shell传过来的变量？</h1><hr class=article-title-bottom><ul class=article-meta><li class=article-meta-date><time>2018-08-23</time></li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E8%84%9A%E6%9C%AC%E8%AF%AD%E8%A8%80/><i class="fa-solid fa-folder"></i>
+脚本语言
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/grep/><i class="fa-solid fa-folder"></i>
+grep
+</a>&nbsp;</li></ul><p>差不多两周前，同事告诉我发现一个诡异的问题，grep 无法搜索 shell 中的变量，着实很惊讶。到他所说的服务器上试了下，还真是不行！</p><p>大概就是这样一个要求：</p><ol><li>有个文本为 userid.txt，里面每一行一个用户 id，类似如下：</li></ol><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=m>0001</span>
+</span></span><span class=line><span class=cl><span class=m>0003</span>
+</span></span><span class=line><span class=cl><span class=m>0005</span>
+</span></span><span class=line><span class=cl><span class=m>0007</span>
+</span></span><span class=line><span class=cl><span class=m>0009</span>
+</span></span></code></pre></td></tr></table></div></div><ol start=2><li>另外还有一个文本为 record.txt，里面是所有用户的操作记录，一行一条，并且包含有 id，类似如下：</li></ol><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 11:03,198 INFO<span class=o>]</span> userId:0001 gilettype:3
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 12:12,198 INFO<span class=o>]</span> userId:0002 gilettype:3
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 13:02,198 INFO<span class=o>]</span> userId:0003 gilettype:1
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 14:33,198 INFO<span class=o>]</span> userId:0001 gilettype:3
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 15:13,198 INFO<span class=o>]</span> userId:0002 gilettype:2
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 16:43,198 INFO<span class=o>]</span> userId:0003 gilettype:1
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 17:32,198 INFO<span class=o>]</span> userId:0001 gilettype:3
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 18:16,198 INFO<span class=o>]</span> userId:0002 gilettype:1
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 19:25,198 INFO<span class=o>]</span> userId:0003 gilettype:2
+</span></span></code></pre></td></tr></table></div></div><ol start=3><li>现在他要求循环取出 userid.txt 中每一行 ID 值，然后去 record.txt 去查找并保存结果。</li></ol><p>实现这个需求原本很简单，根本难不倒他，只要使用 while read + grep 就能搞定。可问题是明明 record.txt 里面包含这些 id，却无法输出结果？？</p><p>我顺便写了一个测试脚本测试了下：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=cp>#!/bin/bash
+</span></span></span><span class=line><span class=cl><span class=cp></span><span class=k>while</span> <span class=nb>read</span> userId<span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=k>do</span>
+</span></span><span class=line><span class=cl>        <span class=nb>echo</span> <span class=nv>$userId</span>
+</span></span><span class=line><span class=cl>        grep <span class=nv>$userId</span> record.txt
+</span></span><span class=line><span class=cl><span class=k>done</span> &lt;userid.txt
+</span></span></code></pre></td></tr></table></div></div><p>发现脚本可以打印 echo $userId，却无法 grep 到？？而实际上 record.txt 里面是有这个 id 的！还真诡异！</p><p>先百度搜索了一下【grep 无法搜索变量】，还真有不少类似问题，比如：http://bbs.chinaunix.net/thread-123113-1-1.html</p><p>根据经验，对于这种诡异的问题，我首先会想到是不是系统有问题，要是系统有问题你怎么折腾都是错！</p><p>于是把他的文件拷贝到其他服务器，发现居然可以了！！！难道真是系统问题么？</p><p>第一台是 SUSE Linux，第二台是 Centos，难道和系统发行版有关系？</p><p>后来，同事在第二台服务器上完成了他的项目。但这个问题却一直留在我的脑子里，挥之不去。</p><hr><p>周末，我决定再次研究下这个问题，看看是不是有其他原因。我先在那台 SUSE Linux 上，手工编写所需文件：</p></article><ul class=article-share><li><a class=resp-sharing-button__link href="https://facebook.com/sharer/sharer.php?u=/grep%25E6%2597%25A0%25E6%25B3%2595%25E6%259F%25A5%25E6%2589%25BEshell%25E4%25BC%25A0%25E8%25BF%2587%25E6%259D%25A5%25E7%259A%2584%25E5%258F%2598%25E9%2587%258F/" target=_blank rel=noopener aria-label=Facebook><div class="resp-sharing-button resp-sharing-button--facebook resp-sharing-button--medium"><div aria-hidden=true class="resp-sharing-button__icon resp-sharing-button__icon--solid"><i class="fa-brands fa-facebook-f"></i></div>Facebook</div></a></li><li><a class=resp-sharing-button__link href="https://x.com/intent/tweet/?text=Grep%e6%97%a0%e6%b3%95%e6%9f%a5%e6%89%beshell%e4%bc%a0%e8%bf%87%e6%9d%a5%e7%9a%84%e5%8f%98%e9%87%8f%ef%bc%9f%20-%20%e7%bb%b4%e4%bf%ae%e5%8c%ba%e5%88%b7%e7%b4%ab&amp;url=/grep%25E6%2597%25A0%25E6%25B3%2595%25E6%259F%25A5%25E6%2589%25BEshell%25E4%25BC%25A0%25E8%25BF%2587%25E6%259D%25A5%25E7%259A%2584%25E5%258F%2598%25E9%2587%258F/" target=_blank rel=noopener aria-label=Twitter><div class="resp-sharing-button resp-sharing-button--x resp-sharing-button--medium"><i class="fa-brands fa-x-twitter"></i></div></a></li></ul><ul class="pager article-pager"><li class=pager-newer><a href=/oh-my-zsh%E8%87%AA%E5%8A%A8%E8%A1%A5%E5%85%A8/ data-toggle=tooltip data-placement=top title="Oh My Zsh自动补全">&lt; Newer</a></li><li class=pager-older><a href=/%E7%94%A8cat%E5%91%BD%E4%BB%A4%E6%9F%A5%E7%9C%8B%E4%B8%8D%E5%8F%AF%E8%A7%81%E5%AD%97%E7%AC%A6/ data-toggle=tooltip data-placement=top title=用cat命令查看不可见字符>Older ></a></li></ul></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

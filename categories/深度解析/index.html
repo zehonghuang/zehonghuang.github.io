@@ -1,0 +1,183 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>深度解析 - 维修区刷紫</title>
+<meta property="og:title" content="深度解析 - 维修区刷紫"><meta name=twitter:title content="深度解析 - 维修区刷紫"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/categories/%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90/"><meta property="og:type" content="website"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><link href=/categories/%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90/index.xml rel=alternate type=application/rss+xml title=维修区刷紫><link href=/categories/%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90/index.xml rel=feed type=application/rss+xml title=维修区刷紫><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><section class="list term-list"><article class=article><a href=/kubernetes%E7%9A%84%E7%BD%91%E7%BB%9C%E6%A8%A1%E5%9E%8B%E6%80%BB%E7%BB%93%E7%BD%91%E7%BB%9C%E6%95%85%E9%9A%9C%E6%8E%92%E6%9F%A5%E6%A0%B8%E5%BF%83%E6%80%9D%E8%B7%AF/ class=article-titles><h2 class=article-title>【深度解析】详细梳理Kubernetes的网络模型，总结网络故障排查核心思路</h2></a><ul class=article-meta><li class=article-meta-date><time>2022-07-03</time></li><li class=article-meta-categories><a href=/categories/%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90/><i class="fa-solid fa-folder"></i>
+深度解析
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li></ul><div class=article-content><p>本文旨在梳理网络模型，总结出通用并且高可行性的故障排查思路，并且能通过自动化检测减少中大规模集群的手动排查工作。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-text data-lang=text><span class=line><span class=cl>默认读者已熟悉四层/七层网络模型，相关概念不再赘述
+</span></span></code></pre></td></tr></table></div></div><h2 id=一linux中的基础网络技术>一、Linux中的基础网络技术</h2><p>这里只会提及相关的Linux指令，不深入技术原理，只会一笔带过，不然文章会很冗长。</p><h3 id=1-network-namespace>1. Network namespace</h3><p>我们知道两个POD的网络相互隔离，实际在操作系统中是通过命名空间实现的。</p><p>Network namespace用于支持网络协议栈的多个实例。通过对网络资源的隔离，就能在一个宿主机上虚拟出多个不同的网络环境。docker利用NS实现了不同容器的网络隔离。
+Network namespace可以提供独立的路由表和iptables来设置包转发、nat以及ip包过滤等功能，提供完整且独立的协议栈。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=c1>## 创建一个新的网络命名空间</span>
+</span></span><span class=line><span class=cl>sudo ip netns add my_namespace
+</span></span><span class=line><span class=cl><span class=c1>## 进入my_namespace的内部 shell 界面</span>
+</span></span><span class=line><span class=cl>sudo ip netns <span class=nb>exec</span> my_namespace bash
+</span></span></code></pre></td></tr></table></div></div><h3 id=2-veth设备对>2. veth设备对</h3><p>那如何我们如何为两个不同命名空间下的进程之间实现通信呢？</p><p>可以通过引入Veth设备对，Veth设备都是成对出现的，其中一端成为另一端的peer，在Veth设备的一端发送数据时，会将数据发送到另一端，并触发接收数据的操作。</p></div><div class=article-readmore><a href=/kubernetes%E7%9A%84%E7%BD%91%E7%BB%9C%E6%A8%A1%E5%9E%8B%E6%80%BB%E7%BB%93%E7%BD%91%E7%BB%9C%E6%95%85%E9%9A%9C%E6%8E%92%E6%9F%A5%E6%A0%B8%E5%BF%83%E6%80%9D%E8%B7%AF/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E9%97%AE%E9%A2%98%E5%A4%A7%E6%8E%92%E6%9F%A5%E4%B8%80%E8%88%AC%E7%8E%AF%E5%A2%83%E7%9A%84%E7%BD%91%E7%BB%9C%E6%8E%92%E9%9A%9C/ class=article-titles><h2 class=article-title>【问题大排查】通用Linux环境的网络排障（部分包含容器环境）</h2></a><ul class=article-meta><li class=article-meta-date><time>2022-07-26</time></li><li class=article-meta-categories><a href=/categories/%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90/><i class="fa-solid fa-folder"></i>
+深度解析
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li></ul><div class=article-content><blockquote><p>因为最近一段时间，一直在处理各种网路问题，所以痛定思痛从头梳理<strong>一般运维环境下的网络状况</strong></p></blockquote><h2 id=网络不通持续性>网络不通（持续性）</h2><p>这个情况没啥好说的，只要不是 DNS 问题，就是服务器挂掉或者端口被禁</p><h3 id=端口监听挂掉>端口监听挂掉</h3><p>如果容器内的端口已经没有进程监听了，内核就会返回 Reset 包，客户端就会报错连接被拒绝，可以进容器 netns 检查下端口是否存活:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>netstat -tunlp
+</span></span></code></pre></td></tr></table></div></div><h3 id=iptables-规则问题>iptables 规则问题</h3><p>检查报文是否有命中丢弃报文的 iptables 规则:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>iptables -t filter -nvL
+</span></span><span class=line><span class=cl>iptables -t nat -nvL
+</span></span><span class=line><span class=cl>iptables -t raw -nvL
+</span></span><span class=line><span class=cl>iptables -t mangle -nvL
+</span></span><span class=line><span class=cl>iptables-save
+</span></span></code></pre></td></tr></table></div></div></div><div class=article-readmore><a href=/%E9%97%AE%E9%A2%98%E5%A4%A7%E6%8E%92%E6%9F%A5%E4%B8%80%E8%88%AC%E7%8E%AF%E5%A2%83%E7%9A%84%E7%BD%91%E7%BB%9C%E6%8E%92%E9%9A%9C/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/kube-proxy%E5%A6%82%E4%BD%95%E7%9B%91%E5%90%ACservice%E5%92%8Cendpoint%E4%BB%A5%E5%8F%8A%E6%9B%B4%E6%96%B0%E7%AD%96%E7%95%A5%E8%A7%84%E5%88%99/ class=article-titles><h2 class=article-title>【深度解析】Kube Proxy如何监听Service和Endpoint以及更新策略规则</h2></a><ul class=article-meta><li class=article-meta-date><time>2022-08-13</time></li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90/><i class="fa-solid fa-folder"></i>
+深度解析
+</a>&nbsp;</li></ul><div class=article-content><p>本文会探讨Kubernetes另一个核心网络组件Kube-Proxy，它承担着Service及其后端Pod对宿主机配置的影响。</p><h2 id=一-先聊一下三个核心api>一、 先聊一下三个核心API</h2><p>这三个API在不同版本下的Kube-Proxy发挥着主要作用，尤其是后两者。先上几个三个资源的常用配置一步步展开。</p><h3 id=1-service>1. Service</h3><p><code>Service</code>作用核心其实就是提供一个ClusterIP和域名的配置容器以及EP/EPS组织，并没有一个单独的controller进行管理，而是被endpointslice-controller所控制。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>v1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Service</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>my-service</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>default</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>my-app</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>annotations</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>description</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;This is a demo service&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>selector</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>my-app</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>tier</span><span class=p>:</span><span class=w> </span><span class=l>backend</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>type</span><span class=p>:</span><span class=w> </span><span class=l>ClusterIP</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>protocol</span><span class=p>:</span><span class=w> </span><span class=l>TCP</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>port</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>targetPort</span><span class=p>:</span><span class=w> </span><span class=m>8080</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>http</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=c>## 粘性会话，一般用于长连接并且开启ClusterIP的场景</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>sessionAffinity</span><span class=p>:</span><span class=w> </span><span class=l>None</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=c>## Cluster和Local，默认前者，后者用于本地流量请求</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=c>## 例如说，在Node1的PodA请求ServiceB，只能路由到Node1的ServiceB的Pod地址，如果本地没有则无法请求，报文会被iptables drop掉</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>externalTrafficPolicy</span><span class=p>:</span><span class=w> </span><span class=l>Cluster</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=c>## 控制NotReady的Pod是否要包含进Service，为true的话有可能导致流量损失</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>publishNotReadyAddresses</span><span class=p>:</span><span class=w> </span><span class=kc>false</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>ipFamilyPolicy</span><span class=p>:</span><span class=w> </span><span class=l>SingleStack</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>ipFamilies</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=l>IPv4</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>healthCheckNodePort</span><span class=p>:</span><span class=w> </span><span class=m>30009</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=2-endpointsendpointslice>2. Endpoints、EndpointSlice</h3><p><code>EndpointSlice</code>是在k8s 1.19版本开始默认支持的，相较于<code>Endpoints</code>能支持更大规模部署，受限于etcd的value值大小，ep即一个Service只能部署6000个节点，
+而eps理论上可以无上限，并且eps支持网络拓扑，它可以根据集群节点的资源信息，按需部署Pod数量。具体文档在这<a href=https://kubernetes.io/zh-cn/docs/concepts/services-networking/endpoint-slices/>K8s文档-EndpointSlice</a></p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>discovery.k8s.io/v1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>EndpointSlice</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>annotations</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c>## 每一次Service或Pod改动都会update这个字段</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>endpoints.kubernetes.io/last-change-trigger-time</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;2022-08-19T03:32:20Z&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>generateName</span><span class=p>:</span><span class=w> </span><span class=l>python-server-headless-</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>generation</span><span class=p>:</span><span class=w> </span><span class=m>27</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>endpointslice.kubernetes.io/managed-by</span><span class=p>:</span><span class=w> </span><span class=l>endpointslice-controller.k8s.io</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>kubernetes.io/service-name</span><span class=p>:</span><span class=w> </span><span class=l>python-server-headless</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>service.kubernetes.io/headless</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>python-server-headless-5xvm5</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>net-test</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>ownerReferences</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>v1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>blockOwnerDeletion</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>controller</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Service</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>python-server-headless</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>uid</span><span class=p>:</span><span class=w> </span><span class=l>fb7d24b3-c7cb-4b1a-8bc2-7caf2cb32101</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>resourceVersion</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;6538663&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>uid</span><span class=p>:</span><span class=w> </span><span class=l>d7475629-ac4f-46bc-9aeb-479417162ec3</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>addressType</span><span class=p>:</span><span class=w> </span><span class=l>IPv4</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>endpoints</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span>- <span class=nt>addresses</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=m>10.100.58.221</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>conditions</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>ready</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>serving</span><span class=p>:</span><span class=w> </span><span class=kc>true</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>terminating</span><span class=p>:</span><span class=w> </span><span class=kc>false</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>nodeName</span><span class=p>:</span><span class=w> </span><span class=l>k8s-node02</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=c>## 控制器基本上靠着这些信息对eps进行增删改查</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>targetRef</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Pod</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>python-server-65b886d59c-nnktx</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>net-test</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>uid</span><span class=p>:</span><span class=w> </span><span class=l>b3cf8828-5311-44cc-b9b1-6e8165f793f4</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>ports</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>port</span><span class=p>:</span><span class=w> </span><span class=m>80</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>protocol</span><span class=p>:</span><span class=w> </span><span class=l>TCP</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h2 id=二kube-proxy的源码分析>二、Kube-Proxy的源码分析</h2><p>首先我们还是需要先认识一下Kube-Proxy的整体架构：</p><ul><li>cmd/kube-proxy/app/server.go 这是程序主入口，对宿主机的参数和启动参数进行注入<ul><li>cmd/kube-proxy/app/server_linux.go 对应不同编译平台的代码，这里会继续设置部分协议栈的一些配置，如nf_conntrack、iptables等<ul><li>这里就会应用到pkg/proxy中的各种 Proxy 创建器，根据不同设置有对应的代理<ul><li>pkg/proxy/iptables/proxier.go</li><li>pkg/proxy/ipvs/proxier.go</li></ul></li><li>pkg/util/async/bounded_frequency_runner.go 这是控制更新iptables/ipvs的核心组件，可以自定义更新的频率窗口</li><li>两个资源的同步器，被绑定在infomer的回调函数上，用来存储监听到的缓存<ul><li>pkg/proxy/endpointschangetracker.go</li><li>pkg/proxy/servicechangetracker.go</li></ul></li></ul></li></ul></li></ul><p>下面是kube-proxy的代码主流程，没有太复杂的内容</p><p><img src=/images/kube-proxy.png alt=kube-proxy.png></p></div><div class=article-readmore><a href=/kube-proxy%E5%A6%82%E4%BD%95%E7%9B%91%E5%90%ACservice%E5%92%8Cendpoint%E4%BB%A5%E5%8F%8A%E6%9B%B4%E6%96%B0%E7%AD%96%E7%95%A5%E8%A7%84%E5%88%99/>Read more...</a></div><div class=article-floatclear></div></article></section></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-rsslink><a href=/categories/%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90/index.xml type=application/rss+xml target=_blank title=RSS><i class="fa-solid fa-rss"></i></a></li><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

@@ -1,0 +1,169 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>常用命令 - 维修区刷紫</title>
+<meta property="og:title" content="常用命令 - 维修区刷紫"><meta name=twitter:title content="常用命令 - 维修区刷紫"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/categories/%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/"><meta property="og:type" content="website"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><link href=/categories/%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/index.xml rel=alternate type=application/rss+xml title=维修区刷紫><link href=/categories/%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/index.xml rel=feed type=application/rss+xml title=维修区刷紫><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><section class="list term-list"><article class=article><a href=/linux%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4%E8%AF%A6%E8%A7%A3/ class=article-titles><h2 class=article-title>Linux常用命令详解</h2></a><ul class=article-meta><li class=article-meta-date><time>2019-05-02</time></li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/><i class="fa-solid fa-folder"></i>
+常用命令
+</a>&nbsp;</li></ul><div class=article-content><ul><li>ls</li></ul><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>ls                <span class=c1># 显示当前目录的内容</span>
+</span></span><span class=line><span class=cl>ls -la            <span class=c1># 显示当前目录的所有文件（包括隐藏文件），并显示详细信息</span>
+</span></span><span class=line><span class=cl>ls /home/user     <span class=c1># 显示指定目录的内容</span>
+</span></span><span class=line><span class=cl>ls -R             <span class=c1># 递归地列出目录内容，包括子目录及其内容</span>
+</span></span><span class=line><span class=cl>ls -h             <span class=c1># 与 -l 结合使用，显示文件大小以可读形式（如 KB、MB）</span>
+</span></span></code></pre></td></tr></table></div></div><ul><li>touch</li></ul><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>touch newfile.txt          <span class=c1># 创建一个名为 newfile.txt 的空文件</span>
+</span></span><span class=line><span class=cl>touch file1 file2          <span class=c1># 创建多个文件（file1 和 file2）</span>
+</span></span><span class=line><span class=cl>touch -c existingfile.txt  <span class=c1># 如果文件存在，则更新时间戳；如果不存在，不会创建新文件</span>
+</span></span></code></pre></td></tr></table></div></div><ul><li>cat</li></ul><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span><span class=lnt>50
+</span><span class=lnt>51
+</span><span class=lnt>52
+</span><span class=lnt>53
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=c1># 使用 -n 选项：为每行添加行号，包括空行</span>
+</span></span><span class=line><span class=cl>cat -n file.txt
+</span></span><span class=line><span class=cl><span class=c1># 输出示例：</span>
+</span></span><span class=line><span class=cl><span class=c1>#  1  This is a line.</span>
+</span></span><span class=line><span class=cl><span class=c1>#  2  </span>
+</span></span><span class=line><span class=cl><span class=c1>#  3      This is indented.</span>
+</span></span><span class=line><span class=cl><span class=c1>#  4  Another line.</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：此选项为文件中的每一行编号，从 1 开始计数。</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 使用 -b 选项：为非空行添加行号，空行不编号</span>
+</span></span><span class=line><span class=cl>cat -b file.txt
+</span></span><span class=line><span class=cl><span class=c1># 输出示例：</span>
+</span></span><span class=line><span class=cl><span class=c1>#  1  This is a line.</span>
+</span></span><span class=line><span class=cl><span class=c1># </span>
+</span></span><span class=line><span class=cl><span class=c1>#  2      This is indented.</span>
+</span></span><span class=line><span class=cl><span class=c1>#  3  Another line.</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：与 -n 类似，但只为非空行编号。</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 使用 -s 选项：压缩连续的空行，只显示一个空行</span>
+</span></span><span class=line><span class=cl>cat -s file.txt
+</span></span><span class=line><span class=cl><span class=c1># 输出示例：</span>
+</span></span><span class=line><span class=cl><span class=c1># This is a line.</span>
+</span></span><span class=line><span class=cl><span class=c1># </span>
+</span></span><span class=line><span class=cl><span class=c1>#     This is indented.</span>
+</span></span><span class=line><span class=cl><span class=c1># Another line.</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：多个连续空行会被压缩为一个空行。</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 使用 -E 选项：显示每行末尾的 $ 符号，标示行的结束</span>
+</span></span><span class=line><span class=cl>cat -E file.txt
+</span></span><span class=line><span class=cl><span class=c1># 输出示例：</span>
+</span></span><span class=line><span class=cl><span class=c1># This is a line.$</span>
+</span></span><span class=line><span class=cl><span class=c1># $</span>
+</span></span><span class=line><span class=cl><span class=c1>#     This is indented.$</span>
+</span></span><span class=line><span class=cl><span class=c1># Another line.$</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：在每一行的末尾加上 &#34;$&#34; 以标示行结束，有助于确认行尾换行符的位置。</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 使用 -T 选项：将 Tab 字符显示为 ^I</span>
+</span></span><span class=line><span class=cl>cat -T file.txt
+</span></span><span class=line><span class=cl><span class=c1># 输出示例：</span>
+</span></span><span class=line><span class=cl><span class=c1># This is a line.</span>
+</span></span><span class=line><span class=cl><span class=c1># </span>
+</span></span><span class=line><span class=cl><span class=c1># ^IThis is indented.</span>
+</span></span><span class=line><span class=cl><span class=c1># Another line.</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：将 Tab 字符用 ^I 进行可视化显示，这样方便辨认文件中的制表符。</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 使用 -A 选项：显示所有不可见字符，等同于 -vET</span>
+</span></span><span class=line><span class=cl>cat -A file.txt
+</span></span><span class=line><span class=cl><span class=c1># 输出示例：</span>
+</span></span><span class=line><span class=cl><span class=c1># This is a line.$</span>
+</span></span><span class=line><span class=cl><span class=c1># $</span>
+</span></span><span class=line><span class=cl><span class=c1># ^IThis is indented.$</span>
+</span></span><span class=line><span class=cl><span class=c1># Another line.$</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：显示不可见字符、换行符 ($) 和制表符 (^I)，有助于检查文件中所有控制字符和隐藏字符。</span>
+</span></span></code></pre></td></tr></table></div></div><ul><li>kill</li></ul><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=nb>kill</span> -l
+</span></span><span class=line><span class=cl><span class=c1># 输出示例：</span>
+</span></span><span class=line><span class=cl><span class=c1>#  1) SIGHUP   2) SIGINT   3) SIGQUIT   4) SIGILL   5) SIGTRAP   ...</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：列出系统支持的所有信号，以及信号的编号。每个信号都有不同的作用，例如 `SIGHUP` 代表挂起、`SIGKILL` 表示强制终止等。</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nb>kill</span> -9 <span class=m>1234</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：向进程 ID 为 1234 的进程发送 `SIGKILL` 信号（9），强制终止该进程。</span>
+</span></span><span class=line><span class=cl><span class=c1># 该信号会立即结束进程，无法被捕获或忽略，通常用于无法响应 `SIGTERM` 的进程。</span>
+</span></span><span class=line><span class=cl><span class=c1># 没有 -9，默认终止信号 (SIGTERM)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nb>kill</span> -HUP <span class=m>1234</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：向进程 ID 为 1234 的进程发送 `SIGHUP` 信号（1）。</span>
+</span></span><span class=line><span class=cl><span class=c1># 通常用于让守护进程重新加载配置，而不是完全终止。</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># SIGHUP (1)：挂起信号，通常用于让进程重新读取配置文件，比如 nginx、cron</span>
+</span></span><span class=line><span class=cl><span class=c1># SIGINT (2)：中断信号，通常由 Ctrl+C 发送</span>
+</span></span><span class=line><span class=cl><span class=c1># SIGQUIT (3)：退出信号，产生核心转储</span>
+</span></span><span class=line><span class=cl><span class=c1># SIGKILL (9)：强制终止信号，不能被忽略或捕获</span>
+</span></span><span class=line><span class=cl><span class=c1># SIGTERM (15)：请求终止信号，进程可以捕获并自行处理</span>
+</span></span><span class=line><span class=cl><span class=c1># SIGSTOP：停止进程，类似于 Ctrl+Z，不能被捕获</span>
+</span></span></code></pre></td></tr></table></div></div></div><div class=article-readmore><a href=/linux%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4%E8%AF%A6%E8%A7%A3/>Read more...</a></div><div class=article-floatclear></div></article></section></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-rsslink><a href=/categories/%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/index.xml type=application/rss+xml target=_blank title=RSS><i class="fa-solid fa-rss"></i></a></li><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

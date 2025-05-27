@@ -1,0 +1,50 @@
+-A -t k8s-master01:https -s rr
+-a -t k8s-master01:https -r apiserver.sz.lan:sun-sr-https -m -w 1
+-A -t k8s-master01:domain -s rr
+-a -t k8s-master01:domain -r 10.100.32.131:domain -m -w 1
+-a -t k8s-master01:domain -r 10.100.32.134:domain -m -w 1
+-A -t k8s-master01:9153 -s rr
+-a -t k8s-master01:9153 -r 10.100.32.131:9153 -m -w 1
+-a -t k8s-master01:9153 -r 10.100.32.134:9153 -m -w 1
+-A -t k8s-master01:http -s rr
+-a -t k8s-master01:http -r 10.100.58.221:http -m -w 1
+-a -t k8s-master01:http -r 10.100.58.222:http -m -w 1
+-a -t k8s-master01:http -r 10.100.58.223:http -m -w 1
+-a -t k8s-master01:http -r 10.100.58.224:http -m -w 1
+-a -t k8s-master01:http -r 10.100.58.225:http -m -w 1
+-a -t k8s-master01:http -r 10.100.58.227:http -m -w 1
+-a -t k8s-master01:http -r 10.100.58.228:http -m -w 1
+-a -t k8s-master01:http -r 10.100.58.230:http -m -w 1
+-a -t k8s-master01:http -r 10.100.58.231:http -m -w 1
+-a -t k8s-master01:http -r 10.100.58.232:http -m -w 1
+-a -t k8s-master01:http -r 10.100.58.233:http -m -w 1
+-a -t k8s-master01:http -r 10.100.58.234:http -m -w 1
+-a -t k8s-master01:http -r 10.100.58.235:http -m -w 1
+-a -t k8s-master01:http -r 10.100.58.236:http -m -w 1
+-a -t k8s-master01:http -r 10.100.58.237:http -m -w 1
+-a -t k8s-master01:http -r 10.100.58.238:http -m -w 1
+-a -t k8s-master01:http -r 10.100.85.205:http -m -w 1
+-a -t k8s-master01:http -r 10.100.85.206:http -m -w 1
+-a -t k8s-master01:http -r 10.100.85.207:http -m -w 1
+-a -t k8s-master01:http -r 10.100.85.208:http -m -w 1
+-a -t k8s-master01:http -r 10.100.85.211:http -m -w 1
+-a -t k8s-master01:http -r 10.100.85.212:http -m -w 1
+-a -t k8s-master01:http -r 10.100.85.213:http -m -w 1
+-a -t k8s-master01:http -r 10.100.85.214:http -m -w 1
+-a -t k8s-master01:http -r 10.100.85.215:http -m -w 1
+-a -t k8s-master01:http -r 10.100.85.216:http -m -w 1
+-a -t k8s-master01:http -r 10.100.85.217:http -m -w 1
+-a -t k8s-master01:http -r 10.100.85.218:http -m -w 1
+-a -t k8s-master01:http -r 10.100.85.219:http -m -w 1
+-a -t k8s-master01:http -r 10.100.85.220:http -m -w 1
+-a -t k8s-master01:http -r 10.100.85.221:http -m -w 1
+-a -t k8s-master01:http -r 10.100.85.222:http -m -w 1
+-A -t k8s-master01:https -s rr
+-a -t k8s-master01:https -r 10.100.32.132:spss -m -w 1
+-a -t k8s-master01:https -r 10.100.32.133:spss -m -w 1
+-A -t k8s-master01:5473 -s rr
+-a -t k8s-master01:5473 -r apiserver.sz.lan:5473 -m -w 1
+-a -t k8s-master01:5473 -r 10.0.17.7:5473 -m -w 1
+-A -u k8s-master01:domain -s rr
+-a -u k8s-master01:domain -r 10.100.32.131:domain -m -w 1
+-a -u k8s-master01:domain -r 10.100.32.134:domain -m -w 1

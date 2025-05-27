@@ -1,0 +1,159 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>【问题小排查】Service无法解析 - 维修区刷紫</title>
+<meta property="og:title" content="【问题小排查】Service无法解析 - 维修区刷紫"><meta name=twitter:title content="【问题小排查】Service无法解析 - 维修区刷紫"><meta name=description content="检查kube-dns或CoreDNS服务是否正常
+
+kubelet 启动参数 &ndash;cluster-dns 可以看到 dns 服务的 cluster ip:
+
+
+
+1
+2
+
+
+$ ps -ef | grep kubelet  
+... /usr/bin/kubelet --cluster-dns=172.16.14.217 ...
+
+
+
+找到 dns 的 service:
+
+
+
+1
+2
+
+
+$ kubectl get svc -n kube-system | grep 172.16.14.217  
+kube-dns              ClusterIP   172.16.14.217   <none>        53/TCP,53/UDP              47d
+
+
+
+看是否存在 endpoint:
+
+
+
+1
+2
+3
+
+
+$ kubectl -n kube-system describe svc kube-dns | grep -i endpoints  
+Endpoints:         172.16.0.156:53,172.16.0.167:53  
+Endpoints:         172.16.0.156:53,172.16.0.167:53
+
+
+
+检查 endpoint 的 对应 pod 是否正常:
+
+
+
+1
+2
+
+
+$ kubectl -n kube-system get pod -o wide | grep 172.16.0.156  
+kube-dns-898dbbfc6-hvwlr            3/3       Running   0          8d        172.16.0.156   10.0.0.3
+
+
+"><meta property="og:description" content="检查kube-dns或CoreDNS服务是否正常
+
+kubelet 启动参数 &ndash;cluster-dns 可以看到 dns 服务的 cluster ip:
+
+
+
+1
+2
+
+
+$ ps -ef | grep kubelet  
+... /usr/bin/kubelet --cluster-dns=172.16.14.217 ...
+
+
+
+找到 dns 的 service:
+
+
+
+1
+2
+
+
+$ kubectl get svc -n kube-system | grep 172.16.14.217  
+kube-dns              ClusterIP   172.16.14.217   <none>        53/TCP,53/UDP              47d
+
+
+
+看是否存在 endpoint:
+
+
+
+1
+2
+3
+
+
+$ kubectl -n kube-system describe svc kube-dns | grep -i endpoints  
+Endpoints:         172.16.0.156:53,172.16.0.167:53  
+Endpoints:         172.16.0.156:53,172.16.0.167:53
+
+
+
+检查 endpoint 的 对应 pod 是否正常:
+
+
+
+1
+2
+
+
+$ kubectl -n kube-system get pod -o wide | grep 172.16.0.156  
+kube-dns-898dbbfc6-hvwlr            3/3       Running   0          8d        172.16.0.156   10.0.0.3
+
+
+"><meta name=twitter:description content="检查kube-dns或CoreDNS服务是否正常
+
+kubelet 启动参数 &ndash;cluster-dns 可以看到 dns 服务的 cluster ip:
+
+
+
+1
+2
+
+
+$ ps -ef | grep kubelet  
+... /usr/bin/kubelet --cluster-dns=172.16.14.217 ...
+
+
+
+找到 dns 的 service:
+
+
+
+1
+2 …"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5service%E6%97%A0%E6%B3%95%E8%A7%A3%E6%9E%90/"><meta property="og:type" content="article"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><article class=article><h1 class=article-title>【问题小排查】Service无法解析</h1><hr class=article-title-bottom><ul class=article-meta><li class=article-meta-date><time>2020-09-29</time></li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5/><i class="fa-solid fa-folder"></i>
+问题小排查
+</a>&nbsp;</li></ul><h3 id=检查kube-dns或coredns服务是否正常>检查kube-dns或CoreDNS服务是否正常</h3><ol><li>kubelet 启动参数 &ndash;cluster-dns 可以看到 dns 服务的 cluster ip:</li></ol><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>$ ps -ef <span class=p>|</span> grep kubelet  
+</span></span><span class=line><span class=cl>... /usr/bin/kubelet --cluster-dns<span class=o>=</span>172.16.14.217 ...
+</span></span></code></pre></td></tr></table></div></div><ol start=2><li>找到 dns 的 service:</li></ol><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>$ kubectl get svc -n kube-system <span class=p>|</span> grep 172.16.14.217  
+</span></span><span class=line><span class=cl>kube-dns              ClusterIP   172.16.14.217   &lt;none&gt;        53/TCP,53/UDP              47d
+</span></span></code></pre></td></tr></table></div></div><ol start=3><li>看是否存在 endpoint:</li></ol><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>$ kubectl -n kube-system describe svc kube-dns <span class=p>|</span> grep -i endpoints  
+</span></span><span class=line><span class=cl>Endpoints:         172.16.0.156:53,172.16.0.167:53  
+</span></span><span class=line><span class=cl>Endpoints:         172.16.0.156:53,172.16.0.167:53
+</span></span></code></pre></td></tr></table></div></div><ol start=4><li>检查 endpoint 的 对应 pod 是否正常:</li></ol><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>$ kubectl -n kube-system get pod -o wide <span class=p>|</span> grep 172.16.0.156  
+</span></span><span class=line><span class=cl>kube-dns-898dbbfc6-hvwlr            3/3       Running   <span class=m>0</span>          8d        172.16.0.156   10.0.0.3
+</span></span></code></pre></td></tr></table></div></div><h3 id=dns-服务正常pod-与-dns-服务之间网络不通>dns 服务正常，pod 与 dns 服务之间网络不通</h3><ol><li>检查 dns 服务运行正常，再检查下 pod 是否连不上 dns 服务，可以在 pod 里 telnet 一下 dns 的 53 端口:</li></ol><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=c1># 连 dns service 的 cluster ip</span>
+</span></span><span class=line><span class=cl>$ telnet 172.16.14.217 <span class=m>53</span>
+</span></span></code></pre></td></tr></table></div></div><ol start=2><li>如果检查到是网络不通，就需要排查下网络设置<ul><li>检查节点的安全组设置，需要放开集群的容器网段</li><li>检查是否还有防火墙规则，检查 iptables</li></ul></li></ol></article><ul class=article-share><li><a class=resp-sharing-button__link href="https://facebook.com/sharer/sharer.php?u=/%25E9%2597%25AE%25E9%25A2%2598%25E5%25B0%258F%25E6%258E%2592%25E6%259F%25A5service%25E6%2597%25A0%25E6%25B3%2595%25E8%25A7%25A3%25E6%259E%2590/" target=_blank rel=noopener aria-label=Facebook><div class="resp-sharing-button resp-sharing-button--facebook resp-sharing-button--medium"><div aria-hidden=true class="resp-sharing-button__icon resp-sharing-button__icon--solid"><i class="fa-brands fa-facebook-f"></i></div>Facebook</div></a></li><li><a class=resp-sharing-button__link href="https://x.com/intent/tweet/?text=%e3%80%90%e9%97%ae%e9%a2%98%e5%b0%8f%e6%8e%92%e6%9f%a5%e3%80%91Service%e6%97%a0%e6%b3%95%e8%a7%a3%e6%9e%90%20-%20%e7%bb%b4%e4%bf%ae%e5%8c%ba%e5%88%b7%e7%b4%ab&amp;url=/%25E9%2597%25AE%25E9%25A2%2598%25E5%25B0%258F%25E6%258E%2592%25E6%259F%25A5service%25E6%2597%25A0%25E6%25B3%2595%25E8%25A7%25A3%25E6%259E%2590/" target=_blank rel=noopener aria-label=Twitter><div class="resp-sharing-button resp-sharing-button--x resp-sharing-button--medium"><i class="fa-brands fa-x-twitter"></i></div></a></li></ul><ul class="pager article-pager"><li class=pager-newer><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E6%8E%92%E6%9F%A5-close_wait-%E5%A0%86%E7%A7%AF/ data-toggle=tooltip data-placement=top title="【问题小排查】排查 CLOSE_WAIT 堆积">&lt; Newer</a></li><li class=pager-older><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%85%B3%E4%BA%8E%E6%80%8E%E4%B9%88%E6%9F%A5io%E9%AB%98%E8%B4%9F%E8%BD%BD/ data-toggle=tooltip data-placement=top title=【问题小排查】关于怎么查IO高负载>Older ></a></li></ul></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

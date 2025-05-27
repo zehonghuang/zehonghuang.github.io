@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>学习笔记 on 维修区刷紫</title><link>/categories/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/</link><description>Recent content in 学习笔记 on 维修区刷紫</description><generator>Hugo -- gohugo.io</generator><language>ja</language><copyright>© 2025 黄泽宏 | &lt;a href="https://beian.miit.gov.cn/" target="_blank">粤ICP备2025417888号-1&lt;/a></copyright><lastBuildDate>Fri, 09 Sep 2022 20:43:26 +0800</lastBuildDate><atom:link href="/categories/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/index.xml" rel="self" type="application/rss+xml"/><item><title>【学习笔记】ArgoCD GitOps 实践二：集群与 Git 仓库管理</title><link>/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0argocd-gitops-%E5%AE%9E%E8%B7%B5%E4%BA%8C%E9%9B%86%E7%BE%A4%E4%B8%8E-git-%E4%BB%93%E5%BA%93%E7%AE%A1%E7%90%86/</link><pubDate>Fri, 09 Sep 2022 20:43:26 +0800</pubDate><guid>/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0argocd-gitops-%E5%AE%9E%E8%B7%B5%E4%BA%8C%E9%9B%86%E7%BE%A4%E4%B8%8E-git-%E4%BB%93%E5%BA%93%E7%AE%A1%E7%90%86/</guid><description>&lt;h3 id="管理方法">管理方法&lt;/h3>
+&lt;p>推荐每个集群使用一个 Git 仓库来存储该集群所要部署的所有应用的 YAML 与配置。&lt;/p>
+&lt;p>如果多个集群要部署相同或相似的应用，可抽取成单独的 Git 仓库，作为 submodule 引用进来。&lt;/p>
+&lt;p>这样做的好处是既可以减少冗余配置，又可以控制爆炸半径。submodule 可能被多个 Git 仓库共享（即多个集群部署相同应用），
+但如果不执行&lt;code>git submodule update --remote&lt;/code>的话，引用的 commit id 是不会变的，
+所以也不会因为上游应用更新而使所有使用了该应用的集群一下子全部都更新。&lt;/p>
+&lt;h3 id="添加集群">添加集群&lt;/h3></description></item><item><title>【学习笔记】ArgoCD GitOps 实践一：ArgoCD 的安装与配置</title><link>/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0argocd-gitops-%E5%AE%9E%E8%B7%B5%E4%B8%80argocd-%E7%9A%84%E5%AE%89%E8%A3%85%E4%B8%8E%E9%85%8D%E7%BD%AE/</link><pubDate>Thu, 01 Sep 2022 23:43:26 +0800</pubDate><guid>/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0argocd-gitops-%E5%AE%9E%E8%B7%B5%E4%B8%80argocd-%E7%9A%84%E5%AE%89%E8%A3%85%E4%B8%8E%E9%85%8D%E7%BD%AE/</guid><description>&lt;h3 id="使用-kustomize-安装-argocd">使用 kustomize 安装 ArgoCD&lt;/h3>
+&lt;p>官方提供了安装 ArgoCD 的 YAML，可以使用 kubectl 一键安装，但我建议使用 kustomize 来安装，因为这样一来可以将自定义配置声明并持久化到文件中，避免直接集群中改配置，也利于后续 ArgoCD 的自举，即用 ArgoCD 自身来用 GitOps 管理自身。&lt;/p>
+&lt;p>准备一个目录：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">mkdir argocd
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nb">cd&lt;/span> argocd
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>下载 argocd 部署 YAML：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">wget -O install.yaml https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;blockquote>
+&lt;p>后续升级 argocd 时，可以用上面相同命令更新下 YAML 文件。&lt;/p>
+&lt;/blockquote>
+&lt;p>创建&lt;code>kustomization.yaml&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="line">&lt;span class="cl">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">kustomize.config.k8s.io/v1beta1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Kustomization&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">argocd&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">patches&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>- &lt;span class="nt">path&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">argocd-cm-patch.yaml&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">resources&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>- &lt;span class="l">install.yaml&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item></channel></rss>

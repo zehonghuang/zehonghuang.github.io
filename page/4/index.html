@@ -1,0 +1,317 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>维修区刷紫</title>
+<meta property="og:title" content="维修区刷紫"><meta name=twitter:title content="维修区刷紫"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/"><meta property="og:type" content="website"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><link href=/index.xml rel=alternate type=application/rss+xml title=维修区刷紫><link href=/index.xml rel=feed type=application/rss+xml title=维修区刷紫><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><section class="list home-list"><article class=article><a href=/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E7%9C%9F%E7%9A%84%E4%B8%8D%E6%98%AF%E5%8D%95%E7%BA%BF%E7%A8%8B%E5%90%8E%E5%8F%B0io%E6%9C%8D%E5%8A%A1-bio/ class=article-titles><h2 class=article-title>【Redis源码分析】Redis真的不是单线程，后台IO服务 BIO</h2></a><ul class=article-meta><li class=article-meta-date><time>2020-07-24</time></li><li class=article-meta-categories><a href=/categories/redis/><i class="fa-solid fa-folder"></i>
+redis
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/linux%E5%86%85%E6%A0%B8/><i class="fa-solid fa-folder"></i>
+Linux内核
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/c/c++/><i class="fa-solid fa-folder"></i>
+C/C++
+</a>&nbsp;</li></ul><div class=article-content><p>面试总喜欢被问Redis是单线程还是多线程，千篇一律的回答单线程却不知所以然，严格来说Redis是多线程多进程、单线程处理请求，本文说的就是多线程下的BIO(Background I/O service)。</p></div><div class=article-readmore><a href=/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E7%9C%9F%E7%9A%84%E4%B8%8D%E6%98%AF%E5%8D%95%E7%BA%BF%E7%A8%8B%E5%90%8E%E5%8F%B0io%E6%9C%8D%E5%8A%A1-bio/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B%E6%98%AF%E8%BF%99%E6%A0%B7%E7%9A%84/ class=article-titles><h2 class=article-title>【Redis源码分析】Redis启动过程是这样的！</h2></a><ul class=article-meta><li class=article-meta-date><time>2020-07-21</time></li><li class=article-meta-categories><a href=/categories/redis/><i class="fa-solid fa-folder"></i>
+redis
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/linux%E5%86%85%E6%A0%B8/><i class="fa-solid fa-folder"></i>
+Linux内核
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/c/c++/><i class="fa-solid fa-folder"></i>
+C/C++
+</a>&nbsp;</li></ul><div class=article-content><p>redis的源码确实是比我想象中要好读，本身是过程式编程，所以很多核心逻辑已经包含在main函数的调用链，流程非常长，耐心看下去还是能get到些东西的。</p></div><div class=article-readmore><a href=/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B%E6%98%AF%E8%BF%99%E6%A0%B7%E7%9A%84/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3pid%E8%80%97%E5%B0%BD%E7%9A%84%E5%8D%B1%E5%AE%B3/ class=article-titles><h2 class=article-title>【问题小解决】PID耗尽的危害</h2></a><ul class=article-meta><li class=article-meta-date><time>2020-05-21</time></li><li class=article-meta-categories><a href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3/><i class="fa-solid fa-folder"></i>
+问题小解决
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li></ul><div class=article-content><h3 id=如何判断-pid-耗尽>如何判断 PID 耗尽</h3><p>首先要确认当前的 PID 限制，检查全局 PID 最大限制:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>cat /proc/sys/kernel/pid_max
+</span></span></code></pre></td></tr></table></div></div><p>也检查下线程数限制：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>cat /proc/sys/kernel/threads-max
+</span></span></code></pre></td></tr></table></div></div><p>再检查下当前用户是否还有<code>ulimit</code>限制最大进程数。</p><p>确认当前实际 PID 数量，检查当前用户的 PID 数量:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>ps -eLf <span class=p>|</span> wc -l
+</span></span></code></pre></td></tr></table></div></div><p>如果发现实际 PID 数量接近最大限制说明 PID 就可能会爆满导致经常有进程无法启动，
+低版本内核可能报错:<code>Cannot allocate memory</code>，这个报错信息不准确，
+在内核 4.1 以后改进了: <a href=https://github.com/torvalds/linux/commit/35f71bc0a09a45924bed268d8ccd0d3407bc476f>https://github.com/torvalds/linux/commit/35f71bc0a09a45924bed268d8ccd0d3407bc476f</a></p></div><div class=article-readmore><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3pid%E8%80%97%E5%B0%BD%E7%9A%84%E5%8D%B1%E5%AE%B3/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3mysql%E9%AB%98%E5%8F%AF%E7%94%A8%E9%9B%86%E7%BE%A4%E4%B9%8B%E5%8F%8C%E4%B8%BB%E5%A4%9A%E4%BB%8E/ class=article-titles><h2 class=article-title>【问题小解决】MySQL高可用集群之双主多从</h2></a><ul class=article-meta><li class=article-meta-date><time>2020-05-14</time></li><li class=article-meta-categories><a href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3/><i class="fa-solid fa-folder"></i>
+问题小解决
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li></ul><div class=article-content><p>通常MySQL主从复制主要用来解决读写分离，分担服务器压力。MySQL互为主备实现服务的高可用；这里同时基于高可用和负载均衡。</p><p><img src=/images/mysql-ha.png alt=mysql-ha></p><p>环境准备</p><table><thead><tr><th>主机名/角色</th><th>VIP</th><th>IP地址</th><th>操作系统</th><th>MySQL版本</th></tr></thead><tbody><tr><td>Node0/master1</td><td>172.16.10.100</td><td>172.16.10.10</td><td>CentOS8.1.1911</td><td>8.0.17</td></tr><tr><td>Node1/master2</td><td></td><td>172.16.10.11</td><td>CentOS8.1.1911</td><td>8.0.17</td></tr><tr><td>Node2/slave1</td><td></td><td>172.16.10.12</td><td>CentOS8.1.1911</td><td>8.0.17</td></tr></tbody></table><h3 id=安装mysql>安装MySQL</h3><p>在所有节点上执行<code>dnf -y install mysql mysql-server</code>，并在master节点上配置server-id并开启bin-log</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>vi /etc/my.cnf.d/mysql-server.cnf
+</span></span><span class=line><span class=cl><span class=o>[</span>mysqld<span class=o>]</span>
+</span></span><span class=line><span class=cl><span class=c1># 主数据库端ID号，全局唯一，通常用IP地址最后一位</span>
+</span></span><span class=line><span class=cl><span class=nv>server_id</span> <span class=o>=</span> <span class=m>10</span>
+</span></span><span class=line><span class=cl><span class=c1># 开启二进制日志</span>
+</span></span><span class=line><span class=cl>log-bin <span class=o>=</span> mysql-bin
+</span></span><span class=line><span class=cl><span class=c1># 需要复制的数据库名，如果复制多个数据库，重复设置这个选项即可</span>
+</span></span><span class=line><span class=cl>binlog-do-db <span class=o>=</span> <span class=nb>test</span>
+</span></span><span class=line><span class=cl><span class=c1># 将从服务器从主服务器收到的更新记入到从服务器自己的二进制日志文件中</span>
+</span></span><span class=line><span class=cl>log-slave-updates
+</span></span><span class=line><span class=cl><span class=c1># 控制binlog的写入频率。每执行多少次事务写入一次(这个参数性能消耗很大，但可减小MySQL崩溃造成的损失)</span>
+</span></span><span class=line><span class=cl><span class=nv>sync_binlog</span> <span class=o>=</span> <span class=m>1</span>
+</span></span><span class=line><span class=cl><span class=c1># 下面这两个参数非常重要</span>
+</span></span><span class=line><span class=cl><span class=c1># 这个参数一般用在主主同步中，用来错开自增值, 防止键值冲突，master2上面改为2</span>
+</span></span><span class=line><span class=cl><span class=nv>auto_increment_offset</span> <span class=o>=</span> <span class=m>1</span>
+</span></span><span class=line><span class=cl><span class=c1># 这个参数一般用在主主同步中，用来错开自增值, 防止键值冲突</span>
+</span></span><span class=line><span class=cl><span class=nv>auto_increment_increment</span> <span class=o>=</span> <span class=m>2</span>
+</span></span><span class=line><span class=cl><span class=c1># 二进制日志自动删除的天数，默认值为0,表示“没有自动删除”，启动时和二进制日志循环时可能删除</span>
+</span></span><span class=line><span class=cl><span class=nv>expire_logs_days</span> <span class=o>=</span> <span class=m>7</span>
+</span></span><span class=line><span class=cl><span class=c1># 将函数复制到slave</span>
+</span></span><span class=line><span class=cl><span class=nv>log_bin_trust_function_creators</span> <span class=o>=</span> <span class=m>1</span>
+</span></span></code></pre></td></tr></table></div></div><p>执行<code>systemctl enable --now mysqld</code>运行Mysql</p></div><div class=article-readmore><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3mysql%E9%AB%98%E5%8F%AF%E7%94%A8%E9%9B%86%E7%BE%A4%E4%B9%8B%E5%8F%8C%E4%B8%BB%E5%A4%9A%E4%BB%8E/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E6%AD%A3%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/ class=article-titles><h2 class=article-title>【生产问题】分享一次Nginx正向代理的需求</h2></a><ul class=article-meta><li class=article-meta-date><time>2020-04-17</time></li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/nginx/><i class="fa-solid fa-folder"></i>
+Nginx
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98/><i class="fa-solid fa-folder"></i>
+生产问题
+</a>&nbsp;</li></ul><div class=article-content><blockquote><p>最近接到了一个需求：通过 Nginx 代理把现网一个自研代理程序给替换掉，感觉有点意思，也有所收益，简单分享下。</p></blockquote><h3 id=需求背景>需求背景</h3><p>部门的生产环境异常复杂，有部分第三方引入的系统位于特殊网络隔离区域，请求这些系统需要通过 2 层网络代理，如图所示：</p><p><img src=/images/12.png alt=12></p><p>中心源系统请求目标系统 API 的形式各异，我简单收集了下，至少有如下 3 种：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>curl --digest -u admin:xxxxxx <span class=s1>&#39;http://10.xxx.xxx.xxx:8080/foo/boo?Id=123456789&amp;vId=1234&#39;</span> 
+</span></span><span class=line><span class=cl> 
+</span></span><span class=line><span class=cl>curl -d <span class=s1>&#39;{&#34;eventId&#34;: 20171116, &#34;timestamp&#34;: 123456, &#34;caller&#34;: &#34;XXP&#34;, &#34;version&#34;: &#34;1.0&#34;, &#34;interface&#34;: {&#34;interfaceName&#34;: &#34;XXPVC&#34;, &#34;para&#34;: {&#34;detail&#34;: {&#34;owner&#34;: &#34;xxxxxxx&#34;}}}, &#34;password&#34;: &#34;xxxxxx&#34;, &#34;callee&#34;: &#34;XXPVC&#34;}&#39;</span> http://10.x.x.x:8080/t/api
+</span></span><span class=line><span class=cl> 
+</span></span><span class=line><span class=cl>curl -X PUT -H <span class=s2>&#34;Content-Type: application/json&#34;</span> -d<span class=s1>&#39;{&#34;vp&#34;:{&#34;id&#34;:&#34;ab27adc8-xxx-xxxx-a732-fbde162ebdd3&#34;}}&#39;</span> <span class=s2>&#34;http://10.x.x.x/v1.0/peers/show_connectioninfos&#34;</span>
+</span></span></code></pre></td></tr></table></div></div></div><div class=article-readmore><a href=/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E6%AD%A3%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86linux%E7%9A%84xargs%E5%91%BD%E4%BB%A4/ class=article-titles><h2 class=article-title>【基础知识】Linux的xargs命令</h2></a><ul class=article-meta><li class=article-meta-date><time>2020-01-14</time></li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E8%84%9A%E6%9C%AC%E8%AF%AD%E8%A8%80/><i class="fa-solid fa-folder"></i>
+脚本语言
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/><i class="fa-solid fa-folder"></i>
+基础知识
+</a>&nbsp;</li></ul><div class=article-content><p>昨天在给服务器做年终“大扫除”整理时，发现有个目录下因为文件过多而删除失败，最终使用<code>xargs</code>才搞定，于是顺便来记录下。</p><p>在执行某些命令时，当 Linux 某个目录下文件过多就会因为“参数列表过长”而报错无法执行。比如，我要清空<code>/var/spool/clientmqueue/</code>下的庞大数量的临时文件，
+如果直接执行<code>rm -f *</code>，有时就会会出现“参数列表过长”的错误提示，因为 linux 下一般的命令的参数的总长度不能超过 4096 个字节。</p><p>这时，<code>xargs</code>就应该上场了了，由于服务器数量很多，我直接在每台服务器上执行如下命令，即可清理此文件夹内的所有文件：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=c1>#代码中的$8，不通系统发行版本可能有所区别，具体使用 ls -l 查看文件名在那一列即可</span>
+</span></span><span class=line><span class=cl><span class=nb>cd</span> /var/spool/clientmqueue/  <span class=o>&amp;&amp;</span> ls -l /var/spool/clientmqueue/ <span class=p>|</span> awk <span class=o>{</span><span class=s1>&#39;print $8&#39;</span><span class=o>}</span> <span class=p>|</span> xargs rm -f
+</span></span></code></pre></td></tr></table></div></div></div><div class=article-readmore><a href=/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86linux%E7%9A%84xargs%E5%91%BD%E4%BB%A4/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B%E4%BB%8Elinux%E8%A7%92%E5%BA%A6%E4%BB%A5%E5%8F%8Ajvm%E6%BA%90%E7%A0%81%E6%B7%B1%E5%85%A5nio%E7%9A%84%E7%BB%86%E8%8A%82/ class=article-titles><h2 class=article-title>【网络编程】从Linux角度以及JVM源码，深入NIO的细节</h2></a><ul class=article-meta><li class=article-meta-date><time>2020-01-07</time></li><li class=article-meta-categories><a href=/categories/nio/><i class="fa-solid fa-folder"></i>
+NIO
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/c/c++/><i class="fa-solid fa-folder"></i>
+C/C++
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/linux%E5%86%85%E6%A0%B8/><i class="fa-solid fa-folder"></i>
+Linux内核
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/><i class="fa-solid fa-folder"></i>
+网络编程
+</a>&nbsp;</li></ul><div class=article-content><p>最近一段时间都在啃Linux内核， 也给了自己机会再度深入理解Java的NIO实现，希望能获得更多东西，尝试理解以前未能理解的，会涉及少量OpenJDK源码。</p><p>因为NIO本身的实现很多牵扯到操作系统，所以需要先稍微过一下，有理解不对的地方，请指出。</p><h2 id=1涉及的linux知识>1、涉及的Linux知识</h2><h3 id=11文件描述符>1.1、文件描述符</h3><p>对于Linux来说，一切皆为文件，设备文件、IO文件还是普通文件，都可以通过一个叫做文件描述符（FileDescriptor）的东西来进行操作，其涉及的数据结构可以自行了解VFS。</p><h4 id=111设备阻塞与非阻塞>1.1.1、设备阻塞与非阻塞</h4><p>任意对设备的操作都是默认为阻塞的，如果没有或有不可操作的资源，会被添加到<code>wait_queue_head_t</code>中进行等待，直到被<code>semaphore</code>通知允许执行。此时可以通过<code>fcntl()</code>函数将文件描述符设置为非阻塞，若没有或有不可操作的资源，立即返回错误信息。</p><h3 id=12jvm内存结构--虚拟地址空间>1.2、JVM内存结构 & 虚拟地址空间</h3><p>众所周知，Linux下的每一进程都有自己的虚拟内存地址，而JVM也是一个进程，且JVM有自己的内存结构。既然如此，两者之间必有对应关系，OracleJDK7提供了NMT，用<code>jcmd pid VM.native_memory detail</code>可以查看各类区域的reserved，被committed的内存大小及其地址区间，再通过<code>pmap -p</code>可以看到进程内存信息。</p><p>肉眼对比地址区间可以发现，JVM heap是通过mmap分配内存的，位于进程的映射区内，而进程堆区可以被malloc进行分配，对应关系如图。
+<img src=https://raw.githubusercontent.com/zehonghuang/github_blog_bak/master/source/image/jvm%E8%99%9A%E6%8B%9F%E5%86%85%E5%AD%98%E5%9C%B0%E5%9D%80.png alt=jvm内存虚拟地址></p></div><div class=article-readmore><a href=/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B%E4%BB%8Elinux%E8%A7%92%E5%BA%A6%E4%BB%A5%E5%8F%8Ajvm%E6%BA%90%E7%A0%81%E6%B7%B1%E5%85%A5nio%E7%9A%84%E7%BB%86%E8%8A%82/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/linux%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4%E8%AF%A6%E8%A7%A3/ class=article-titles><h2 class=article-title>Linux常用命令详解</h2></a><ul class=article-meta><li class=article-meta-date><time>2019-05-02</time></li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/><i class="fa-solid fa-folder"></i>
+常用命令
+</a>&nbsp;</li></ul><div class=article-content><ul><li>ls</li></ul><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>ls                <span class=c1># 显示当前目录的内容</span>
+</span></span><span class=line><span class=cl>ls -la            <span class=c1># 显示当前目录的所有文件（包括隐藏文件），并显示详细信息</span>
+</span></span><span class=line><span class=cl>ls /home/user     <span class=c1># 显示指定目录的内容</span>
+</span></span><span class=line><span class=cl>ls -R             <span class=c1># 递归地列出目录内容，包括子目录及其内容</span>
+</span></span><span class=line><span class=cl>ls -h             <span class=c1># 与 -l 结合使用，显示文件大小以可读形式（如 KB、MB）</span>
+</span></span></code></pre></td></tr></table></div></div><ul><li>touch</li></ul><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>touch newfile.txt          <span class=c1># 创建一个名为 newfile.txt 的空文件</span>
+</span></span><span class=line><span class=cl>touch file1 file2          <span class=c1># 创建多个文件（file1 和 file2）</span>
+</span></span><span class=line><span class=cl>touch -c existingfile.txt  <span class=c1># 如果文件存在，则更新时间戳；如果不存在，不会创建新文件</span>
+</span></span></code></pre></td></tr></table></div></div><ul><li>cat</li></ul><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span><span class=lnt>48
+</span><span class=lnt>49
+</span><span class=lnt>50
+</span><span class=lnt>51
+</span><span class=lnt>52
+</span><span class=lnt>53
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=c1># 使用 -n 选项：为每行添加行号，包括空行</span>
+</span></span><span class=line><span class=cl>cat -n file.txt
+</span></span><span class=line><span class=cl><span class=c1># 输出示例：</span>
+</span></span><span class=line><span class=cl><span class=c1>#  1  This is a line.</span>
+</span></span><span class=line><span class=cl><span class=c1>#  2  </span>
+</span></span><span class=line><span class=cl><span class=c1>#  3      This is indented.</span>
+</span></span><span class=line><span class=cl><span class=c1>#  4  Another line.</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：此选项为文件中的每一行编号，从 1 开始计数。</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 使用 -b 选项：为非空行添加行号，空行不编号</span>
+</span></span><span class=line><span class=cl>cat -b file.txt
+</span></span><span class=line><span class=cl><span class=c1># 输出示例：</span>
+</span></span><span class=line><span class=cl><span class=c1>#  1  This is a line.</span>
+</span></span><span class=line><span class=cl><span class=c1># </span>
+</span></span><span class=line><span class=cl><span class=c1>#  2      This is indented.</span>
+</span></span><span class=line><span class=cl><span class=c1>#  3  Another line.</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：与 -n 类似，但只为非空行编号。</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 使用 -s 选项：压缩连续的空行，只显示一个空行</span>
+</span></span><span class=line><span class=cl>cat -s file.txt
+</span></span><span class=line><span class=cl><span class=c1># 输出示例：</span>
+</span></span><span class=line><span class=cl><span class=c1># This is a line.</span>
+</span></span><span class=line><span class=cl><span class=c1># </span>
+</span></span><span class=line><span class=cl><span class=c1>#     This is indented.</span>
+</span></span><span class=line><span class=cl><span class=c1># Another line.</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：多个连续空行会被压缩为一个空行。</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 使用 -E 选项：显示每行末尾的 $ 符号，标示行的结束</span>
+</span></span><span class=line><span class=cl>cat -E file.txt
+</span></span><span class=line><span class=cl><span class=c1># 输出示例：</span>
+</span></span><span class=line><span class=cl><span class=c1># This is a line.$</span>
+</span></span><span class=line><span class=cl><span class=c1># $</span>
+</span></span><span class=line><span class=cl><span class=c1>#     This is indented.$</span>
+</span></span><span class=line><span class=cl><span class=c1># Another line.$</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：在每一行的末尾加上 &#34;$&#34; 以标示行结束，有助于确认行尾换行符的位置。</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 使用 -T 选项：将 Tab 字符显示为 ^I</span>
+</span></span><span class=line><span class=cl>cat -T file.txt
+</span></span><span class=line><span class=cl><span class=c1># 输出示例：</span>
+</span></span><span class=line><span class=cl><span class=c1># This is a line.</span>
+</span></span><span class=line><span class=cl><span class=c1># </span>
+</span></span><span class=line><span class=cl><span class=c1># ^IThis is indented.</span>
+</span></span><span class=line><span class=cl><span class=c1># Another line.</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：将 Tab 字符用 ^I 进行可视化显示，这样方便辨认文件中的制表符。</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 使用 -A 选项：显示所有不可见字符，等同于 -vET</span>
+</span></span><span class=line><span class=cl>cat -A file.txt
+</span></span><span class=line><span class=cl><span class=c1># 输出示例：</span>
+</span></span><span class=line><span class=cl><span class=c1># This is a line.$</span>
+</span></span><span class=line><span class=cl><span class=c1># $</span>
+</span></span><span class=line><span class=cl><span class=c1># ^IThis is indented.$</span>
+</span></span><span class=line><span class=cl><span class=c1># Another line.$</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：显示不可见字符、换行符 ($) 和制表符 (^I)，有助于检查文件中所有控制字符和隐藏字符。</span>
+</span></span></code></pre></td></tr></table></div></div><ul><li>kill</li></ul><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=nb>kill</span> -l
+</span></span><span class=line><span class=cl><span class=c1># 输出示例：</span>
+</span></span><span class=line><span class=cl><span class=c1>#  1) SIGHUP   2) SIGINT   3) SIGQUIT   4) SIGILL   5) SIGTRAP   ...</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：列出系统支持的所有信号，以及信号的编号。每个信号都有不同的作用，例如 `SIGHUP` 代表挂起、`SIGKILL` 表示强制终止等。</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nb>kill</span> -9 <span class=m>1234</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：向进程 ID 为 1234 的进程发送 `SIGKILL` 信号（9），强制终止该进程。</span>
+</span></span><span class=line><span class=cl><span class=c1># 该信号会立即结束进程，无法被捕获或忽略，通常用于无法响应 `SIGTERM` 的进程。</span>
+</span></span><span class=line><span class=cl><span class=c1># 没有 -9，默认终止信号 (SIGTERM)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nb>kill</span> -HUP <span class=m>1234</span>
+</span></span><span class=line><span class=cl><span class=c1># 注：向进程 ID 为 1234 的进程发送 `SIGHUP` 信号（1）。</span>
+</span></span><span class=line><span class=cl><span class=c1># 通常用于让守护进程重新加载配置，而不是完全终止。</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># SIGHUP (1)：挂起信号，通常用于让进程重新读取配置文件，比如 nginx、cron</span>
+</span></span><span class=line><span class=cl><span class=c1># SIGINT (2)：中断信号，通常由 Ctrl+C 发送</span>
+</span></span><span class=line><span class=cl><span class=c1># SIGQUIT (3)：退出信号，产生核心转储</span>
+</span></span><span class=line><span class=cl><span class=c1># SIGKILL (9)：强制终止信号，不能被忽略或捕获</span>
+</span></span><span class=line><span class=cl><span class=c1># SIGTERM (15)：请求终止信号，进程可以捕获并自行处理</span>
+</span></span><span class=line><span class=cl><span class=c1># SIGSTOP：停止进程，类似于 Ctrl+Z，不能被捕获</span>
+</span></span></code></pre></td></tr></table></div></div></div><div class=article-readmore><a href=/linux%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4%E8%AF%A6%E8%A7%A3/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/oh-my-zsh%E8%87%AA%E5%8A%A8%E8%A1%A5%E5%85%A8/ class=article-titles><h2 class=article-title>Oh My Zsh自动补全</h2></a><ul class=article-meta><li class=article-meta-date><time>2019-01-22</time></li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E8%84%9A%E6%9C%AC%E8%AF%AD%E8%A8%80/><i class="fa-solid fa-folder"></i>
+脚本语言
+</a>&nbsp;</li></ul><div class=article-content>shell 有多种，大多数人接触比较多的是 bash， 不管是 mac 还是各个 linux 发行版，默认的 shell 基本都是 bash， 虽然 bash 功能已经丰富了，但对于极客们来说，界面不够炫，提示功能也不够强大。而 zsh 功能及其强大，只是配置过于复杂， 后来就有了 oh-my-zsh 开源项目，配置难度大大降低。
+Github地址: https://github.com/robbyrussell/oh-my-zsh
+安装 1 sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)" 更改系统默认 shell 1 chsh -s /bin/zsh 更改zsh配置文件 1 vim ~/.zshrc 修改主题 1 ZSH_THEME="robbyrussell" 配置插件 oh-my-zsh 还支持插件，插件存放目录为：
+1 ~/.oh-my-zsh/plugins 这个目录中每个子目录都是一个插件，目录名即为插件名，默认不开启，需要在~/.zshrc中该配置开启，比如:
+1 2 3 4 5 6 7 8 9 10 11 plugins=( git git-flow docker kubectl brew npm helm zsh-autosuggestions zsh-syntax-highlighting ) 这些插件可以给你常用的命令做用法提示，使用 tab 键触发。我这里再推荐另外三个不是内置的插件， 需要将它们单独下载到~/.</div><div class=article-readmore><a href=/oh-my-zsh%E8%87%AA%E5%8A%A8%E8%A1%A5%E5%85%A8/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/grep%E6%97%A0%E6%B3%95%E6%9F%A5%E6%89%BEshell%E4%BC%A0%E8%BF%87%E6%9D%A5%E7%9A%84%E5%8F%98%E9%87%8F/ class=article-titles><h2 class=article-title>Grep无法查找shell传过来的变量？</h2></a><ul class=article-meta><li class=article-meta-date><time>2018-08-23</time></li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E8%84%9A%E6%9C%AC%E8%AF%AD%E8%A8%80/><i class="fa-solid fa-folder"></i>
+脚本语言
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/grep/><i class="fa-solid fa-folder"></i>
+grep
+</a>&nbsp;</li></ul><div class=article-content><p>差不多两周前，同事告诉我发现一个诡异的问题，grep 无法搜索 shell 中的变量，着实很惊讶。到他所说的服务器上试了下，还真是不行！</p><p>大概就是这样一个要求：</p><ol><li>有个文本为 userid.txt，里面每一行一个用户 id，类似如下：</li></ol><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=m>0001</span>
+</span></span><span class=line><span class=cl><span class=m>0003</span>
+</span></span><span class=line><span class=cl><span class=m>0005</span>
+</span></span><span class=line><span class=cl><span class=m>0007</span>
+</span></span><span class=line><span class=cl><span class=m>0009</span>
+</span></span></code></pre></td></tr></table></div></div><ol start=2><li>另外还有一个文本为 record.txt，里面是所有用户的操作记录，一行一条，并且包含有 id，类似如下：</li></ol><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 11:03,198 INFO<span class=o>]</span> userId:0001 gilettype:3
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 12:12,198 INFO<span class=o>]</span> userId:0002 gilettype:3
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 13:02,198 INFO<span class=o>]</span> userId:0003 gilettype:1
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 14:33,198 INFO<span class=o>]</span> userId:0001 gilettype:3
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 15:13,198 INFO<span class=o>]</span> userId:0002 gilettype:2
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 16:43,198 INFO<span class=o>]</span> userId:0003 gilettype:1
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 17:32,198 INFO<span class=o>]</span> userId:0001 gilettype:3
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 18:16,198 INFO<span class=o>]</span> userId:0002 gilettype:1
+</span></span><span class=line><span class=cl><span class=o>[</span><span class=m>12</span> <span class=m>11</span> <span class=m>2014</span> 19:25,198 INFO<span class=o>]</span> userId:0003 gilettype:2
+</span></span></code></pre></td></tr></table></div></div></div><div class=article-readmore><a href=/grep%E6%97%A0%E6%B3%95%E6%9F%A5%E6%89%BEshell%E4%BC%A0%E8%BF%87%E6%9D%A5%E7%9A%84%E5%8F%98%E9%87%8F/>Read more...</a></div><div class=article-floatclear></div></article></section><ul class="pagination pagination-default"><li class=page-item><a href=/ aria-label=First class=page-link role=button><span aria-hidden=true>&#171;&#171;</span></a></li><li class=page-item><a href=/page/3/ aria-label=Previous class=page-link role=button><span aria-hidden=true>&#171;</span></a></li><li class=page-item><a href=/ aria-label="Page 1" class=page-link role=button>1</a></li><li class=page-item><a href=/page/2/ aria-label="Page 2" class=page-link role=button>2</a></li><li class=page-item><a href=/page/3/ aria-label="Page 3" class=page-link role=button>3</a></li><li class="page-item active"><a aria-current=page aria-label="Page 4" class=page-link role=button>4</a></li><li class=page-item><a href=/page/5/ aria-label="Page 5" class=page-link role=button>5</a></li><li class=page-item><a href=/page/5/ aria-label=Next class=page-link role=button><span aria-hidden=true>&#187;</span></a></li><li class=page-item><a href=/page/5/ aria-label=Last class=page-link role=button><span aria-hidden=true>&#187;&#187;</span></a></li></ul></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-rsslink><a href=/index.xml type=application/rss+xml target=_blank title=RSS><i class="fa-solid fa-rss"></i></a></li><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

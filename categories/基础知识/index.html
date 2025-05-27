@@ -1,0 +1,143 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>基础知识 - 维修区刷紫</title>
+<meta property="og:title" content="基础知识 - 维修区刷紫"><meta name=twitter:title content="基础知识 - 维修区刷紫"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/categories/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/"><meta property="og:type" content="website"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><link href=/categories/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/index.xml rel=alternate type=application/rss+xml title=维修区刷紫><link href=/categories/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/index.xml rel=feed type=application/rss+xml title=维修区刷紫><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><section class="list term-list"><article class=article><a href=/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86docker%E9%95%9C%E5%83%8F%E5%AD%98%E5%82%A8%E5%8E%9F%E7%90%86%E5%8F%8A%E5%85%B6%E4%BC%98%E5%8C%96%E6%96%B9%E5%BC%8F/ class=article-titles><h2 class=article-title>【基础知识】Docker镜像存储原理及其优化方式</h2></a><ul class=article-meta><li class=article-meta-date><time>2020-09-24</time></li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/><i class="fa-solid fa-folder"></i>
+基础知识
+</a>&nbsp;</li></ul><div class=article-content><p>本文旨在通过Dockerfile的指令展开Docker镜像的原理，不再介绍Docker是什么了。</p><h2 id=一核心指令及其增强语法>一、核心指令及其增强语法</h2><h3 id=1-基础指令>1. 基础指令</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-dockerfile data-lang=dockerfile><span class=line><span class=cl><span class=c># FROM 每个 Dockerfile 都必须以 FROM 指令开始</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>FROM</span><span class=s> ubuntu:20.04</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># RUN 执行命令并将结果打包到镜像中，通常用于安装软件或执行某些配置操作</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>RUN</span> apt-get update <span class=o>&amp;&amp;</span> apt-get install -y nginx<span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># CMD 指定容器启动时默认执行的命令。不同于 RUN，CMD 只在容器启动时执行。</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>CMD</span> <span class=p>[</span><span class=s2>&#34;nginx&#34;</span><span class=p>,</span> <span class=s2>&#34;-g&#34;</span><span class=p>,</span> <span class=s2>&#34;daemon off;&#34;</span><span class=p>]</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># ENTRYPOINT 设置容器启动时要执行的主命令。与 CMD 类似，但更适合于设置不可更改的启动命令。</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># 一个Dockerfile只能有一个ENTRYPOINT，出现多个时，前面会被最后一个所覆盖</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># 通常来说可以和CMD配合使用，如</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># ENTRYPOINT [&#34;nginx&#34;]</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># CMD [&#34;-g&#34;, &#34;daemon off;&#34;]</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># 这样启动的时候，可以通过 docker run my_image -g &#34;daemon on;&#34; 这种方式覆盖CMD同时保留默认启动参数的效果</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>ENTRYPOINT</span> <span class=p>[</span><span class=s2>&#34;nginx&#34;</span><span class=p>,</span> <span class=s2>&#34;-g&#34;</span><span class=p>,</span> <span class=s2>&#34;daemon off;&#34;</span><span class=p>]</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>WORKDIR</span><span class=s> /app</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># COPY 从构建主机将文件或目录复制到镜像中</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># ADD 与 COPY 类似，但可以处理本地 tar 文件的自动解压以及 URL 的下载</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>COPY</span> . /app<span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>ADD</span> https://example.com/app.tar.gz /app<span class=err>
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>ENV</span> APP_VERSION 1.0<span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># 声明容器的外部端口，但不自动发布端口</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>EXPOSE</span><span class=s> 80</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># VOLUME 声明挂载点，将容器的数据目录映射到宿主机目录或其他容器。</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># 即使不使用该指令，在docker run启动时，仍然可以使用-v或--mount进行挂载</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># docker run -v &lt;宿主机目录&gt;:&lt;容器内目录&gt; &lt;镜像名&gt;</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># docker run --mount type=bind,source=&lt;宿主机目录&gt;,target=&lt;容器内目录&gt; &lt;镜像名&gt;</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>VOLUME</span> <span class=p>[</span><span class=s2>&#34;/data&#34;</span><span class=p>]</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># ONBUILD 用于定义`延迟执行`的构建指令，即当该镜像被用作基础镜像来构建其他镜像时才会执行。一般情况下，它不会在构建当前镜像时触发。</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># 举我用到的场景：</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># 1. 同步私有仓库管理的config文件，可能有因为不同项目或者语言导致相同的配置数据出现异构</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># 2. 安装依赖包搭建编译环境</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=c># 一般来说都是在构建派生镜像时需要拉取最新配置或者依赖包时，可以通过ONBUILD降低派生镜像Dockerfile的复杂度</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>ONBUILD</span> <span class=k>COPY</span> . /app<span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>ONBUILD</span> <span class=k>RUN</span> <span class=nb>cd</span> /app <span class=o>&amp;&amp;</span> npm install<span class=err>
+</span></span></span></code></pre></td></tr></table></div></div><p>上面命令基本足够编写一个复杂的镜像构建脚本，但个别有一些高级选项，可以继续研究一下</p><h3 id=2基础指令上高阶用法>2.基础指令上高阶用法</h3><p><code>RUN</code>其实有两种缓存layer的方式，分别是</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-dockerfile data-lang=dockerfile><span class=line><span class=cl><span class=k>RUN</span> --mount<span class=o>=</span><span class=nv>type</span><span class=o>=</span>cache,target<span class=o>=</span>/root/.cache/pip pip install -r requirements.txt<span class=err>
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>RUN</span> --mount<span class=o>=</span><span class=nv>type</span><span class=o>=</span>bind,source<span class=o>=</span>/path/to/local/.m2,target<span class=o>=</span>/root/.m2 mvn install<span class=err>
+</span></span></span></code></pre></td></tr></table></div></div><p><code>COPY</code>和<code>ADD</code>都有一个link选项，用于让Docker在将文件或目录从宿主机复制到镜像时，创建<strong>硬链接</strong>而不是直接复制文件。</p><p>在普通Web项目里面很少用到，但在AI训练机器上会很常见，例如这里<a href=https://depot.dev/blog/depot-ai>Depot AI</a>。
+因为AI的数据集非常庞大，不可能完全复制到镜像当中，这会导致构建的镜像过大而占用制品库空间，可以通过<code>link</code>的形式将文件链接到镜像的文件系统中。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-dockerfile data-lang=dockerfile><span class=line><span class=cl><span class=k>FROM</span><span class=s> python:3.10</span><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>COPY</span> --link --from<span class=o>=</span>depot.ai/runwayml/stable-diffusion-v1-5 /v1-inference.yaml .<span class=err>
+</span></span></span><span class=line><span class=cl><span class=err></span><span class=k>COPY</span> --link --from<span class=o>=</span>depot.ai/runwayml/stable-diffusion-v1-5 /v1-5-pruned.ckpt .<span class=err>
+</span></span></span></code></pre></td></tr></table></div></div><h2 id=二镜像构建原理layers之间的关系>二、镜像构建原理，Layers之间的关系</h2><blockquote><p>我觉得需要搞明白一件事情就是，Docker不是VM，任意基础镜像都不存在安装一个完整的操作系统。</p></blockquote><p><img src=/images/Docker-image.jpg alt=docker-image.png></p></div><div class=article-readmore><a href=/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86docker%E9%95%9C%E5%83%8F%E5%AD%98%E5%82%A8%E5%8E%9F%E7%90%86%E5%8F%8A%E5%85%B6%E4%BC%98%E5%8C%96%E6%96%B9%E5%BC%8F/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/cka%E4%B8%93%E9%A2%98%E6%A2%B3%E7%90%86rbac%E6%9D%83%E9%99%90%E6%9E%84%E6%88%90%E5%B9%B6%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E7%94%A8%E6%88%B7%E5%8F%8A%E5%85%B6%E6%9D%83%E9%99%90/ class=article-titles><h2 class=article-title>【CKA专题】梳理RBAC权限构成，并创建一个用户及其权限</h2></a><ul class=article-meta><li class=article-meta-date><time>2023-11-03</time></li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/><i class="fa-solid fa-folder"></i>
+基础知识
+</a>&nbsp;</li></ul><div class=article-content><h2 id=为一个开发人员配置客户端证书>为一个开发人员配置客户端证书</h2><p>首先，为用户生成私钥和证书签名请求（CSR），然后使用Kubernetes集群的CA来签署证书</p><p>使用 OpenSSL 生成私钥和证书签名请求（CSR）：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=c1># 生成用户的私钥</span>
+</span></span><span class=line><span class=cl>openssl genrsa -out user.key <span class=m>2048</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 生成CSR</span>
+</span></span><span class=line><span class=cl>openssl req -new -key user.key -out user.csr -subj <span class=s2>&#34;/CN=username/O=groupname&#34;</span>
+</span></span></code></pre></td></tr></table></div></div><p>在这里：</p><ul><li><code>/CN=username</code>：<code>username</code>表示用户的名字</li><li><code>/O=groupname</code>：<code>groupname</code>表示用户所在的组，可以帮助后续RBAC授权（例如管理员、开发者等不同组）</li></ul><p>使用 Kubernetes 集群的 CA 签署 CSR，生成用户证书：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>openssl x509 -req -in user.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out user.crt -days <span class=m>365</span>
+</span></span></code></pre></td></tr></table></div></div><ul><li>-CA /etc/kubernetes/pki/ca.crt 和 -CAkey /etc/kubernetes/pki/ca.key：指向 Kubernetes 集群的CA证书和CA密钥，用于签署用户的CSR</li><li>-out user.crt：生成的用户证书</li></ul><h2 id=配置-kubeconfig-文件>配置 kubeconfig 文件</h2><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>kubectl config set-cluster kubernetes-cluster <span class=se>\
+</span></span></span><span class=line><span class=cl><span class=se></span>  --certificate-authority<span class=o>=</span>ca.crt <span class=se>\
+</span></span></span><span class=line><span class=cl><span class=se></span>  --server<span class=o>=</span>https://&lt;API_SERVER_IP&gt;:&lt;PORT&gt; <span class=se>\
+</span></span></span><span class=line><span class=cl><span class=se></span>  --kubeconfig<span class=o>=</span><span class=nv>$KUBECONFIG_FILE</span>
+</span></span><span class=line><span class=cl><span class=c1>## 添加用户的证书和私钥</span>
+</span></span><span class=line><span class=cl>kubectl config set-credentials username --client-certificate<span class=o>=</span>user.crt --client-key<span class=o>=</span>user.key --kubeconfig<span class=o>=</span><span class=nv>$KUBECONFIG_FILE</span>
+</span></span><span class=line><span class=cl><span class=c1>## 为用户设置一个使用上下文，以便访问集群</span>
+</span></span><span class=line><span class=cl>kubectl config set-context username-context --cluster<span class=o>=</span>kubernetes-cluster --namespace<span class=o>=</span>default --user<span class=o>=</span>username --kubeconfig<span class=o>=</span><span class=nv>$KUBECONFIG_FILE</span>
+</span></span><span class=line><span class=cl><span class=c1>## 切换到新创建的上下文</span>
+</span></span><span class=line><span class=cl>kubectl config use-context username-context --kubeconfig<span class=o>=</span><span class=nv>$KUBECONFIG_FILE</span>
+</span></span></code></pre></td></tr></table></div></div><p>将文件给到开发同学即可</p></div><div class=article-readmore><a href=/cka%E4%B8%93%E9%A2%98%E6%A2%B3%E7%90%86rbac%E6%9D%83%E9%99%90%E6%9E%84%E6%88%90%E5%B9%B6%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E7%94%A8%E6%88%B7%E5%8F%8A%E5%85%B6%E6%9D%83%E9%99%90/>Read more...</a></div><div class=article-floatclear></div></article><article class=article><a href=/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86linux%E7%9A%84xargs%E5%91%BD%E4%BB%A4/ class=article-titles><h2 class=article-title>【基础知识】Linux的xargs命令</h2></a><ul class=article-meta><li class=article-meta-date><time>2020-01-14</time></li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E8%84%9A%E6%9C%AC%E8%AF%AD%E8%A8%80/><i class="fa-solid fa-folder"></i>
+脚本语言
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/><i class="fa-solid fa-folder"></i>
+基础知识
+</a>&nbsp;</li></ul><div class=article-content><p>昨天在给服务器做年终“大扫除”整理时，发现有个目录下因为文件过多而删除失败，最终使用<code>xargs</code>才搞定，于是顺便来记录下。</p><p>在执行某些命令时，当 Linux 某个目录下文件过多就会因为“参数列表过长”而报错无法执行。比如，我要清空<code>/var/spool/clientmqueue/</code>下的庞大数量的临时文件，
+如果直接执行<code>rm -f *</code>，有时就会会出现“参数列表过长”的错误提示，因为 linux 下一般的命令的参数的总长度不能超过 4096 个字节。</p><p>这时，<code>xargs</code>就应该上场了了，由于服务器数量很多，我直接在每台服务器上执行如下命令，即可清理此文件夹内的所有文件：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=c1>#代码中的$8，不通系统发行版本可能有所区别，具体使用 ls -l 查看文件名在那一列即可</span>
+</span></span><span class=line><span class=cl><span class=nb>cd</span> /var/spool/clientmqueue/  <span class=o>&amp;&amp;</span> ls -l /var/spool/clientmqueue/ <span class=p>|</span> awk <span class=o>{</span><span class=s1>&#39;print $8&#39;</span><span class=o>}</span> <span class=p>|</span> xargs rm -f
+</span></span></code></pre></td></tr></table></div></div></div><div class=article-readmore><a href=/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86linux%E7%9A%84xargs%E5%91%BD%E4%BB%A4/>Read more...</a></div><div class=article-floatclear></div></article></section></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-rsslink><a href=/categories/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/index.xml type=application/rss+xml target=_blank title=RSS><i class="fa-solid fa-rss"></i></a></li><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

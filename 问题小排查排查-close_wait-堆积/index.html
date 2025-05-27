@@ -1,0 +1,93 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>【问题小排查】排查 CLOSE_WAIT 堆积 - 维修区刷紫</title>
+<meta property="og:title" content="【问题小排查】排查 CLOSE_WAIT 堆积 - 维修区刷紫"><meta name=twitter:title content="【问题小排查】排查 CLOSE_WAIT 堆积 - 维修区刷紫"><meta name=description content="
+TCP 连接的 CLOSE_WAIT 状态，正常情况下是短暂的，如果出现堆积，一般说明应用有问题。
+
+CLOSE_WAIT 堆积的危害
+每个CLOSE_WAIT连接会占据一个文件描述，堆积大量的CLOSE_WAIT可能造成文件描述符不够用，导致建连或打开文件失败，报错too many open files:
+
+
+1
+
+
+dial udp 9.215.0.48:9073: socket: too many open files
+
+
+如何判断?
+检查系统CLOSE_WAIT连接数:
+
+
+1
+
+
+lsof | grep CLOSE_WAIT | wc -l
+
+
+检查指定进程CLOSE_WAIT连接数:
+
+
+1
+
+
+lsof -p $PID | grep CLOSE_WAIT | wc -l
+
+
+为什么会产生大量 CLOSE_WAIT?
+我们看下 TCP 四次挥手过程:
+"><meta property="og:description" content="
+TCP 连接的 CLOSE_WAIT 状态，正常情况下是短暂的，如果出现堆积，一般说明应用有问题。
+
+CLOSE_WAIT 堆积的危害
+每个CLOSE_WAIT连接会占据一个文件描述，堆积大量的CLOSE_WAIT可能造成文件描述符不够用，导致建连或打开文件失败，报错too many open files:
+
+
+1
+
+
+dial udp 9.215.0.48:9073: socket: too many open files
+
+
+如何判断?
+检查系统CLOSE_WAIT连接数:
+
+
+1
+
+
+lsof | grep CLOSE_WAIT | wc -l
+
+
+检查指定进程CLOSE_WAIT连接数:
+
+
+1
+
+
+lsof -p $PID | grep CLOSE_WAIT | wc -l
+
+
+为什么会产生大量 CLOSE_WAIT?
+我们看下 TCP 四次挥手过程:
+"><meta name=twitter:description content="
+TCP 连接的 CLOSE_WAIT 状态，正常情况下是短暂的，如果出现堆积，一般说明应用有问题。
+
+CLOSE_WAIT 堆积的危害
+每个CLOSE_WAIT连接会占据一个文件描述，堆积大量的CLOSE_WAIT可能造成文件描述符不够用，导致建连或打开文件失败，报错too many open files:
+
+
+1
+
+
+dial udp 9.215.0.48:9073: socket: too …"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E6%8E%92%E6%9F%A5-close_wait-%E5%A0%86%E7%A7%AF/"><meta property="og:type" content="article"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><article class=article><h1 class=article-title>【问题小排查】排查 CLOSE_WAIT 堆积</h1><hr class=article-title-bottom><ul class=article-meta><li class=article-meta-date><time>2020-10-21</time></li><li class=article-meta-categories><a href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5/><i class="fa-solid fa-folder"></i>
+问题小排查
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/><i class="fa-solid fa-folder"></i>
+计算机网络
+</a>&nbsp;</li></ul><blockquote><p>TCP 连接的 CLOSE_WAIT 状态，正常情况下是短暂的，如果出现堆积，一般说明应用有问题。</p></blockquote><h3 id=close_wait-堆积的危害>CLOSE_WAIT 堆积的危害</h3><p>每个<code>CLOSE_WAIT</code>连接会占据一个文件描述，堆积大量的<code>CLOSE_WAIT</code>可能造成文件描述符不够用，导致建连或打开文件失败，报错<code>too many open files</code>:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>dial udp 9.215.0.48:9073: socket: too many open files
+</span></span></code></pre></td></tr></table></div></div><h3 id=如何判断>如何判断?</h3><p>检查系统<code>CLOSE_WAIT</code>连接数:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>lsof <span class=p>|</span> grep CLOSE_WAIT <span class=p>|</span> wc -l
+</span></span></code></pre></td></tr></table></div></div><p>检查指定进程<code>CLOSE_WAIT</code>连接数:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>lsof -p <span class=nv>$PID</span> <span class=p>|</span> grep CLOSE_WAIT <span class=p>|</span> wc -l
+</span></span></code></pre></td></tr></table></div></div><h3 id=为什么会产生大量-close_wait>为什么会产生大量 CLOSE_WAIT?</h3><p>我们看下 TCP 四次挥手过程:</p><p><img src=/images/tcp_established.png alt=tcp_established></p><p>主动关闭的一方发出<code>FIN</code>包，被动关闭的一方响应<code>ACK</code>包，此时，被动关闭的一方就进入了<code>CLOSE_WAIT</code>状态。如果一切正常，稍后被动关闭的一方也会发出<code>FIN</code>包，然后迁移到<code>LAST_ACK</code>状态。</p><p>通常，<code>CLOSE_WAIT</code>状态在服务器停留时间很短，如果你发现大量的<code>CLOSE_WAIT</code>状态，那么就意味着被动关闭的一方没有及时发出<code>FIN</code>包，一般来说都是被动关闭的一方应用程序有问题。</p><h3 id=应用没有-close>应用没有 Close</h3><p>如果<code>CLOSE_WAIT</code>堆积的量特别大(比如 10w+)，甚至导致文件描述符不够用了，一般就是应用没有<code>Close</code>连接导致。</p><p>当连接被关闭时，被动关闭方在代码层面没有close掉相应的 ocket连接，那么自然不会发出<code>FIN</code>包，从而会导致<code>CLOSE_WAIT</code>堆积。可能是代码里根本没写Close，也可能是代码不严谨，出现死循环之类的问题，导致即便后面写了 close 也永远执行不到。</p><h3 id=应用迟迟不-accept-连接>应用迟迟不 accept 连接</h3><p>如果<code>CLOSE_WAIT</code>堆积的量不是很大，可能是全连接队列 (accept queue) 堆积了。我们先看下TCP连接建立的过程:</p><p><img src=/images/tcp_established_2.png alt=tcp_established_2></p><p>连接建立好之后会被放入 accept queue，等待应用 accept，如果应用迟迟没有从队列里面去 accept 连接，等到 client 超时时间，主动关闭了连接，这时连接在 server 端仍在全连接队列中，状态变为<code>CLOSE_WAIT</code>。</p><p>如果连接一直不被应用 accept 出来，内核也不会自动响应<code>ACK</code>去关闭连接的。不过这种情况的堆积量一般也不高，取决于 accept queue 的大小。</p></article><ul class=article-share><li><a class=resp-sharing-button__link href="https://facebook.com/sharer/sharer.php?u=/%25E9%2597%25AE%25E9%25A2%2598%25E5%25B0%258F%25E6%258E%2592%25E6%259F%25A5%25E6%258E%2592%25E6%259F%25A5-close_wait-%25E5%25A0%2586%25E7%25A7%25AF/" target=_blank rel=noopener aria-label=Facebook><div class="resp-sharing-button resp-sharing-button--facebook resp-sharing-button--medium"><div aria-hidden=true class="resp-sharing-button__icon resp-sharing-button__icon--solid"><i class="fa-brands fa-facebook-f"></i></div>Facebook</div></a></li><li><a class=resp-sharing-button__link href="https://x.com/intent/tweet/?text=%e3%80%90%e9%97%ae%e9%a2%98%e5%b0%8f%e6%8e%92%e6%9f%a5%e3%80%91%e6%8e%92%e6%9f%a5%20CLOSE_WAIT%20%e5%a0%86%e7%a7%af%20-%20%e7%bb%b4%e4%bf%ae%e5%8c%ba%e5%88%b7%e7%b4%ab&amp;url=/%25E9%2597%25AE%25E9%25A2%2598%25E5%25B0%258F%25E6%258E%2592%25E6%259F%25A5%25E6%258E%2592%25E6%259F%25A5-close_wait-%25E5%25A0%2586%25E7%25A7%25AF/" target=_blank rel=noopener aria-label=Twitter><div class="resp-sharing-button resp-sharing-button--x resp-sharing-button--medium"><i class="fa-brands fa-x-twitter"></i></div></a></li></ul><ul class="pager article-pager"><li class=pager-newer><a href=/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E6%97%B6%E9%9A%94%E5%A4%A7%E5%8D%8A%E5%B9%B4%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E5%8F%8D%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/ data-toggle=tooltip data-placement=top title=【生产问题】时隔大半年，分享一次Nginx反向代理的需求>&lt; Newer</a></li><li class=pager-older><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5service%E6%97%A0%E6%B3%95%E8%A7%A3%E6%9E%90/ data-toggle=tooltip data-placement=top title=【问题小排查】Service无法解析>Older ></a></li></ul></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

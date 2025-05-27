@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Nginx on 维修区刷紫</title><link>/categories/nginx/</link><description>Recent content in Nginx on 维修区刷紫</description><generator>Hugo -- gohugo.io</generator><language>ja</language><copyright>© 2025 黄泽宏 | &lt;a href="https://beian.miit.gov.cn/" target="_blank">粤ICP备2025417888号-1&lt;/a></copyright><lastBuildDate>Fri, 13 Nov 2020 01:03:28 +0800</lastBuildDate><atom:link href="/categories/nginx/index.xml" rel="self" type="application/rss+xml"/><item><title>【生产问题】时隔大半年，分享一次Nginx反向代理的需求</title><link>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E6%97%B6%E9%9A%94%E5%A4%A7%E5%8D%8A%E5%B9%B4%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E5%8F%8D%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/</link><pubDate>Fri, 13 Nov 2020 01:03:28 +0800</pubDate><guid>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E6%97%B6%E9%9A%94%E5%A4%A7%E5%8D%8A%E5%B9%B4%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E5%8F%8D%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/</guid><description>&lt;blockquote>
+&lt;p>博客前面分享了一篇&lt;a href="https://huangzehong.me/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E6%AD%A3%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/">《分享一个 Nginx 正向代理的另类应用案例》&lt;/a>，时隔不久，身为救火队员、万金油的博主又再一次接到了一个奇葩需求：&lt;/p>
+&lt;/blockquote>
+&lt;blockquote>
+&lt;p>场景和上次有些类似，也是部门引进的第三方应用，部署在各个网络区域，从 OA 办公区域无法直接访问。目前，运营人员都需要登陆 Windows 跳板机，才能打开这些应用的 WEB 控制台。既不方便，而且还有一定 Windows 服务器的维护工作量，于是找到我们团队，希望通过运维手段来解决。&lt;/p>
+&lt;/blockquote>
+&lt;p>拿到这个需求后，我先问了下各个应用的基本情况，得知每个应用的框架基本是一样的，都是通过 IP+端口直接访问，页面 path 也基本一样，没有唯一性。然后拿到了一个应用 WEB 控制台地址看了下，发现 html 引用的地址都是相对路径。&lt;/p>
+&lt;p>乍一想，这用 Nginx 代理不好弄吧？页面 path 一样，没法根据 location 来反代到不同的后端，只能通过不同 Nginx 端口来区分，那就太麻烦了！每次他们新上一个应用，我们就得多加一个新端口来映射，这种的尾大不掉、绵绵不绝事情坚决不干，Say pass。&lt;/p>
+&lt;p>再一想，我就想到了上次那个正向代理另类应用方案，感觉可以拿过来改改做动态代理。原理也简单：先和用户约定一个访问形式，比如:&lt;/p>
+&lt;blockquote>
+&lt;p>Nginx 代理地址为 myproxy.oa.com，需要代理到 IP 为 192.168.2.100:8080 的控制器，用户需要访问 &lt;a href="http://myproxy.oa.com/192.168.2.100:8080/path">http://myproxy.oa.com/192.168.2.100:8080/path&lt;/a>。&lt;/p>
+&lt;/blockquote></description></item><item><title>【生产问题】分享一次Nginx正向代理的需求</title><link>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E6%AD%A3%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/</link><pubDate>Fri, 17 Apr 2020 11:26:41 +0800</pubDate><guid>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E6%AD%A3%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/</guid><description>&lt;blockquote>
+&lt;p>最近接到了一个需求：通过 Nginx 代理把现网一个自研代理程序给替换掉，感觉有点意思，也有所收益，简单分享下。&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="需求背景">需求背景&lt;/h3>
+&lt;p>部门的生产环境异常复杂，有部分第三方引入的系统位于特殊网络隔离区域，请求这些系统需要通过 2 层网络代理，如图所示：&lt;/p>
+&lt;p>&lt;img src="/images/12.png" alt="12">&lt;/p>
+&lt;p>中心源系统请求目标系统 API 的形式各异，我简单收集了下，至少有如下 3 种：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">curl --digest -u admin:xxxxxx &lt;span class="s1">&amp;#39;http://10.xxx.xxx.xxx:8080/foo/boo?Id=123456789&amp;amp;vId=1234&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">curl -d &lt;span class="s1">&amp;#39;{&amp;#34;eventId&amp;#34;: 20171116, &amp;#34;timestamp&amp;#34;: 123456, &amp;#34;caller&amp;#34;: &amp;#34;XXP&amp;#34;, &amp;#34;version&amp;#34;: &amp;#34;1.0&amp;#34;, &amp;#34;interface&amp;#34;: {&amp;#34;interfaceName&amp;#34;: &amp;#34;XXPVC&amp;#34;, &amp;#34;para&amp;#34;: {&amp;#34;detail&amp;#34;: {&amp;#34;owner&amp;#34;: &amp;#34;xxxxxxx&amp;#34;}}}, &amp;#34;password&amp;#34;: &amp;#34;xxxxxx&amp;#34;, &amp;#34;callee&amp;#34;: &amp;#34;XXPVC&amp;#34;}&amp;#39;&lt;/span> http://10.x.x.x:8080/t/api
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">curl -X PUT -H &lt;span class="s2">&amp;#34;Content-Type: application/json&amp;#34;&lt;/span> -d&lt;span class="s1">&amp;#39;{&amp;#34;vp&amp;#34;:{&amp;#34;id&amp;#34;:&amp;#34;ab27adc8-xxx-xxxx-a732-fbde162ebdd3&amp;#34;}}&amp;#39;&lt;/span> &lt;span class="s2">&amp;#34;http://10.x.x.x/v1.0/peers/show_connectioninfos&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item></channel></rss>

@@ -1,0 +1,227 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>【生产问题】K8s退出信号处理和僵尸进程问题 - 维修区刷紫</title>
+<meta property="og:title" content="【生产问题】K8s退出信号处理和僵尸进程问题 - 维修区刷紫"><meta name=twitter:title content="【生产问题】K8s退出信号处理和僵尸进程问题 - 维修区刷紫"><meta name=description content="
+接上一篇容器多进程的内容延伸到僵尸进程，也是一个真实的生产问题
+
+
+公司有大量的Python + Selenium爬虫服务，据开发所说一个服务有很多个并行任务
+一天早上告警类似Resource temporarily unavailable的错误，对于这类问题其实只需根据ulimit -a查看各项资源即可
+因为确实部分资源使用率指标，所以只能在宿主机查看缺失的资源利用情况，如果只关心进程数直接ps -aux | wc -l
+僵尸进程对于多进程服务来说是常有的事，但需要通过一些自动化手段帮助k8s清理宿主机僵尸进程
+
+
+
+一、什么是僵尸进程
+通常来说就是，在 Unix-like 操作系统中已经完成执行（终止）但仍然保留在系统进程表中的进程记录。
+这种状态的进程实际上已经停止运行，不占用除进程表外的任何资源，比如CPU和内存，
+但它仍然保留了一个PID和终止状态信息，等待父进程通过调用wait()或waitpid()函数来进行回收。
+1. 生命周期
+
+
+子进程执行完毕后，会发送一个SIGCHLD信号给父进程，并变为僵尸状态。
+
+
+父进程通过wait()或waitpid()读取子进程的终止状态，此时操作系统会清理僵尸进程的记录，释放其PID供其他进程使用。
+
+"><meta property="og:description" content="
+接上一篇容器多进程的内容延伸到僵尸进程，也是一个真实的生产问题
+
+
+公司有大量的Python + Selenium爬虫服务，据开发所说一个服务有很多个并行任务
+一天早上告警类似Resource temporarily unavailable的错误，对于这类问题其实只需根据ulimit -a查看各项资源即可
+因为确实部分资源使用率指标，所以只能在宿主机查看缺失的资源利用情况，如果只关心进程数直接ps -aux | wc -l
+僵尸进程对于多进程服务来说是常有的事，但需要通过一些自动化手段帮助k8s清理宿主机僵尸进程
+
+
+
+一、什么是僵尸进程
+通常来说就是，在 Unix-like 操作系统中已经完成执行（终止）但仍然保留在系统进程表中的进程记录。
+这种状态的进程实际上已经停止运行，不占用除进程表外的任何资源，比如CPU和内存，
+但它仍然保留了一个PID和终止状态信息，等待父进程通过调用wait()或waitpid()函数来进行回收。
+1. 生命周期
+
+
+子进程执行完毕后，会发送一个SIGCHLD信号给父进程，并变为僵尸状态。
+
+
+父进程通过wait()或waitpid()读取子进程的终止状态，此时操作系统会清理僵尸进程的记录，释放其PID供其他进程使用。
+
+"><meta name=twitter:description content="
+接上一篇容器多进程的内容延伸到僵尸进程，也是一个真实的生产问题
+
+
+公司有大量的Python + Selenium爬虫服务，据开发所说一个服务有很多个并行任务
+一天早上告警类似Resource temporarily unavailable的错误，对于这类问题其实只需根据ulimit -a查看各项资源即可
+因为确实部分资源使用率指标，所以只能在宿主机查看缺失的资源利用情况， …"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98k8s%E9%80%80%E5%87%BA%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86%E5%92%8C%E5%83%B5%E5%B0%B8%E8%BF%9B%E7%A8%8B%E9%97%AE%E9%A2%98/"><meta property="og:type" content="article"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><article class=article><h1 class=article-title>【生产问题】K8s退出信号处理和僵尸进程问题</h1><hr class=article-title-bottom><ul class=article-meta><li class=article-meta-date><time>2023-01-23</time></li><li class=article-meta-categories><a href=/categories/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98/><i class="fa-solid fa-folder"></i>
+生产问题
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li></ul><aside class=toc><nav id=TableOfContents><ul><li><a href=#一什么是僵尸进程>一、什么是僵尸进程</a><ul><li><a href=#1-生命周期>1. 生命周期</a></li><li><a href=#2-系统对僵尸进程的处理>2. 系统对僵尸进程的处理</a></li><li><a href=#3-用golang写一个僵尸进程示例>3. 用Golang写一个僵尸进程示例</a></li></ul></li><li><a href=#二k8s中的僵尸进程>二、K8s中的僵尸进程</a></li><li><a href=#三如何处理集群中产生的僵尸进程>三、如何处理集群中产生的僵尸进程？</a><ul><li><a href=#1-具体思路>1. 具体思路</a></li><li><a href=#2-代码实现>2. 代码实现</a></li></ul></li><li><a href=#四总结>四、总结</a></li></ul></nav></aside><blockquote><p>接上一篇容器多进程的内容延伸到僵尸进程，也是一个真实的生产问题</p><blockquote><ol><li>公司有大量的Python + Selenium爬虫服务，据开发所说一个服务有很多个并行任务</li><li>一天早上告警类似<code>Resource temporarily unavailable</code>的错误，对于这类问题其实只需根据<code>ulimit -a</code>查看各项资源即可</li><li>因为确实部分资源使用率指标，所以只能在宿主机查看缺失的资源利用情况，如果只关心进程数直接<code>ps -aux | wc -l</code></li><li>僵尸进程对于多进程服务来说是常有的事，但需要通过一些自动化手段帮助k8s清理宿主机僵尸进程</li></ol></blockquote></blockquote><h2 id=一什么是僵尸进程>一、什么是僵尸进程</h2><p>通常来说就是，在 Unix-like 操作系统中已经完成执行（终止）但仍然保留在系统进程表中的进程记录。
+这种状态的进程实际上已经停止运行，不占用除进程表外的任何资源，比如CPU和内存，
+但它仍然保留了一个PID和终止状态信息，等待父进程通过调用<code>wait()</code>或<code>waitpid()</code>函数来进行回收。</p><h3 id=1-生命周期>1. 生命周期</h3><ul><li><p>子进程执行完毕后，会发送一个<code>SIGCHLD</code>信号给父进程，并变为僵尸状态。</p></li><li><p>父进程通过<code>wait()</code>或<code>waitpid()</code>读取子进程的终止状态，此时操作系统会清理僵尸进程的记录，释放其PID供其他进程使用。</p></li></ul><h3 id=2-系统对僵尸进程的处理>2. 系统对僵尸进程的处理</h3><p>如果父进程没有清理僵尸进程，而该父进程最终也终止了，那么任何仍然存在的僵尸进程将被init进程（PID 为 1 的进程）接管。
+init 进程将周期性地调用<code>wait()</code>来清理任何僵尸状态的子进程，从而保证系统进程表的整洁。</p><h3 id=3-用golang写一个僵尸进程示例>3. 用Golang写一个僵尸进程示例</h3><p>其实就是<code>Start()</code>和<code>Run()</code>这两个东西</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=kn>import</span> <span class=p>(</span>
+</span></span><span class=line><span class=cl>	<span class=s>&#34;os/exec&#34;</span>
+</span></span><span class=line><span class=cl>	<span class=s>&#34;time&#34;</span>
+</span></span><span class=line><span class=cl><span class=p>)</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=nx>cmd</span> <span class=o>:=</span> <span class=nx>exec</span><span class=p>.</span><span class=nf>Command</span><span class=p>(</span><span class=s>&#34;ls&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>	<span class=nx>cmd</span><span class=p>.</span><span class=nf>Start</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>	<span class=nx>time</span><span class=p>.</span><span class=nf>Sleep</span><span class=p>(</span><span class=mi>100</span> <span class=o>*</span> <span class=nx>time</span><span class=p>.</span><span class=nx>Second</span><span class=p>)</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>直接运行上面程序的话，看<code>ps auxf</code>就能看到ls命令状态变成了Z+</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>root@k8s-master01:~# ps auxf <span class=p>|</span>grep Z
+</span></span><span class=line><span class=cl>USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+</span></span><span class=line><span class=cl>root      <span class=m>124345</span>  0.0  0.0      <span class=m>0</span>     <span class=m>0</span> pts/0    Z+   17:21   0:00  <span class=p>|</span>               <span class=se>\_</span> <span class=o>[</span>ls<span class=o>]</span> &lt;defunct&gt;
+</span></span><span class=line><span class=cl>root      <span class=m>124348</span>  0.0  0.0   <span class=m>6480</span>  <span class=m>2228</span> pts/1    S+   17:21   0:00  <span class=p>|</span>       <span class=se>\_</span> grep --color<span class=o>=</span>auto Z
+</span></span><span class=line><span class=cl>root@k8s-master01:~# ps -ef <span class=p>|</span>grep defunct
+</span></span><span class=line><span class=cl>root      <span class=m>124345</span>  <span class=m>124340</span>  <span class=m>0</span> 17:21 pts/0    00:00:00 <span class=o>[</span>ls<span class=o>]</span> &lt;defunct&gt;
+</span></span><span class=line><span class=cl>root      <span class=m>124374</span>  <span class=m>106213</span>  <span class=m>0</span> 17:21 pts/1    00:00:00 grep --color<span class=o>=</span>auto defunct
+</span></span></code></pre></td></tr></table></div></div><p>Golang中如果要避免这种情况当然可以用<code>Run()</code>，只是主线程就不再是异步了</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1>// Run比 Start会多了一个 wait
+</span></span></span><span class=line><span class=cl><span class=c1></span><span class=kd>func</span> <span class=p>(</span><span class=nx>c</span> <span class=o>*</span><span class=nx>Cmd</span><span class=p>)</span> <span class=nf>Run</span><span class=p>()</span> <span class=kt>error</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=k>if</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>c</span><span class=p>.</span><span class=nf>Start</span><span class=p>();</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>return</span> <span class=nx>err</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=k>return</span> <span class=nx>c</span><span class=p>.</span><span class=nf>Wait</span><span class=p>()</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>这里只是举个例子，实际编程可能会复杂很多</p></blockquote><h2 id=二k8s中的僵尸进程>二、K8s中的僵尸进程</h2><p>可能有人会疑惑，PID不是也有自己的命名空间吗？容器中产生的僵尸进程，为什么会占用宿主机的进程表呢？
+尽管容器通过各种命名空间进行隔离，但所有的容器进程依然注册在宿主机的全局进程表中。可以做个实验看看</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=kd>func</span> <span class=nf>main</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>	<span class=nx>num</span> <span class=o>:=</span> <span class=mi>0</span>
+</span></span><span class=line><span class=cl>	<span class=k>for</span> <span class=nx>num</span> <span class=p>&lt;</span> <span class=mi>36000</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>		<span class=nx>cmd</span> <span class=o>:=</span> <span class=nx>exec</span><span class=p>.</span><span class=nf>Command</span><span class=p>(</span><span class=s>&#34;ls&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=nx>cmd</span><span class=p>.</span><span class=nf>Start</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>		<span class=nx>time</span><span class=p>.</span><span class=nf>Sleep</span><span class=p>(</span><span class=mi>1</span> <span class=o>*</span> <span class=nx>time</span><span class=p>.</span><span class=nx>Second</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>		<span class=nx>num</span><span class=o>++</span>
+</span></span><span class=line><span class=cl>	<span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>将这段程序部署在k8s</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>root@k8s-master01:~/defunct# kubectl get pod  -o wide <span class=p>|</span>grep span
+</span></span><span class=line><span class=cl>go-defunct-span                            1/1     Running   <span class=m>0</span>             3s      10.250.85.225   k8s-node01     &lt;none&gt;           &lt;none&gt;
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 再回到Node上查看进程就一目了然了</span>
+</span></span><span class=line><span class=cl>root@k8s-node01:~# ps -ef <span class=p>|</span>grep defunct
+</span></span><span class=line><span class=cl>root       <span class=m>59042</span>   <span class=m>58985</span>  <span class=m>0</span> 18:23 ?        00:00:00 ./defunct-span
+</span></span><span class=line><span class=cl>root       <span class=m>59058</span>   <span class=m>59042</span>  <span class=m>0</span> 18:23 ?        00:00:00 <span class=o>[</span>ls<span class=o>]</span> &lt;defunct&gt;
+</span></span><span class=line><span class=cl>root       <span class=m>59061</span>   <span class=m>59042</span>  <span class=m>0</span> 18:23 ?        00:00:00 <span class=o>[</span>ls<span class=o>]</span> &lt;defunct&gt;
+</span></span><span class=line><span class=cl>root       <span class=m>59063</span>   <span class=m>59042</span>  <span class=m>0</span> 18:23 ?        00:00:00 <span class=o>[</span>ls<span class=o>]</span> &lt;defunct&gt;
+</span></span><span class=line><span class=cl>root       <span class=m>59064</span>   <span class=m>59042</span>  <span class=m>0</span> 18:23 ?        00:00:00 <span class=o>[</span>ls<span class=o>]</span> &lt;defunct&gt;
+</span></span><span class=line><span class=cl>root       <span class=m>59065</span>   <span class=m>59042</span>  <span class=m>0</span> 18:23 ?        00:00:00 <span class=o>[</span>ls<span class=o>]</span> &lt;defunct&gt;
+</span></span><span class=line><span class=cl>root       <span class=m>59066</span>   <span class=m>59042</span>  <span class=m>0</span> 18:23 ?        00:00:00 <span class=o>[</span>ls<span class=o>]</span> &lt;defunct&gt;
+</span></span><span class=line><span class=cl>root       <span class=m>59071</span>   <span class=m>59042</span>  <span class=m>0</span> 18:23 ?        00:00:00 <span class=o>[</span>ls<span class=o>]</span> &lt;defunct&gt;
+</span></span><span class=line><span class=cl>root       <span class=m>59072</span>   <span class=m>59042</span>  <span class=m>0</span> 18:23 ?        00:00:00 <span class=o>[</span>ls<span class=o>]</span> &lt;defunct&gt;
+</span></span><span class=line><span class=cl>root       <span class=m>59074</span>   <span class=m>49682</span>  <span class=m>0</span> 18:23 pts/0    00:00:00 grep --color<span class=o>=</span>auto defunct
+</span></span></code></pre></td></tr></table></div></div><h2 id=三如何处理集群中产生的僵尸进程>三、如何处理集群中产生的僵尸进程？</h2><p>正如上文所说，僵尸进程危害还是比较明显的，尤其是对于多进程服务来说。所以我们需要有个后台程序来定期处理集群节点的僵尸进程，避免需要重启节点的可能性。</p><h3 id=1-具体思路>1. 具体思路</h3><blockquote><ol><li>需要遍历进程找到Z+的进程PID，这一步可以通过/proc/{pid}/stat目录得到我们想用的信息</li><li>找到他的母进程，看看是不是k8s容器所产生的</li><li>hold住数秒，看看是否还在</li><li>可以集成alert了，最后kill掉containerd-shim进程，让容器重启</li></ol></blockquote><h3 id=2-代码实现>2. 代码实现</h3><p>扫描<code>/proc/{pid}/stat</code>目录我们可以直接挪用prometheus的工具库<code>github.com/prometheus/procfs</code></p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-go data-lang=go><span class=line><span class=cl><span class=kd>func</span> <span class=p>(</span><span class=nx>c</span> <span class=o>*</span><span class=nx>Cleaner</span><span class=p>)</span> <span class=nf>Scan</span><span class=p>(</span><span class=nx>ctx</span> <span class=nx>context</span><span class=p>.</span><span class=nx>Context</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=nx>allFs</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>procfs</span><span class=p>.</span><span class=nf>NewFS</span><span class=p>(</span><span class=s>&#34;/proc&#34;</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=nx>klog</span><span class=p>.</span><span class=nf>Errorf</span><span class=p>(</span><span class=s>&#34;打开/proc目录错误:%v nodeName:%v&#34;</span><span class=p>,</span> <span class=nx>err</span><span class=p>,</span> <span class=nx>c</span><span class=p>.</span><span class=nx>nodeName</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>        <span class=k>return</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=c1>// 获取进程
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=nx>allPs</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>allFs</span><span class=p>.</span><span class=nf>AllProcs</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>    <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=nx>klog</span><span class=p>.</span><span class=nf>Errorf</span><span class=p>(</span><span class=s>&#34;获取进程错误:%v  nodeName:%v&#34;</span><span class=p>,</span> <span class=nx>err</span><span class=p>,</span> <span class=nx>c</span><span class=p>.</span><span class=nx>nodeName</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>        <span class=k>return</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=nx>allStatMap</span> <span class=o>:=</span> <span class=nx>sync</span><span class=p>.</span><span class=nx>Map</span><span class=p>{}</span>
+</span></span><span class=line><span class=cl>    <span class=nx>zStatMap</span> <span class=o>:=</span> <span class=nx>sync</span><span class=p>.</span><span class=nx>Map</span><span class=p>{}</span>
+</span></span><span class=line><span class=cl>    <span class=nx>dStatMap</span> <span class=o>:=</span> <span class=nx>sync</span><span class=p>.</span><span class=nx>Map</span><span class=p>{}</span>
+</span></span><span class=line><span class=cl>    <span class=k>for</span> <span class=nx>_</span><span class=p>,</span> <span class=nx>p</span> <span class=o>:=</span> <span class=k>range</span> <span class=nx>allPs</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=nx>oneStat</span><span class=p>,</span> <span class=nx>err</span> <span class=o>:=</span> <span class=nx>p</span><span class=p>.</span><span class=nf>Stat</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>        <span class=k>if</span> <span class=nx>err</span> <span class=o>!=</span> <span class=kc>nil</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>			<span class=k>continue</span>
+</span></span><span class=line><span class=cl>        <span class=p>}</span>
+</span></span><span class=line><span class=cl>        <span class=nx>allStatMap</span><span class=p>.</span><span class=nf>Store</span><span class=p>(</span><span class=nx>p</span><span class=p>.</span><span class=nx>PID</span><span class=p>,</span> <span class=nx>oneStat</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>        <span class=k>switch</span> <span class=nx>oneStat</span><span class=p>.</span><span class=nx>State</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>        <span class=k>case</span> <span class=s>&#34;Z&#34;</span><span class=p>:</span>
+</span></span><span class=line><span class=cl>            <span class=nx>zStatMap</span><span class=p>.</span><span class=nf>Store</span><span class=p>(</span><span class=nx>p</span><span class=p>.</span><span class=nx>PID</span><span class=p>,</span> <span class=nx>oneStat</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>            <span class=nx>zNum</span><span class=o>++</span>
+</span></span><span class=line><span class=cl>        <span class=k>case</span> <span class=s>&#34;D&#34;</span><span class=p>:</span>
+</span></span><span class=line><span class=cl>            <span class=nx>dStatMap</span><span class=p>.</span><span class=nf>Store</span><span class=p>(</span><span class=nx>p</span><span class=p>.</span><span class=nx>PID</span><span class=p>,</span> <span class=nx>oneStat</span><span class=p>)</span>
+</span></span><span class=line><span class=cl>            <span class=nx>dNum</span><span class=o>++</span>
+</span></span><span class=line><span class=cl>        <span class=p>}</span>
+</span></span><span class=line><span class=cl>    <span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span></code></pre></td></tr></table></div></div><h2 id=四总结>四、总结</h2><blockquote></blockquote></article><ul class=article-share><li><a class=resp-sharing-button__link href="https://facebook.com/sharer/sharer.php?u=/%25E7%2594%259F%25E4%25BA%25A7%25E9%2597%25AE%25E9%25A2%2598k8s%25E9%2580%2580%25E5%2587%25BA%25E4%25BF%25A1%25E5%258F%25B7%25E5%25A4%2584%25E7%2590%2586%25E5%2592%258C%25E5%2583%25B5%25E5%25B0%25B8%25E8%25BF%259B%25E7%25A8%258B%25E9%2597%25AE%25E9%25A2%2598/" target=_blank rel=noopener aria-label=Facebook><div class="resp-sharing-button resp-sharing-button--facebook resp-sharing-button--medium"><div aria-hidden=true class="resp-sharing-button__icon resp-sharing-button__icon--solid"><i class="fa-brands fa-facebook-f"></i></div>Facebook</div></a></li><li><a class=resp-sharing-button__link href="https://x.com/intent/tweet/?text=%e3%80%90%e7%94%9f%e4%ba%a7%e9%97%ae%e9%a2%98%e3%80%91K8s%e9%80%80%e5%87%ba%e4%bf%a1%e5%8f%b7%e5%a4%84%e7%90%86%e5%92%8c%e5%83%b5%e5%b0%b8%e8%bf%9b%e7%a8%8b%e9%97%ae%e9%a2%98%20-%20%e7%bb%b4%e4%bf%ae%e5%8c%ba%e5%88%b7%e7%b4%ab&amp;url=/%25E7%2594%259F%25E4%25BA%25A7%25E9%2597%25AE%25E9%25A2%2598k8s%25E9%2580%2580%25E5%2587%25BA%25E4%25BF%25A1%25E5%258F%25B7%25E5%25A4%2584%25E7%2590%2586%25E5%2592%258C%25E5%2583%25B5%25E5%25B0%25B8%25E8%25BF%259B%25E7%25A8%258B%25E9%2597%25AE%25E9%25A2%2598/" target=_blank rel=noopener aria-label=Twitter><div class="resp-sharing-button resp-sharing-button--x resp-sharing-button--medium"><i class="fa-brands fa-x-twitter"></i></div></a></li></ul><ul class="pager article-pager"><li class=pager-newer><a href=/%E9%97%AE%E9%A2%98%E5%A4%A7%E6%8E%92%E6%9F%A5%E4%B8%80%E8%88%AC%E7%8E%AF%E5%A2%83%E7%9A%84%E7%BD%91%E7%BB%9C%E6%8E%92%E9%9A%9C/ data-toggle=tooltip data-placement=top title=【问题大排查】通用Linux环境的网络排障（部分包含容器环境）>&lt; Newer</a></li><li class=pager-older><a href=/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%9C%A8%E5%AE%B9%E5%99%A8%E4%B8%AD%E8%BF%90%E8%A1%8C%E5%A4%9A%E8%BF%9B%E7%A8%8B%E6%9C%8D%E5%8A%A1oomkilled%E6%9C%AA%E8%83%BD%E8%A2%ABk8s%E6%A3%80%E6%B5%8B%E8%AF%86%E5%88%AB%E7%9A%84%E7%BB%93%E5%B1%80%E6%96%B9%E6%A1%88/ data-toggle=tooltip data-placement=top title=【生产问题】在容器中运行多进程服务OOMKilled未能被K8s检测识别的解决方案>Older ></a></li></ul></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

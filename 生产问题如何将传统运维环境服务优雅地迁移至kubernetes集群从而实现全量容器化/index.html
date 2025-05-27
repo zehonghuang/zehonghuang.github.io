@@ -1,0 +1,88 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>【生产问题】如何将传统运维环境服务优雅地迁移至Kubernetes集群从而实现全量容器化 - 维修区刷紫</title>
+<meta property="og:title" content="【生产问题】如何将传统运维环境服务优雅地迁移至Kubernetes集群从而实现全量容器化 - 维修区刷紫"><meta name=twitter:title content="【生产问题】如何将传统运维环境服务优雅地迁移至Kubernetes集群从而实现全量容器化 - 维修区刷紫"><meta name=description content="
+最近尝试着面试几家公司，偶尔会被问到传统环境如何向Kubernetes迁移的方案。
+坦白说，其实这方面并不缺简单可行性高的方案，我就以屈臣氏中国的迁移方案为例，给访问本博客的同行借鉴一下。
+
+环境的迁移，迁移的是什么？
+毋庸置疑，只要外网请求全量并正常地访问Kubernetes环境，我们就可以认为实现了容器化。
+
+流量导入可能还不够，有的公司可能想实现全面云原生，持久层也想迁移进来，涉及到数据库如何尽最大可能无缝迁移。
+
+流量迁移
+我这里直接按照阿里云传统的ECS环境迁移到自建K8s环境为例"><meta property="og:description" content="
+最近尝试着面试几家公司，偶尔会被问到传统环境如何向Kubernetes迁移的方案。
+坦白说，其实这方面并不缺简单可行性高的方案，我就以屈臣氏中国的迁移方案为例，给访问本博客的同行借鉴一下。
+
+环境的迁移，迁移的是什么？
+毋庸置疑，只要外网请求全量并正常地访问Kubernetes环境，我们就可以认为实现了容器化。
+
+流量导入可能还不够，有的公司可能想实现全面云原生，持久层也想迁移进来，涉及到数据库如何尽最大可能无缝迁移。
+
+流量迁移
+我这里直接按照阿里云传统的ECS环境迁移到自建K8s环境为例"><meta name=twitter:description content="
+最近尝试着面试几家公司，偶尔会被问到传统环境如何向Kubernetes迁移的方案。
+坦白说，其实这方面并不缺简单可行性高的方案，我就以屈臣氏中国的迁移方案为例，给访问本博客的同行借鉴一下。
+
+环境的迁移，迁移的是什么？
+毋庸置疑，只要外网请求全量并正常地访问Kubernetes环境，我们就可以认为实现了容器化。
+
+流量导入可能还不够，有的公司可能想实现全面云原生，持久层也想迁移进来，涉及到数据库 …"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%A6%82%E4%BD%95%E5%B0%86%E4%BC%A0%E7%BB%9F%E8%BF%90%E7%BB%B4%E7%8E%AF%E5%A2%83%E6%9C%8D%E5%8A%A1%E4%BC%98%E9%9B%85%E5%9C%B0%E8%BF%81%E7%A7%BB%E8%87%B3kubernetes%E9%9B%86%E7%BE%A4%E4%BB%8E%E8%80%8C%E5%AE%9E%E7%8E%B0%E5%85%A8%E9%87%8F%E5%AE%B9%E5%99%A8%E5%8C%96/"><meta property="og:type" content="article"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><article class=article><h1 class=article-title>【生产问题】如何将传统运维环境服务优雅地迁移至Kubernetes集群从而实现全量容器化</h1><hr class=article-title-bottom><ul class=article-meta><li class=article-meta-date><time>2024-09-11</time></li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98/><i class="fa-solid fa-folder"></i>
+生产问题
+</a>&nbsp;</li></ul><blockquote><p>最近尝试着面试几家公司，偶尔会被问到传统环境如何向Kubernetes迁移的方案。</p><p>坦白说，其实这方面并不缺简单可行性高的方案，我就以屈臣氏中国的迁移方案为例，给访问本博客的同行借鉴一下。</p></blockquote><h2 id=环境的迁移迁移的是什么>环境的迁移，迁移的是什么？</h2><p><strong>毋庸置疑，只要外网请求全量并正常地访问Kubernetes环境，我们就可以认为实现了容器化。</strong></p><blockquote><p>流量导入可能还不够，有的公司可能想实现全面云原生，持久层也想迁移进来，涉及到数据库如何尽最大可能无缝迁移。</p></blockquote><h3 id=流量迁移>流量迁移</h3><p>我这里直接按照阿里云传统的ECS环境迁移到自建K8s环境为例</p><blockquote><p>默认使用阿里云负载均衡对接外网流量，主要就是针对二级域名流量权重的转移：</p></blockquote><p><a href="https://help.aliyun.com/zh/slb/application-load-balancer/user-guide/create-a-domain-name-based-or-url-based-forwarding-rule?spm=a2c4g.11186623.0.0.15ea43b5Hz7twr">ALB配置域名和路径的转发规则</a></p><h3 id=数据库迁移>数据库迁移</h3><p>在数据库迁移之前，默认所有业务的服务已经全量迁移至Kubernetes集群内，不存在服务级别的混合部署。</p><h3 id=分布式数据库>分布式数据库</h3><blockquote><p>核心步骤就两个：</p><ol><li>找到裸机部署的集群，确认是否允许在线添加新节点</li><li>确认分布式数据库是否支持云原生搭建，主流分布式数据基本上都支持</li><li>新建Kuberentes节点，设置Taint和topology，避免其他Pod调度上来，并暴露NodePort</li><li>确认裸机是否能访问K8s域名，正确配置好ip route和resolv.conf</li><li>到通过Helm或其他工具部署在K8s部署新节点，再通过官方工具将节点加入集群中</li><li>市面上大多数分布式数据库都是 Raft 算法实现的，所以新节点都会使 commitLog 追上 master 后才加入竞选</li><li>开始对裸机部署的节点进行缩容，使其K8s节点远多余裸机节点，可以手动网络分区让K8s节点自然竞选成功，再缩减裸机节点</li><li>最后关闭NodePort</li></ol></blockquote><p>我这里用 TiDB 为完整例子展示全过程：</p><ol><li>用<code>pd-ctl</code>命令来确认集群是正常的，PD集群运行正常</li><li>确保K8s集群外的节点能访问PodIP，<strong>做这一步之前需要安全组允许相关端口被内网IP访问，并且未暴露给外网，以及CoreDNS是否开启NodePort。</strong></li></ol><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=c1>## 可以通过为CIDR添加路由的方式，确保能访问到Pod IP</span>
+</span></span><span class=line><span class=cl>sudo ip route add 10.0.0.2/24 &lt;Kubernetes Node_1 IP&gt;
+</span></span><span class=line><span class=cl>sudo ip route add 10.0.0.3/24 &lt;Kubernetes Node_2 IP&gt;
+</span></span><span class=line><span class=cl>sudo ip route add 10.0.0.4/24 &lt;Kubernetes Node_3 IP&gt;
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1>## 配置好CoreDNS/K8sDNS的POD IP，确保能访问Service域名</span>
+</span></span><span class=line><span class=cl>search default.svc.cluster.local svc.cluster.local cluster.local
+</span></span><span class=line><span class=cl>nameserver &lt;CoreDNS Pod_IP_1&gt;
+</span></span><span class=line><span class=cl>nameserver &lt;CoreDNS Pod_IP_2&gt;
+</span></span><span class=line><span class=cl>nameserver &lt;CoreDNS Pod_IP_n&gt;
+</span></span></code></pre></td></tr></table></div></div><ol start=3><li>准备好安装TiDB集群的Helm</li></ol><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>helm repo add pingcap https://charts.pingcap.org/
+</span></span><span class=line><span class=cl>helm repo update
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>kubectl create namespace tidb-admin
+</span></span><span class=line><span class=cl>helm install tidb-operator pingcap/tidb-operator --namespace tidb-admin --version v1.4.4
+</span></span></code></pre></td></tr></table></div></div><ol start=4><li>因为TiDB的管理全权交给Placement Driver处理，再创建好目标集群后，可将裸机部署的PD节点列表加入</li></ol><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=c1>## 查看目前的裸机部署的节点列表</span>
+</span></span><span class=line><span class=cl>pd-ctl -u http://&lt;address&gt;:&lt;port&gt; member <span class=p>|</span> jq <span class=s1>&#39;.members | .[] | .client_urls&#39;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1>## 再添加至配置文件</span>
+</span></span><span class=line><span class=cl>spec
+</span></span><span class=line><span class=cl>  ...
+</span></span><span class=line><span class=cl>  pdAddresses:
+</span></span><span class=line><span class=cl>  - http://pd1_addr:port
+</span></span><span class=line><span class=cl>  - http://pd2_addr:port
+</span></span><span class=line><span class=cl>  - http://pd3_addr:port
+</span></span><span class=line><span class=cl><span class=c1>## 因为这几个是物理机的PD需要通过pdAddresses添加，K8s内的可以会自动服务发现StatefulSet的域名</span>
+</span></span><span class=line><span class=cl><span class=c1>## 这也为什么要打通裸机访问K8s Service域名的原因</span>
+</span></span></code></pre></td></tr></table></div></div><ol start=5><li>TiDB -> TiKV -> PD 逐步缩容</li></ol><blockquote><p><strong>TiDB Server</strong> 这个是处理SQL的服务，通常是无状态的，旧版本如果用Nginx做负载均衡的话，直接调整Ng即可。</p><p><strong>TiKV</strong> 是数据存储层，确认集群内数据分片和原裸机集群是否一致再用TiUP进行缩容</p><p><strong>PD</strong> 可以直接指定删除ID</p><p>参考TiDB文档：<a href=https://docs.pingcap.com/zh/tidb/stable/scale-tidb-using-tiup#%E7%BC%A9%E5%AE%B9-tidbpdtikv-%E8%8A%82%E7%82%B9>《缩容 TiDB/PD/TiKV 节点》</a></p></blockquote><h3 id=传统单体数据库>传统单体数据库</h3><blockquote><p>对于单体数据库来说，仅需要围绕<strong>双主</strong> & <strong>VIP热备</strong>展开：</p><p>大部分主流关系型数据库MySQL、PostgreSQL都支持两个实例互相主从，并且通过VIP做到热备切</p><p>假设数据库纯单机，此前未配置过任何主从，可能需要选一个负载最低的时间段在my.cnf文件配置好主从，因为这个操作需要重启数据库。</p><p>假设此前也从未配置过热备，需要准备好keepalived以及检测脚本。</p><p>具体操作就在这里：<a href=https://huangzehong.me/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3mysql%E9%AB%98%E5%8F%AF%E7%94%A8%E9%9B%86%E7%BE%A4%E4%B9%8B%E5%8F%8C%E4%B8%BB%E5%A4%9A%E4%BB%8E/>《MySQL高可用集群之双主多从》</a></p></blockquote></article><ul class=article-share><li><a class=resp-sharing-button__link href="https://facebook.com/sharer/sharer.php?u=/%25E7%2594%259F%25E4%25BA%25A7%25E9%2597%25AE%25E9%25A2%2598%25E5%25A6%2582%25E4%25BD%2595%25E5%25B0%2586%25E4%25BC%25A0%25E7%25BB%259F%25E8%25BF%2590%25E7%25BB%25B4%25E7%258E%25AF%25E5%25A2%2583%25E6%259C%258D%25E5%258A%25A1%25E4%25BC%2598%25E9%259B%2585%25E5%259C%25B0%25E8%25BF%2581%25E7%25A7%25BB%25E8%2587%25B3kubernetes%25E9%259B%2586%25E7%25BE%25A4%25E4%25BB%258E%25E8%2580%258C%25E5%25AE%259E%25E7%258E%25B0%25E5%2585%25A8%25E9%2587%258F%25E5%25AE%25B9%25E5%2599%25A8%25E5%258C%2596/" target=_blank rel=noopener aria-label=Facebook><div class="resp-sharing-button resp-sharing-button--facebook resp-sharing-button--medium"><div aria-hidden=true class="resp-sharing-button__icon resp-sharing-button__icon--solid"><i class="fa-brands fa-facebook-f"></i></div>Facebook</div></a></li><li><a class=resp-sharing-button__link href="https://x.com/intent/tweet/?text=%e3%80%90%e7%94%9f%e4%ba%a7%e9%97%ae%e9%a2%98%e3%80%91%e5%a6%82%e4%bd%95%e5%b0%86%e4%bc%a0%e7%bb%9f%e8%bf%90%e7%bb%b4%e7%8e%af%e5%a2%83%e6%9c%8d%e5%8a%a1%e4%bc%98%e9%9b%85%e5%9c%b0%e8%bf%81%e7%a7%bb%e8%87%b3Kubernetes%e9%9b%86%e7%be%a4%e4%bb%8e%e8%80%8c%e5%ae%9e%e7%8e%b0%e5%85%a8%e9%87%8f%e5%ae%b9%e5%99%a8%e5%8c%96%20-%20%e7%bb%b4%e4%bf%ae%e5%8c%ba%e5%88%b7%e7%b4%ab&amp;url=/%25E7%2594%259F%25E4%25BA%25A7%25E9%2597%25AE%25E9%25A2%2598%25E5%25A6%2582%25E4%25BD%2595%25E5%25B0%2586%25E4%25BC%25A0%25E7%25BB%259F%25E8%25BF%2590%25E7%25BB%25B4%25E7%258E%25AF%25E5%25A2%2583%25E6%259C%258D%25E5%258A%25A1%25E4%25BC%2598%25E9%259B%2585%25E5%259C%25B0%25E8%25BF%2581%25E7%25A7%25BB%25E8%2587%25B3kubernetes%25E9%259B%2586%25E7%25BE%25A4%25E4%25BB%258E%25E8%2580%258C%25E5%25AE%259E%25E7%258E%25B0%25E5%2585%25A8%25E9%2587%258F%25E5%25AE%25B9%25E5%2599%25A8%25E5%258C%2596/" target=_blank rel=noopener aria-label=Twitter><div class="resp-sharing-button resp-sharing-button--x resp-sharing-button--medium"><i class="fa-brands fa-x-twitter"></i></div></a></li></ul><ul class="pager article-pager"><li class=pager-newer><a href=/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86docker%E9%95%9C%E5%83%8F%E5%AD%98%E5%82%A8%E5%8E%9F%E7%90%86%E5%8F%8A%E5%85%B6%E4%BC%98%E5%8C%96%E6%96%B9%E5%BC%8F/ data-toggle=tooltip data-placement=top title=【基础知识】Docker镜像存储原理及其优化方式>&lt; Newer</a></li><li class=pager-older><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E6%97%A0%E9%9C%80%E9%87%8D%E5%90%AF%E5%9F%BA%E4%BA%8Eprometheus%E5%AF%B9pod%E8%BF%9B%E8%A1%8C%E5%9E%82%E7%9B%B4%E6%89%A9%E7%BC%A9%E5%AE%B9/ data-toggle=tooltip data-placement=top title=【问题小解决】无需重启，基于Prometheus对Pod进行垂直扩缩容>Older ></a></li></ul></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

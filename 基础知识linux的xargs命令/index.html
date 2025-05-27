@@ -1,0 +1,103 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>【基础知识】Linux的xargs命令 - 维修区刷紫</title>
+<meta property="og:title" content="【基础知识】Linux的xargs命令 - 维修区刷紫"><meta name=twitter:title content="【基础知识】Linux的xargs命令 - 维修区刷紫"><meta name=description content="昨天在给服务器做年终“大扫除”整理时，发现有个目录下因为文件过多而删除失败，最终使用xargs才搞定，于是顺便来记录下。
+在执行某些命令时，当 Linux 某个目录下文件过多就会因为“参数列表过长”而报错无法执行。比如，我要清空/var/spool/clientmqueue/下的庞大数量的临时文件，
+如果直接执行rm -f *，有时就会会出现“参数列表过长”的错误提示，因为 linux 下一般的命令的参数的总长度不能超过 4096 个字节。
+这时，xargs就应该上场了了，由于服务器数量很多，我直接在每台服务器上执行如下命令，即可清理此文件夹内的所有文件：
+
+
+1
+2
+
+
+#代码中的$8，不通系统发行版本可能有所区别，具体使用 ls -l 查看文件名在那一列即可
+cd /var/spool/clientmqueue/  && ls -l /var/spool/clientmqueue/ | awk {'print $8'} | xargs rm -f
+
+
+"><meta property="og:description" content="昨天在给服务器做年终“大扫除”整理时，发现有个目录下因为文件过多而删除失败，最终使用xargs才搞定，于是顺便来记录下。
+在执行某些命令时，当 Linux 某个目录下文件过多就会因为“参数列表过长”而报错无法执行。比如，我要清空/var/spool/clientmqueue/下的庞大数量的临时文件，
+如果直接执行rm -f *，有时就会会出现“参数列表过长”的错误提示，因为 linux 下一般的命令的参数的总长度不能超过 4096 个字节。
+这时，xargs就应该上场了了，由于服务器数量很多，我直接在每台服务器上执行如下命令，即可清理此文件夹内的所有文件：
+
+
+1
+2
+
+
+#代码中的$8，不通系统发行版本可能有所区别，具体使用 ls -l 查看文件名在那一列即可
+cd /var/spool/clientmqueue/  && ls -l /var/spool/clientmqueue/ | awk {'print $8'} | xargs rm -f
+
+
+"><meta name=twitter:description content="昨天在给服务器做年终“大扫除”整理时，发现有个目录下因为文件过多而删除失败，最终使用xargs才搞定，于是顺便来记录下。
+在执行某些命令时，当 Linux 某个目录下文件过多就会因为“参数列表过长”而报错无法执行。比如，我要清空/var/spool/clientmqueue/下的庞大数量的临时文件，
+如果直接执行rm -f *，有时就会会出现“参数列表过长”的错误提示，因为 linux 下一般的命 …"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86linux%E7%9A%84xargs%E5%91%BD%E4%BB%A4/"><meta property="og:type" content="article"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><article class=article><h1 class=article-title>【基础知识】Linux的xargs命令</h1><hr class=article-title-bottom><ul class=article-meta><li class=article-meta-date><time>2020-01-14</time></li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E8%84%9A%E6%9C%AC%E8%AF%AD%E8%A8%80/><i class="fa-solid fa-folder"></i>
+脚本语言
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/><i class="fa-solid fa-folder"></i>
+基础知识
+</a>&nbsp;</li></ul><p>昨天在给服务器做年终“大扫除”整理时，发现有个目录下因为文件过多而删除失败，最终使用<code>xargs</code>才搞定，于是顺便来记录下。</p><p>在执行某些命令时，当 Linux 某个目录下文件过多就会因为“参数列表过长”而报错无法执行。比如，我要清空<code>/var/spool/clientmqueue/</code>下的庞大数量的临时文件，
+如果直接执行<code>rm -f *</code>，有时就会会出现“参数列表过长”的错误提示，因为 linux 下一般的命令的参数的总长度不能超过 4096 个字节。</p><p>这时，<code>xargs</code>就应该上场了了，由于服务器数量很多，我直接在每台服务器上执行如下命令，即可清理此文件夹内的所有文件：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=c1>#代码中的$8，不通系统发行版本可能有所区别，具体使用 ls -l 查看文件名在那一列即可</span>
+</span></span><span class=line><span class=cl><span class=nb>cd</span> /var/spool/clientmqueue/  <span class=o>&amp;&amp;</span> ls -l /var/spool/clientmqueue/ <span class=p>|</span> awk <span class=o>{</span><span class=s1>&#39;print $8&#39;</span><span class=o>}</span> <span class=p>|</span> xargs rm -f
+</span></span></code></pre></td></tr></table></div></div><p>下面就记录下<code>xargs</code>的用法好了：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>用法:  xargs <span class=o>[</span>-0prtx<span class=o>]</span> <span class=o>[</span>--interactive<span class=o>]</span> <span class=o>[</span>--null<span class=o>]</span> <span class=o>[</span>-d<span class=p>|</span>--delimiter<span class=o>=</span>delim<span class=o>]</span>      
+</span></span><span class=line><span class=cl>       <span class=o>[</span>-E eof-str<span class=o>]</span> <span class=o>[</span>-e<span class=o>[</span>eof-str<span class=o>]]</span>  <span class=o>[</span>--eof<span class=o>[=</span>eof-str<span class=o>]]</span>      
+</span></span><span class=line><span class=cl>       <span class=o>[</span>-L max-lines<span class=o>]</span> <span class=o>[</span>-l<span class=o>[</span>max-lines<span class=o>]]</span> <span class=o>[</span>--max-lines<span class=o>[=</span>max-lines<span class=o>]]</span>      
+</span></span><span class=line><span class=cl>       <span class=o>[</span>-I replace-str<span class=o>]</span> <span class=o>[</span>-i<span class=o>[</span>replace-str<span class=o>]]</span> <span class=o>[</span>--replace<span class=o>[=</span>replace-str<span class=o>]]</span>      
+</span></span><span class=line><span class=cl>       <span class=o>[</span>-n max-args<span class=o>]</span> <span class=o>[</span>--max-args<span class=o>=</span>max-args<span class=o>]</span>      
+</span></span><span class=line><span class=cl>       <span class=o>[</span>-s max-chars<span class=o>]</span> <span class=o>[</span>--max-chars<span class=o>=</span>max-chars<span class=o>]</span>      
+</span></span><span class=line><span class=cl>       <span class=o>[</span>-P max-procs<span class=o>]</span>  <span class=o>[</span>--max-procs<span class=o>=</span>max-procs<span class=o>]</span>      
+</span></span><span class=line><span class=cl>       <span class=o>[</span>--verbose<span class=o>]</span> <span class=o>[</span>--exit<span class=o>]</span> <span class=o>[</span>--no-run-if-empty<span class=o>]</span> <span class=o>[</span>--arg-file<span class=o>=</span>file<span class=o>]</span>      
+</span></span><span class=line><span class=cl>       <span class=o>[</span>--version<span class=o>]</span> <span class=o>[</span>--help<span class=o>]</span> <span class=o>[</span>指令 <span class=o>[</span>指令的參數<span class=o>]]</span>    
+</span></span><span class=line><span class=cl>参数解释：    
+</span></span><span class=line><span class=cl>-0 当 sdtin 含有特殊字元时候，将其当成一般字符，想/<span class=err>&#39;</span>空格等   
+</span></span><span class=line><span class=cl>例如：root@localhost:~/test#echo <span class=s2>&#34;//&#34;</span><span class=p>|</span>xargs  <span class=nb>echo</span>    
+</span></span><span class=line><span class=cl>     root@localhost:~/test#echo <span class=s2>&#34;//&#34;</span><span class=p>|</span>xargs -0 <span class=nb>echo</span>    
+</span></span><span class=line><span class=cl>      /   
+</span></span><span class=line><span class=cl>  
+</span></span><span class=line><span class=cl>-a file 从文件中读入作为 sdtin，（看例一）   
+</span></span><span class=line><span class=cl>-e flag ，注意有的时候可能会是-E，flag 必须是一个以空格分隔的标志，当 xargs 分析到含有 flag 这个标志的时候就停止。（例二）   
+</span></span><span class=line><span class=cl>-p 当每次执行一个 argument 的时候询问一次用户。（例三）   
+</span></span><span class=line><span class=cl>-n num 后面加次数，表示命令在执行的时候一次用的 argument 的个数，默认是用所有的。（例四）   
+</span></span><span class=line><span class=cl>-t 表示先打印命令，然后再执行。（例五）   
+</span></span><span class=line><span class=cl>-i 或者是-I，这得看 linux 支持了，将 xargs 的每项名称，一般是一行一行赋值给<span class=o>{}</span>，可以用<span class=o>{}</span>代替。（例六）   
+</span></span><span class=line><span class=cl>-r no-run-if-empty 当 xargs 的输入为空的时候则停止 xargs，不用再去执行了。（例七）   
+</span></span><span class=line><span class=cl>-s num 命令行的最好字符数，指的是 xargs 后面那个命令的最大命令行字符数。（例八）    
+</span></span><span class=line><span class=cl>-L  num Use at most max-lines nonblank input lines per <span class=nb>command</span> line.-s 是含有空格的。   
+</span></span><span class=line><span class=cl>-l  同-L   
+</span></span><span class=line><span class=cl>-d delim 分隔符，默认的 xargs 分隔符是回车，argument 的分隔符是空格，这里修改的是 xargs 的分隔符（例九）   
+</span></span><span class=line><span class=cl>-x <span class=nb>exit</span> 的意思，主要是配合-s 使用。   
+</span></span><span class=line><span class=cl>-P 修改最大的进程数，默认是 1，为 <span class=m>0</span> 时候为 as many as it can ，这个例子我没有想到，应该平时都用不到的吧。
+</span></span></code></pre></td></tr></table></div></div><p>xargs 工作原理就是将多个参数分离后依次处理，上面的实例中也就是将庞大的文件名参数分离成单个文件来处理，显然就没问题了。
+其实我在网上看到有朋友提醒，此命令在文件中含有中文字符的时候可能依然会报错，可以使用下面这条命令来解决：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>find . -name <span class=s2>&#34;*&#34;</span> -exec rm <span class=o>{}</span> <span class=se>\;</span> -print
+</span></span></code></pre></td></tr></table></div></div><p>好了，就这些了，其实所有的命令，网上都会有更详细的介绍，俺记录下来也只是起到一个提示作用，省的连自己都忘了什么时候需要用到哪个命令。</p></article><ul class=article-share><li><a class=resp-sharing-button__link href="https://facebook.com/sharer/sharer.php?u=/%25E5%259F%25BA%25E7%25A1%2580%25E7%259F%25A5%25E8%25AF%2586linux%25E7%259A%2584xargs%25E5%2591%25BD%25E4%25BB%25A4/" target=_blank rel=noopener aria-label=Facebook><div class="resp-sharing-button resp-sharing-button--facebook resp-sharing-button--medium"><div aria-hidden=true class="resp-sharing-button__icon resp-sharing-button__icon--solid"><i class="fa-brands fa-facebook-f"></i></div>Facebook</div></a></li><li><a class=resp-sharing-button__link href="https://x.com/intent/tweet/?text=%e3%80%90%e5%9f%ba%e7%a1%80%e7%9f%a5%e8%af%86%e3%80%91Linux%e7%9a%84xargs%e5%91%bd%e4%bb%a4%20-%20%e7%bb%b4%e4%bf%ae%e5%8c%ba%e5%88%b7%e7%b4%ab&amp;url=/%25E5%259F%25BA%25E7%25A1%2580%25E7%259F%25A5%25E8%25AF%2586linux%25E7%259A%2584xargs%25E5%2591%25BD%25E4%25BB%25A4/" target=_blank rel=noopener aria-label=Twitter><div class="resp-sharing-button resp-sharing-button--x resp-sharing-button--medium"><i class="fa-brands fa-x-twitter"></i></div></a></li></ul><ul class="pager article-pager"><li class=pager-newer><a href=/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E6%AD%A3%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/ data-toggle=tooltip data-placement=top title=【生产问题】分享一次Nginx正向代理的需求>&lt; Newer</a></li><li class=pager-older><a href=/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B%E4%BB%8Elinux%E8%A7%92%E5%BA%A6%E4%BB%A5%E5%8F%8Ajvm%E6%BA%90%E7%A0%81%E6%B7%B1%E5%85%A5nio%E7%9A%84%E7%BB%86%E8%8A%82/ data-toggle=tooltip data-placement=top title=【网络编程】从Linux角度以及JVM源码，深入NIO的细节>Older ></a></li></ul></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

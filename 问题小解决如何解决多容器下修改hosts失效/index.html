@@ -1,0 +1,167 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>【问题小解决】如何解决多容器下修改hosts失效 - 维修区刷紫</title>
+<meta property="og:title" content="【问题小解决】如何解决多容器下修改hosts失效 - 维修区刷紫"><meta name=twitter:title content="【问题小解决】如何解决多容器下修改hosts失效 - 维修区刷紫"><meta name=description content="问题现象
+业务容器启动的逻辑中，修改了/etc/hosts文件，当 Pod 只存在这一个业务容器时，文件可以修改成功，
+但存在多个时 (比如注入了 istio 的 sidecar)，修改可能会失效。
+分析
+
+容器中的/etc/hosts是由 kubelet 生成并挂载到 Pod 中所有容器，
+如果 Pod 有多个容器，它们挂载的/etc/hosts文件都对应宿主机上同一个文件，
+路径通常为/var/lib/kubelet/pods/<pod-uid>/etc-hosts。
+
+
+如果是 docker 运行时，可以通过docker inspect <container-id> -f {{.HostsPath}}查看。
+
+
+kubelet 在启动容器时，都会走如下的调用链（makeMounts->makeHostsMount->ensureHostsFile）来给容器挂载 /etc/hosts，
+而在 ensureHostsFile 函数中都会重新创建一个新的 etc-hosts 文件，导致在其他容器中对 /etc/hosts 文件做的任何修改都被还原了。
+
+所以，当 Pod 中存在多个容器时，容器内修改 /etc/hosts 的操作可能会被覆盖回去。
+解决方案
+使用 HostAliases
+如果只是某一个 workload 需要 hosts，可以用 HostAliases:"><meta property="og:description" content="问题现象
+业务容器启动的逻辑中，修改了/etc/hosts文件，当 Pod 只存在这一个业务容器时，文件可以修改成功，
+但存在多个时 (比如注入了 istio 的 sidecar)，修改可能会失效。
+分析
+
+容器中的/etc/hosts是由 kubelet 生成并挂载到 Pod 中所有容器，
+如果 Pod 有多个容器，它们挂载的/etc/hosts文件都对应宿主机上同一个文件，
+路径通常为/var/lib/kubelet/pods/<pod-uid>/etc-hosts。
+
+
+如果是 docker 运行时，可以通过docker inspect <container-id> -f {{.HostsPath}}查看。
+
+
+kubelet 在启动容器时，都会走如下的调用链（makeMounts->makeHostsMount->ensureHostsFile）来给容器挂载 /etc/hosts，
+而在 ensureHostsFile 函数中都会重新创建一个新的 etc-hosts 文件，导致在其他容器中对 /etc/hosts 文件做的任何修改都被还原了。
+
+所以，当 Pod 中存在多个容器时，容器内修改 /etc/hosts 的操作可能会被覆盖回去。
+解决方案
+使用 HostAliases
+如果只是某一个 workload 需要 hosts，可以用 HostAliases:"><meta name=twitter:description content="问题现象
+业务容器启动的逻辑中，修改了/etc/hosts文件，当 Pod 只存在这一个业务容器时，文件可以修改成功，
+但存在多个时 (比如注入了 istio 的 sidecar)，修改可能会失效。
+分析
+
+容器中的/etc/hosts是由 kubelet 生成并挂载到 Pod 中所有容器，
+如果 Pod 有多个容器，它们挂载的/etc/hosts文件都对应宿主机上同一个文件， …"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E5%A6%82%E4%BD%95%E8%A7%A3%E5%86%B3%E5%A4%9A%E5%AE%B9%E5%99%A8%E4%B8%8B%E4%BF%AE%E6%94%B9hosts%E5%A4%B1%E6%95%88/"><meta property="og:type" content="article"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><article class=article><h1 class=article-title>【问题小解决】如何解决多容器下修改hosts失效</h1><hr class=article-title-bottom><ul class=article-meta><li class=article-meta-date><time>2023-06-22</time></li><li class=article-meta-categories><a href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3/><i class="fa-solid fa-folder"></i>
+问题小解决
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li></ul><h3 id=问题现象>问题现象</h3><p>业务容器启动的逻辑中，修改了<code>/etc/hosts</code>文件，当 Pod 只存在这一个业务容器时，文件可以修改成功，
+但存在多个时 (比如注入了 istio 的 sidecar)，修改可能会失效。</p><h3 id=分析>分析</h3><ol><li>容器中的<code>/etc/hosts</code>是由 kubelet 生成并挂载到 Pod 中所有容器，
+如果 Pod 有多个容器，它们挂载的<code>/etc/hosts</code>文件都对应宿主机上同一个文件，
+路径通常为<code>/var/lib/kubelet/pods/&lt;pod-uid>/etc-hosts</code>。</li></ol><blockquote><p>如果是 docker 运行时，可以通过<code>docker inspect &lt;container-id> -f {{.HostsPath}}</code>查看。</p></blockquote><ol start=2><li>kubelet 在启动容器时，都会走如下的调用链<code>（makeMounts->makeHostsMount->ensureHostsFile）</code>来给容器挂载 /etc/hosts，
+而在 ensureHostsFile 函数中都会重新创建一个新的 etc-hosts 文件，导致在其他容器中对 /etc/hosts 文件做的任何修改都被还原了。</li></ol><p>所以，当 Pod 中存在多个容器时，容器内修改 /etc/hosts 的操作可能会被覆盖回去。</p><h3 id=解决方案>解决方案</h3><h4 id=使用-hostaliases>使用 HostAliases</h4><p>如果只是某一个 workload 需要 hosts，可以用 HostAliases:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>apps/v1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Deployment</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>   </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>host</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>   </span><span class=nt>replicas</span><span class=p>:</span><span class=w> </span><span class=m>1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>   </span><span class=nt>selector</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>matchLabels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>         </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>host</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>   </span><span class=nt>template</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>         </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=nt>app</span><span class=p>:</span><span class=w> </span><span class=l>host</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>         </span><span class=nt>hostAliases</span><span class=p>:</span><span class=w> </span><span class=c># 这下面定义 hosts</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>         </span>- <span class=nt>ip</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;10.10.10.10&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>           </span><span class=nt>hostnames</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>           </span>- <span class=s2>&#34;mysql.example.com&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>         </span><span class=nt>containers</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>         </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>nginx</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>           </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>nginx:latest</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h4 id=coredns-hosts>CoreDNS hosts</h4><p>如果是多个 workload 都需要共同的 hosts，可以修改集群 CoreDNS 配置，在集群级别增加 hosts:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>v1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>data</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>Corefile</span><span class=p>:</span><span class=w> </span><span class=p>|</span><span class=sd>
+</span></span></span><span class=line><span class=cl><span class=sd>    .:53 {
+</span></span></span><span class=line><span class=cl><span class=sd>        errors
+</span></span></span><span class=line><span class=cl><span class=sd>        health {
+</span></span></span><span class=line><span class=cl><span class=sd>           lameduck 5s
+</span></span></span><span class=line><span class=cl><span class=sd>        }
+</span></span></span><span class=line><span class=cl><span class=sd>        ready
+</span></span></span><span class=line><span class=cl><span class=sd>        kubernetes cluster.local in-addr.arpa ip6.arpa {
+</span></span></span><span class=line><span class=cl><span class=sd>           pods insecure
+</span></span></span><span class=line><span class=cl><span class=sd>           fallthrough in-addr.arpa ip6.arpa
+</span></span></span><span class=line><span class=cl><span class=sd>           ttl 30
+</span></span></span><span class=line><span class=cl><span class=sd>        }
+</span></span></span><span class=line><span class=cl><span class=sd>        hosts {
+</span></span></span><span class=line><span class=cl><span class=sd>          1.1.1.1 huangzehong.me
+</span></span></span><span class=line><span class=cl><span class=sd>          fallthrough
+</span></span></span><span class=line><span class=cl><span class=sd>        }
+</span></span></span><span class=line><span class=cl><span class=sd>        prometheus :9153
+</span></span></span><span class=line><span class=cl><span class=sd>        ## 这里的文件就是宿主机的文件，个别系统该文件受systemd-resolved管理，无法直接改动
+</span></span></span><span class=line><span class=cl><span class=sd>        ## 可以通过coredns_forward_request_total{k8s_app=&#34;kube-dns&#34;}这个指标看到多少请求被转发至上游
+</span></span></span><span class=line><span class=cl><span class=sd>        forward . /etc/resolv.conf {
+</span></span></span><span class=line><span class=cl><span class=sd>           max_concurrent 1000
+</span></span></span><span class=line><span class=cl><span class=sd>        }
+</span></span></span><span class=line><span class=cl><span class=sd>        cache 30
+</span></span></span><span class=line><span class=cl><span class=sd>        loop
+</span></span></span><span class=line><span class=cl><span class=sd>        reload
+</span></span></span><span class=line><span class=cl><span class=sd>        loadbalance
+</span></span></span><span class=line><span class=cl><span class=sd>    }</span><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>ConfigMap</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>coredns</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>namespace</span><span class=p>:</span><span class=w> </span><span class=l>kube-system</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>resourceVersion</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;281&#34;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>uid</span><span class=p>:</span><span class=w> </span><span class=l>bf0f0e56-fb2c-4392-9d42-1a55a127ecf2</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div></article><ul class=article-share><li><a class=resp-sharing-button__link href="https://facebook.com/sharer/sharer.php?u=/%25E9%2597%25AE%25E9%25A2%2598%25E5%25B0%258F%25E8%25A7%25A3%25E5%2586%25B3%25E5%25A6%2582%25E4%25BD%2595%25E8%25A7%25A3%25E5%2586%25B3%25E5%25A4%259A%25E5%25AE%25B9%25E5%2599%25A8%25E4%25B8%258B%25E4%25BF%25AE%25E6%2594%25B9hosts%25E5%25A4%25B1%25E6%2595%2588/" target=_blank rel=noopener aria-label=Facebook><div class="resp-sharing-button resp-sharing-button--facebook resp-sharing-button--medium"><div aria-hidden=true class="resp-sharing-button__icon resp-sharing-button__icon--solid"><i class="fa-brands fa-facebook-f"></i></div>Facebook</div></a></li><li><a class=resp-sharing-button__link href="https://x.com/intent/tweet/?text=%e3%80%90%e9%97%ae%e9%a2%98%e5%b0%8f%e8%a7%a3%e5%86%b3%e3%80%91%e5%a6%82%e4%bd%95%e8%a7%a3%e5%86%b3%e5%a4%9a%e5%ae%b9%e5%99%a8%e4%b8%8b%e4%bf%ae%e6%94%b9hosts%e5%a4%b1%e6%95%88%20-%20%e7%bb%b4%e4%bf%ae%e5%8c%ba%e5%88%b7%e7%b4%ab&amp;url=/%25E9%2597%25AE%25E9%25A2%2598%25E5%25B0%258F%25E8%25A7%25A3%25E5%2586%25B3%25E5%25A6%2582%25E4%25BD%2595%25E8%25A7%25A3%25E5%2586%25B3%25E5%25A4%259A%25E5%25AE%25B9%25E5%2599%25A8%25E4%25B8%258B%25E4%25BF%25AE%25E6%2594%25B9hosts%25E5%25A4%25B1%25E6%2595%2588/" target=_blank rel=noopener aria-label=Twitter><div class="resp-sharing-button resp-sharing-button--x resp-sharing-button--medium"><i class="fa-brands fa-x-twitter"></i></div></a></li></ul><ul class="pager article-pager"><li class=pager-newer><a href=/cka%E4%B8%93%E9%A2%98%E6%A2%B3%E7%90%86rbac%E6%9D%83%E9%99%90%E6%9E%84%E6%88%90%E5%B9%B6%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E7%94%A8%E6%88%B7%E5%8F%8A%E5%85%B6%E6%9D%83%E9%99%90/ data-toggle=tooltip data-placement=top title=【CKA专题】梳理RBAC权限构成，并创建一个用户及其权限>&lt; Newer</a></li><li class=pager-older><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E8%A7%A3%E5%86%B3%E5%AE%B9%E5%99%A8%E5%86%85%E6%97%B6%E5%8C%BA%E4%B8%8D%E4%B8%80%E8%87%B4%E9%97%AE%E9%A2%98/ data-toggle=tooltip data-placement=top title=【问题小解决】解决容器内时区不一致问题>Older ></a></li></ul></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

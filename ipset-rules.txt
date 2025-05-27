@@ -1,0 +1,69 @@
+create cali40all-ipam-pools hash:net family inet hashsize 1024 maxelem 1048576
+add cali40all-ipam-pools 10.100.0.0/16
+create cali40masq-ipam-pools hash:net family inet hashsize 1024 maxelem 1048576
+add cali40masq-ipam-pools 10.100.0.0/16
+create cali40this-host hash:ip family inet hashsize 1024 maxelem 1048576
+add cali40this-host 172.17.0.1
+add cali40this-host 10.100.32.135
+add cali40this-host 127.0.0.0
+add cali40this-host 10.0.17.5
+add cali40this-host 127.0.0.1
+create KUBE-LOAD-BALANCER-SOURCE-IP hash:ip,port,ip family inet hashsize 1024 maxelem 65536
+create cali40all-hosts-net hash:net family inet hashsize 1024 maxelem 1048576
+add cali40all-hosts-net 10.0.17.6
+add cali40all-hosts-net 10.0.17.5
+add cali40all-hosts-net 10.0.17.7
+create KUBE-LOAD-BALANCER-SOURCE-CIDR hash:ip,port,net family inet hashsize 1024 maxelem 65536
+create KUBE-LOOP-BACK hash:ip,port,ip family inet hashsize 1024 maxelem 65536
+add KUBE-LOOP-BACK 10.100.32.131,udp:53,10.100.32.131
+add KUBE-LOOP-BACK 10.100.32.134,tcp:9153,10.100.32.134
+add KUBE-LOOP-BACK 10.100.32.132,tcp:5443,10.100.32.132
+add KUBE-LOOP-BACK 10.100.32.131,tcp:53,10.100.32.131
+add KUBE-LOOP-BACK 10.100.32.131,tcp:9153,10.100.32.131
+add KUBE-LOOP-BACK 10.100.32.134,tcp:53,10.100.32.134
+add KUBE-LOOP-BACK 10.0.17.5,tcp:5473,10.0.17.5
+add KUBE-LOOP-BACK 10.100.32.134,udp:53,10.100.32.134
+add KUBE-LOOP-BACK 10.100.32.133,tcp:5443,10.100.32.133
+create KUBE-CLUSTER-IP hash:ip,port family inet hashsize 1024 maxelem 65536
+add KUBE-CLUSTER-IP 10.96.0.1,tcp:443
+add KUBE-CLUSTER-IP 10.96.0.10,udp:53
+add KUBE-CLUSTER-IP 10.96.0.10,tcp:53
+add KUBE-CLUSTER-IP 10.107.98.137,tcp:443
+add KUBE-CLUSTER-IP 10.108.73.191,tcp:5473
+add KUBE-CLUSTER-IP 10.98.135.192,tcp:80
+add KUBE-CLUSTER-IP 10.96.0.10,tcp:9153
+create KUBE-NODE-PORT-SCTP-HASH hash:ip,port family inet hashsize 1024 maxelem 65536
+create KUBE-NODE-PORT-LOCAL-SCTP-HASH hash:ip,port family inet hashsize 1024 maxelem 65536
+create KUBE-EXTERNAL-IP hash:ip,port family inet hashsize 1024 maxelem 65536
+create KUBE-NODE-PORT-LOCAL-UDP bitmap:port range 0-65535
+create KUBE-LOAD-BALANCER-LOCAL hash:ip,port family inet hashsize 1024 maxelem 65536
+create KUBE-NODE-PORT-TCP bitmap:port range 0-65535
+create KUBE-HEALTH-CHECK-NODE-PORT bitmap:port range 0-65535
+create KUBE-IPVS-IPS hash:ip family inet hashsize 1024 maxelem 65536
+add KUBE-IPVS-IPS 10.96.0.1
+add KUBE-IPVS-IPS 10.108.73.191
+add KUBE-IPVS-IPS 10.107.98.137
+add KUBE-IPVS-IPS 10.98.135.192
+add KUBE-IPVS-IPS 10.96.0.10
+create KUBE-EXTERNAL-IP-LOCAL hash:ip,port family inet hashsize 1024 maxelem 65536
+create KUBE-LOAD-BALANCER hash:ip,port family inet hashsize 1024 maxelem 65536
+create KUBE-NODE-PORT-UDP bitmap:port range 0-65535
+create KUBE-LOAD-BALANCER-FW hash:ip,port family inet hashsize 1024 maxelem 65536
+create KUBE-NODE-PORT-LOCAL-TCP bitmap:port range 0-65535
+create KUBE-6-LOAD-BALANCER-SOURCE-IP hash:ip,port,ip family inet6 hashsize 1024 maxelem 65536
+create KUBE-6-NODE-PORT-TCP bitmap:port range 0-65535
+create KUBE-6-NODE-PORT-SCTP-HASH hash:ip,port family inet6 hashsize 1024 maxelem 65536
+create KUBE-6-HEALTH-CHECK-NODE-PORT bitmap:port range 0-65535
+create KUBE-6-IPVS-IPS hash:ip family inet6 hashsize 1024 maxelem 65536
+create KUBE-6-EXTERNAL-IP hash:ip,port family inet6 hashsize 1024 maxelem 65536
+create KUBE-6-LOAD-BALANCER hash:ip,port family inet6 hashsize 1024 maxelem 65536
+create KUBE-6-NODE-PORT-LOCAL-UDP bitmap:port range 0-65535
+create KUBE-6-NODE-PORT-LOCAL-SCTP-HAS hash:ip,port family inet6 hashsize 1024 maxelem 65536
+create KUBE-6-LOOP-BACK hash:ip,port,ip family inet6 hashsize 1024 maxelem 65536
+create KUBE-6-LOAD-BALANCER-LOCAL hash:ip,port family inet6 hashsize 1024 maxelem 65536
+create KUBE-6-NODE-PORT-UDP bitmap:port range 0-65535
+create KUBE-6-EXTERNAL-IP-LOCAL hash:ip,port family inet6 hashsize 1024 maxelem 65536
+create KUBE-6-LOAD-BALANCER-FW hash:ip,port family inet6 hashsize 1024 maxelem 65536
+create KUBE-6-LOAD-BALANCER-SOURCE-CID hash:ip,port,net family inet6 hashsize 1024 maxelem 65536
+create KUBE-6-NODE-PORT-LOCAL-TCP bitmap:port range 0-65535
+create KUBE-6-CLUSTER-IP hash:ip,port family inet6 hashsize 1024 maxelem 65536

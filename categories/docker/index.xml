@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Docker on 维修区刷紫</title><link>/categories/docker/</link><description>Recent content in Docker on 维修区刷紫</description><generator>Hugo -- gohugo.io</generator><language>ja</language><copyright>© 2025 黄泽宏 | &lt;a href="https://beian.miit.gov.cn/" target="_blank">粤ICP备2025417888号-1&lt;/a></copyright><lastBuildDate>Tue, 08 Mar 2022 09:17:32 +0800</lastBuildDate><atom:link href="/categories/docker/index.xml" rel="self" type="application/rss+xml"/><item><title>【公司分享学习】容器磁盘占满导致CPU飙高</title><link>/%E5%85%AC%E5%8F%B8%E5%88%86%E4%BA%AB%E5%AD%A6%E4%B9%A0%E5%AE%B9%E5%99%A8%E7%A3%81%E7%9B%98%E5%8D%A0%E6%BB%A1%E5%AF%BC%E8%87%B4cpu%E9%A3%99%E9%AB%98/</link><pubDate>Tue, 08 Mar 2022 09:17:32 +0800</pubDate><guid>/%E5%85%AC%E5%8F%B8%E5%88%86%E4%BA%AB%E5%AD%A6%E4%B9%A0%E5%AE%B9%E5%99%A8%E7%A3%81%E7%9B%98%E5%8D%A0%E6%BB%A1%E5%AF%BC%E8%87%B4cpu%E9%A3%99%E9%AB%98/</guid><description>&lt;blockquote>
+&lt;p>这是公司大佬的一次内部分享，我尝试简短总结一下&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="问题描述">问题描述&lt;/h3>
+&lt;p>某服务的其中两个副本异常，CPU 飙高。&lt;/p>
+&lt;h3 id="指标排查">指标排查&lt;/h3>
+&lt;ol>
+&lt;li>
+&lt;p>查看&lt;code>container_cpu_usage_seconds_total&lt;/code>监控，CPU 飙升，逼近 limit。&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>查看&lt;code>container_cpu_cfs_throttled_periods_total&lt;/code>监控，CPU 飙升伴随 CPU Throttle 飙升，所以服务异常应该是 CPU 被限流导致。&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>查看&lt;code>container_cpu_system_seconds_total&lt;/code>监控，发现 CPU 飙升主要是 CPU system 占用导致，容器内&lt;code>pidstat -u -t 5 1&lt;/code>可以看到进程&lt;code>%system&lt;/code>占用分布情况。&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>perf top&lt;/code>看 system 占用高主要是 vfs_write 写数据导致。&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>&lt;img src="/images/img.png" alt="img.png">&lt;/p></description></item></channel></rss>

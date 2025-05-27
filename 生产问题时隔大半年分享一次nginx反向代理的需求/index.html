@@ -1,0 +1,129 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>【生产问题】时隔大半年，分享一次Nginx反向代理的需求 - 维修区刷紫</title>
+<meta property="og:title" content="【生产问题】时隔大半年，分享一次Nginx反向代理的需求 - 维修区刷紫"><meta name=twitter:title content="【生产问题】时隔大半年，分享一次Nginx反向代理的需求 - 维修区刷紫"><meta name=description content="
+博客前面分享了一篇《分享一个 Nginx 正向代理的另类应用案例》，时隔不久，身为救火队员、万金油的博主又再一次接到了一个奇葩需求：
+
+
+场景和上次有些类似，也是部门引进的第三方应用，部署在各个网络区域，从 OA 办公区域无法直接访问。目前，运营人员都需要登陆 Windows 跳板机，才能打开这些应用的 WEB 控制台。既不方便，而且还有一定 Windows 服务器的维护工作量，于是找到我们团队，希望通过运维手段来解决。
+
+拿到这个需求后，我先问了下各个应用的基本情况，得知每个应用的框架基本是一样的，都是通过 IP+端口直接访问，页面 path 也基本一样，没有唯一性。然后拿到了一个应用 WEB 控制台地址看了下，发现 html 引用的地址都是相对路径。
+乍一想，这用 Nginx 代理不好弄吧？页面 path 一样，没法根据 location 来反代到不同的后端，只能通过不同 Nginx 端口来区分，那就太麻烦了！每次他们新上一个应用，我们就得多加一个新端口来映射，这种的尾大不掉、绵绵不绝事情坚决不干，Say pass。
+再一想，我就想到了上次那个正向代理另类应用方案，感觉可以拿过来改改做动态代理。原理也简单：先和用户约定一个访问形式，比如:
+
+Nginx 代理地址为 myproxy.oa.com，需要代理到 IP 为 192.168.2.100:8080 的控制器，用户需要访问 http://myproxy.oa.com/192.168.2.100:8080/path。
+"><meta property="og:description" content="
+博客前面分享了一篇《分享一个 Nginx 正向代理的另类应用案例》，时隔不久，身为救火队员、万金油的博主又再一次接到了一个奇葩需求：
+
+
+场景和上次有些类似，也是部门引进的第三方应用，部署在各个网络区域，从 OA 办公区域无法直接访问。目前，运营人员都需要登陆 Windows 跳板机，才能打开这些应用的 WEB 控制台。既不方便，而且还有一定 Windows 服务器的维护工作量，于是找到我们团队，希望通过运维手段来解决。
+
+拿到这个需求后，我先问了下各个应用的基本情况，得知每个应用的框架基本是一样的，都是通过 IP+端口直接访问，页面 path 也基本一样，没有唯一性。然后拿到了一个应用 WEB 控制台地址看了下，发现 html 引用的地址都是相对路径。
+乍一想，这用 Nginx 代理不好弄吧？页面 path 一样，没法根据 location 来反代到不同的后端，只能通过不同 Nginx 端口来区分，那就太麻烦了！每次他们新上一个应用，我们就得多加一个新端口来映射，这种的尾大不掉、绵绵不绝事情坚决不干，Say pass。
+再一想，我就想到了上次那个正向代理另类应用方案，感觉可以拿过来改改做动态代理。原理也简单：先和用户约定一个访问形式，比如:
+
+Nginx 代理地址为 myproxy.oa.com，需要代理到 IP 为 192.168.2.100:8080 的控制器，用户需要访问 http://myproxy.oa.com/192.168.2.100:8080/path。
+"><meta name=twitter:description content="
+博客前面分享了一篇《分享一个 Nginx 正向代理的另类应用案例》，时隔不久，身为救火队员、万金油的博主又再一次接到了一个奇葩需求：
+
+
+场景和上次有些类似，也是部门引进的第三方应用，部署在各个网络区域，从 OA 办公区域无法直接访问。目前，运营人员都需要登陆 Windows 跳板机，才能打开这些应用的 WEB 控制台。既不方便，而且还有一定 Windows 服务器的维护工作量，于是找到我们团 …"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E6%97%B6%E9%9A%94%E5%A4%A7%E5%8D%8A%E5%B9%B4%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E5%8F%8D%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/"><meta property="og:type" content="article"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><article class=article><h1 class=article-title>【生产问题】时隔大半年，分享一次Nginx反向代理的需求</h1><hr class=article-title-bottom><ul class=article-meta><li class=article-meta-date><time>2020-11-13</time></li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/nginx/><i class="fa-solid fa-folder"></i>
+Nginx
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98/><i class="fa-solid fa-folder"></i>
+生产问题
+</a>&nbsp;</li></ul><blockquote><p>博客前面分享了一篇<a href=https://huangzehong.me/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E6%AD%A3%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/>《分享一个 Nginx 正向代理的另类应用案例》</a>，时隔不久，身为救火队员、万金油的博主又再一次接到了一个奇葩需求：</p></blockquote><blockquote><p>场景和上次有些类似，也是部门引进的第三方应用，部署在各个网络区域，从 OA 办公区域无法直接访问。目前，运营人员都需要登陆 Windows 跳板机，才能打开这些应用的 WEB 控制台。既不方便，而且还有一定 Windows 服务器的维护工作量，于是找到我们团队，希望通过运维手段来解决。</p></blockquote><p>拿到这个需求后，我先问了下各个应用的基本情况，得知每个应用的框架基本是一样的，都是通过 IP+端口直接访问，页面 path 也基本一样，没有唯一性。然后拿到了一个应用 WEB 控制台地址看了下，发现 html 引用的地址都是相对路径。</p><p>乍一想，这用 Nginx 代理不好弄吧？页面 path 一样，没法根据 location 来反代到不同的后端，只能通过不同 Nginx 端口来区分，那就太麻烦了！每次他们新上一个应用，我们就得多加一个新端口来映射，这种的尾大不掉、绵绵不绝事情坚决不干，Say pass。</p><p>再一想，我就想到了上次那个正向代理另类应用方案，感觉可以拿过来改改做动态代理。原理也简单：先和用户约定一个访问形式，比如:</p><blockquote><p>Nginx 代理地址为 myproxy.oa.com，需要代理到 IP 为 192.168.2.100:8080 的控制器，用户需要访问 <a href=http://myproxy.oa.com/192.168.2.100:8080/path>http://myproxy.oa.com/192.168.2.100:8080/path</a>。</p></blockquote><p>动态代理的原理及实现：</p><blockquote><ol><li><p>Nginx 从$request_uri 变量中，通过斜杠提取第一段作为要反向代理的对象，即 proxy_pass，提取后面的作为需要反代的路径；</p></li><li><p>对于 Html、JS、CSS 等资源引用则需要通过 Nginx 的替换模块，将路径替换为上述约定形式，比如：Html 里面的 href="/js/jquery.min.js"，需要替换为 href="/goto/aHR0cDovL215cHJveHkub2EuY29tLzE5Mi4xNjguMi4xMDA6ODA4MC9qcy9qdXFlcnkubWluLmpz" target="_blank"，即所有资源地址都保证符合代理约定的形式，才能够正确走代理获取。</p></li><li><p>通过代理去访问，查看浏览器开发者工具中的 Network 和 console，找到无法访问的地址，并分析引用的位置，写规则替换掉即可。\</p></li><li><p>实际测试发现，他们的应用可能还会有 https 协议（&mldr;），而且是伪证书模式，只是开了 https 协议访问。上述设计模式下，https 页面是无法打开的，这里需要兼容 https 后端才行，因此最后的约定形式简单修改为：如果是 <a href=http://myproxy.oa.com/https-192.168.2.101:8080/path>http://myproxy.oa.com/https-192.168.2.101:8080/path</a>, 即：如果是 https 协议，需要在第一段 path 的 IP 前面加上 https-来区分，而 http 协议则可加可不加。</p></li></ol></blockquote><p>基本通过上述几步，就完全搞定了，最终 Nginx 规则如下：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span><span class=lnt>45
+</span><span class=lnt>46
+</span><span class=lnt>47
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>server <span class=o>{</span>
+</span></span><span class=line><span class=cl>        listen 80<span class=p>;</span>
+</span></span><span class=line><span class=cl>        server_name myproxy.oa.com<span class=p>;</span>
+</span></span><span class=line><span class=cl>        <span class=c1>#resolver 223.5.5.5; # 如果被代理的地址存在域名，需要加一个 dns 配置，否则会 502，报错信息为：no resolver defined to resolve xxx.com</span>
+</span></span><span class=line><span class=cl>        index index.html<span class=p>;</span>
+</span></span><span class=line><span class=cl>        root /html<span class=p>;</span>
+</span></span><span class=line><span class=cl>        <span class=c1># 初始化变量</span>
+</span></span><span class=line><span class=cl>        <span class=nb>set</span> <span class=nv>$node</span> <span class=s2>&#34;&#34;</span><span class=p>;</span>      <span class=c1># 后端主机地址</span>
+</span></span><span class=line><span class=cl>        <span class=nb>set</span> <span class=nv>$proxy_url</span> <span class=s2>&#34;&#34;</span><span class=p>;</span> <span class=c1># 后端页面地址</span>
+</span></span><span class=line><span class=cl>        <span class=nb>set</span> <span class=nv>$proxy_scheme</span> http<span class=p>;</span> <span class=c1># 后端协议，默认 http</span>
+</span></span><span class=line><span class=cl>        <span class=nb>set</span> <span class=nv>$proxy_scheme_url</span> <span class=s2>&#34;&#34;</span><span class=p>;</span> <span class=c1># 改造后的代理 path，这里会带上协议约定，如 https-</span>
+</span></span><span class=line><span class=cl>        <span class=c1># 通过正则提取约定协议、后端节点和后端节点 url</span>
+</span></span><span class=line><span class=cl>        <span class=k>if</span> <span class=o>(</span> <span class=nv>$request_uri</span> ~* <span class=s2>&#34;^/(https-|)([^/]+)/(.*)</span>$<span class=s2>&#34;</span> <span class=o>)</span> <span class=o>{</span>
+</span></span><span class=line><span class=cl>            <span class=nb>set</span> <span class=nv>$proxy_scheme_url</span> <span class=s2>&#34;</span><span class=nv>$1</span><span class=s2>&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>            <span class=nb>set</span> <span class=nv>$node</span> <span class=s2>&#34;</span><span class=nv>$2</span><span class=s2>&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>            <span class=nb>set</span> <span class=nv>$proxy_url</span> <span class=s2>&#34;</span><span class=nv>$3</span><span class=s2>&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>        <span class=o>}</span>
+</span></span><span class=line><span class=cl>        <span class=c1># 当协议变量值是 https-的时候，设置代理后端协议为 https，此规则就兼容了后端 https 的情况</span>
+</span></span><span class=line><span class=cl>        <span class=k>if</span> <span class=o>(</span> <span class=nv>$proxy_scheme_url</span> <span class=o>=</span> <span class=s2>&#34;https-&#34;</span> <span class=o>)</span> <span class=o>{</span>
+</span></span><span class=line><span class=cl>            <span class=nb>set</span> <span class=nv>$proxy_scheme</span> https<span class=p>;</span>
+</span></span><span class=line><span class=cl>        <span class=o>}</span>
+</span></span><span class=line><span class=cl>        <span class=c1># 不带后端地址直接访问代理 IP 的时候，定向到/html 路径，里面可以放 index.html 导航页面，方便用户点击访问</span>
+</span></span><span class=line><span class=cl>        location ~ ^/<span class=o>(</span>$<span class=p>|</span>static<span class=p>|</span>favicon.ico<span class=o>)</span> <span class=o>{</span>
+</span></span><span class=line><span class=cl>            break<span class=p>;</span>
+</span></span><span class=line><span class=cl>        <span class=o>}</span>
+</span></span><span class=line><span class=cl>        <span class=c1># 当访问的路径没有命中上述规则，且存在字符串的时候，将会进入到这个 location 开始反向代理</span>
+</span></span><span class=line><span class=cl>        location ~ ^/<span class=o>(</span>.+<span class=o>)</span>/ <span class=o>{</span>
+</span></span><span class=line><span class=cl>            <span class=c1># 使用 subs_filter 模块进行替换（不了解的话，请自行百度这个关键词）</span>
+</span></span><span class=line><span class=cl>            <span class=c1># ======================== replace Url begin ========================</span>
+</span></span><span class=line><span class=cl>            <span class=c1># 替换支持所有类型</span>
+</span></span><span class=line><span class=cl>            subs_filter_types *<span class=p>;</span>
+</span></span><span class=line><span class=cl>            <span class=c1># 替换 html 里面的静态资源引用，即 src=、href=等引用形式，另外还考虑到可能存在 / 打头的相对路径或“http://节点”的绝对路径引用形式。</span>
+</span></span><span class=line><span class=cl>            subs_filter <span class=s2>&#34;(href|src)(\s*)=(\s*)(&#39;|\&#34;)(</span><span class=nv>$proxy_scheme</span><span class=s2>://</span><span class=nv>$node</span><span class=s2>|)/&#34;</span> <span class=s1>&#39;$1=&#34;http://$host/$proxy_scheme_url$node/&#39;</span> igr<span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=c1># 替换 js 里面的一些 ajax 请求地址：</span>
+</span></span><span class=line><span class=cl>            subs_filter <span class=s2>&#34;url:(\s*)(&#39;|\&#34;)/([^&#39;\&#34;]*)(&#39;|\&#34;)&#34;</span> <span class=s2>&#34;url: &#39;http://</span><span class=nv>$host</span><span class=s2>/</span><span class=nv>$proxy_scheme_url$node</span><span class=s2>/</span><span class=nv>$3</span><span class=s2>&#39;&#34;</span> igr<span class=p>;</span>
+</span></span><span class=line><span class=cl> 
+</span></span><span class=line><span class=cl>            <span class=c1># 这里替换实际访问发现还有问题的路径（这里主要是用了 xmlhttprequest 导致上述正则没命中）</span>
+</span></span><span class=line><span class=cl>            subs_filter <span class=s2>&#34;/workerProxy\?ip=&#34;</span> <span class=s2>&#34;http://</span><span class=nv>$host</span><span class=s2>/</span><span class=nv>$proxy_scheme_url$node</span><span class=s2>/workerProxy?ip=&#34;</span> igr<span class=p>;</span>
+</span></span><span class=line><span class=cl>            <span class=c1># you can write replace rule with subs_filter if found more.</span>
+</span></span><span class=line><span class=cl>            <span class=c1># ======================== replace Url end ===========================</span>
+</span></span><span class=line><span class=cl>            <span class=c1># 代理到动态后端</span>
+</span></span><span class=line><span class=cl>            proxy_pass <span class=nv>$proxy_scheme</span>://<span class=nv>$node</span>/<span class=nv>$proxy_url</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>            <span class=c1># 关闭 gzip，以防替换不了内容（不能解决后端强制了 gip 压缩的情况...）</span>
+</span></span><span class=line><span class=cl>            proxy_set_header Accept-Encoding <span class=s2>&#34;&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>            <span class=c1># 其他 proxy 参数略.</span>
+</span></span><span class=line><span class=cl>        <span class=o>}</span>
+</span></span><span class=line><span class=cl><span class=o>}</span>
+</span></span></code></pre></td></tr></table></div></div><p>Tips：实际调试过程中，可以给 Nginx 集成一个 echo 模块，可以将变量打印出来，方便调试。</p><p>最后，在 Nginx 服务器的/html 目录放一个 index.html 导航页面，用户只需要访问代理地址 <a href=http://myproxy.oa.com/>http://myproxy.oa.com/</a>，就能看到全部的后端节点，点击访问即可，真的不要太爽哦！</p></article><ul class=article-share><li><a class=resp-sharing-button__link href="https://facebook.com/sharer/sharer.php?u=/%25E7%2594%259F%25E4%25BA%25A7%25E9%2597%25AE%25E9%25A2%2598%25E6%2597%25B6%25E9%259A%2594%25E5%25A4%25A7%25E5%258D%258A%25E5%25B9%25B4%25E5%2588%2586%25E4%25BA%25AB%25E4%25B8%2580%25E6%25AC%25A1nginx%25E5%258F%258D%25E5%2590%2591%25E4%25BB%25A3%25E7%2590%2586%25E7%259A%2584%25E9%259C%2580%25E6%25B1%2582/" target=_blank rel=noopener aria-label=Facebook><div class="resp-sharing-button resp-sharing-button--facebook resp-sharing-button--medium"><div aria-hidden=true class="resp-sharing-button__icon resp-sharing-button__icon--solid"><i class="fa-brands fa-facebook-f"></i></div>Facebook</div></a></li><li><a class=resp-sharing-button__link href="https://x.com/intent/tweet/?text=%e3%80%90%e7%94%9f%e4%ba%a7%e9%97%ae%e9%a2%98%e3%80%91%e6%97%b6%e9%9a%94%e5%a4%a7%e5%8d%8a%e5%b9%b4%ef%bc%8c%e5%88%86%e4%ba%ab%e4%b8%80%e6%ac%a1Nginx%e5%8f%8d%e5%90%91%e4%bb%a3%e7%90%86%e7%9a%84%e9%9c%80%e6%b1%82%20-%20%e7%bb%b4%e4%bf%ae%e5%8c%ba%e5%88%b7%e7%b4%ab&amp;url=/%25E7%2594%259F%25E4%25BA%25A7%25E9%2597%25AE%25E9%25A2%2598%25E6%2597%25B6%25E9%259A%2594%25E5%25A4%25A7%25E5%258D%258A%25E5%25B9%25B4%25E5%2588%2586%25E4%25BA%25AB%25E4%25B8%2580%25E6%25AC%25A1nginx%25E5%258F%258D%25E5%2590%2591%25E4%25BB%25A3%25E7%2590%2586%25E7%259A%2584%25E9%259C%2580%25E6%25B1%2582/" target=_blank rel=noopener aria-label=Twitter><div class="resp-sharing-button resp-sharing-button--x resp-sharing-button--medium"><i class="fa-brands fa-x-twitter"></i></div></a></li></ul><ul class="pager article-pager"><li class=pager-newer><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5pod%E7%8A%B6%E6%80%81%E4%B8%80%E7%9B%B4terminating/ data-toggle=tooltip data-placement=top title=【问题小排查】Pod状态一直Terminating>&lt; Newer</a></li><li class=pager-older><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E6%8E%92%E6%9F%A5-close_wait-%E5%A0%86%E7%A7%AF/ data-toggle=tooltip data-placement=top title="【问题小排查】排查 CLOSE_WAIT 堆积">Older ></a></li></ul></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

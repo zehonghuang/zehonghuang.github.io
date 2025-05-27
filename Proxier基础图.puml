@@ -1,0 +1,54 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+interface NodeHandler {
+    +{abstract} OnNodeAdd()
+    +{abstract} OnNodeUpdate()
+    +{abstract} OnNodeDelete()
+    +{abstract} OnNodeSynced()
+}
+
+interface ServiceHandler {
+    +{abstract} OnServiceAdd()
+    +{abstract} OnServiceUpdate()
+    +{abstract} OnServiceDelete()
+    +{abstract} OnServiceSynced()
+}
+
+interface EndpointSliceHandler {
+    +{abstract} OnEndpointSliceAdd()
+    +{abstract} OnEndpointSliceUpdate()
+    +{abstract} OnEndpointSliceDelete()
+    +{abstract} OnEndpointSlicesSynced()
+}
+interface ServiceCIDRHandler {
+    +{abstract} OnServiceCIDRsChanged()
+}
+interface Provider {
+    +{abstract} Sync()
+    +{abstract} SyncLoop()
+}
+
+class EndpointsChangeTracker {
+    -endpointSliceCache *EndpointSliceCache
+    +EndpointSliceUpdate(endpointSlice *discovery.EndpointSlice, removeSlice bool)
+}
+class ServiceChangeTracker {
+    -items map[types.NamespacedName]*serviceChange
+    +Update(previous, current *v1.Service)
+}
+
+class Proxier {
+    - syncProxyRules()
+}
+
+NodeHandler <-- Proxier
+ServiceHandler <-- Proxier
+EndpointSliceHandler <-- Proxier
+ServiceCIDRHandler <-- Proxier
+Provider <-- Proxier
+
+EndpointsChangeTracker *-up[#blue]- Proxier
+ServiceChangeTracker *-up[#blue]- Proxier
+
+@enduml

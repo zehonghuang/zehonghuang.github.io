@@ -1,0 +1,1561 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>维修区刷紫</title><link>/</link><description>Recent content on 维修区刷紫</description><generator>Hugo -- gohugo.io</generator><language>ja</language><copyright>© 2025 黄泽宏 | &lt;a href="https://beian.miit.gov.cn/" target="_blank">粤ICP备2025417888号-1&lt;/a></copyright><lastBuildDate>Wed, 11 Sep 2024 18:13:39 +0800</lastBuildDate><atom:link href="/index.xml" rel="self" type="application/rss+xml"/><item><title>【深度解析】详细梳理Kubernetes的网络模型，总结网络故障排查核心思路</title><link>/kubernetes%E7%9A%84%E7%BD%91%E7%BB%9C%E6%A8%A1%E5%9E%8B%E6%80%BB%E7%BB%93%E7%BD%91%E7%BB%9C%E6%95%85%E9%9A%9C%E6%8E%92%E6%9F%A5%E6%A0%B8%E5%BF%83%E6%80%9D%E8%B7%AF/</link><pubDate>Sun, 03 Jul 2022 14:26:11 +0800</pubDate><guid>/kubernetes%E7%9A%84%E7%BD%91%E7%BB%9C%E6%A8%A1%E5%9E%8B%E6%80%BB%E7%BB%93%E7%BD%91%E7%BB%9C%E6%95%85%E9%9A%9C%E6%8E%92%E6%9F%A5%E6%A0%B8%E5%BF%83%E6%80%9D%E8%B7%AF/</guid><description>&lt;p>本文旨在梳理网络模型，总结出通用并且高可行性的故障排查思路，并且能通过自动化检测减少中大规模集群的手动排查工作。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-text" data-lang="text">&lt;span class="line">&lt;span class="cl">默认读者已熟悉四层/七层网络模型，相关概念不再赘述
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="一linux中的基础网络技术">一、Linux中的基础网络技术&lt;/h2>
+&lt;p>这里只会提及相关的Linux指令，不深入技术原理，只会一笔带过，不然文章会很冗长。&lt;/p>
+&lt;h3 id="1-network-namespace">1. Network namespace&lt;/h3>
+&lt;p>我们知道两个POD的网络相互隔离，实际在操作系统中是通过命名空间实现的。&lt;/p>
+&lt;p>Network namespace用于支持网络协议栈的多个实例。通过对网络资源的隔离，就能在一个宿主机上虚拟出多个不同的网络环境。docker利用NS实现了不同容器的网络隔离。
+Network namespace可以提供独立的路由表和iptables来设置包转发、nat以及ip包过滤等功能，提供完整且独立的协议栈。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">&lt;span class="c1">## 创建一个新的网络命名空间&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">sudo ip netns add my_namespace
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">## 进入my_namespace的内部 shell 界面&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">sudo ip netns &lt;span class="nb">exec&lt;/span> my_namespace bash
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="2-veth设备对">2. veth设备对&lt;/h3>
+&lt;p>那如何我们如何为两个不同命名空间下的进程之间实现通信呢？&lt;/p>
+&lt;p>可以通过引入Veth设备对，Veth设备都是成对出现的，其中一端成为另一端的peer，在Veth设备的一端发送数据时，会将数据发送到另一端，并触发接收数据的操作。&lt;/p></description></item><item><title>【问题大排查】通用Linux环境的网络排障（部分包含容器环境）</title><link>/%E9%97%AE%E9%A2%98%E5%A4%A7%E6%8E%92%E6%9F%A5%E4%B8%80%E8%88%AC%E7%8E%AF%E5%A2%83%E7%9A%84%E7%BD%91%E7%BB%9C%E6%8E%92%E9%9A%9C/</link><pubDate>Tue, 26 Jul 2022 23:08:16 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%A4%A7%E6%8E%92%E6%9F%A5%E4%B8%80%E8%88%AC%E7%8E%AF%E5%A2%83%E7%9A%84%E7%BD%91%E7%BB%9C%E6%8E%92%E9%9A%9C/</guid><description>&lt;blockquote>
+&lt;p>因为最近一段时间，一直在处理各种网路问题，所以痛定思痛从头梳理&lt;strong>一般运维环境下的网络状况&lt;/strong>&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="网络不通持续性">网络不通（持续性）&lt;/h2>
+&lt;p>这个情况没啥好说的，只要不是 DNS 问题，就是服务器挂掉或者端口被禁&lt;/p>
+&lt;h3 id="端口监听挂掉">端口监听挂掉&lt;/h3>
+&lt;p>如果容器内的端口已经没有进程监听了，内核就会返回 Reset 包，客户端就会报错连接被拒绝，可以进容器 netns 检查下端口是否存活:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">netstat -tunlp
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="iptables-规则问题">iptables 规则问题&lt;/h3>
+&lt;p>检查报文是否有命中丢弃报文的 iptables 规则:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">iptables -t filter -nvL
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">iptables -t nat -nvL
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">iptables -t raw -nvL
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">iptables -t mangle -nvL
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">iptables-save
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item><item><title>【生产问题】K8s退出信号处理和僵尸进程问题</title><link>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98k8s%E9%80%80%E5%87%BA%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86%E5%92%8C%E5%83%B5%E5%B0%B8%E8%BF%9B%E7%A8%8B%E9%97%AE%E9%A2%98/</link><pubDate>Mon, 23 Jan 2023 13:02:06 +0800</pubDate><guid>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98k8s%E9%80%80%E5%87%BA%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86%E5%92%8C%E5%83%B5%E5%B0%B8%E8%BF%9B%E7%A8%8B%E9%97%AE%E9%A2%98/</guid><description>&lt;blockquote>
+&lt;p>接上一篇容器多进程的内容延伸到僵尸进程，也是一个真实的生产问题&lt;/p>
+&lt;blockquote>
+&lt;ol>
+&lt;li>公司有大量的Python + Selenium爬虫服务，据开发所说一个服务有很多个并行任务&lt;/li>
+&lt;li>一天早上告警类似&lt;code>Resource temporarily unavailable&lt;/code>的错误，对于这类问题其实只需根据&lt;code>ulimit -a&lt;/code>查看各项资源即可&lt;/li>
+&lt;li>因为确实部分资源使用率指标，所以只能在宿主机查看缺失的资源利用情况，如果只关心进程数直接&lt;code>ps -aux | wc -l&lt;/code>&lt;/li>
+&lt;li>僵尸进程对于多进程服务来说是常有的事，但需要通过一些自动化手段帮助k8s清理宿主机僵尸进程&lt;/li>
+&lt;/ol>
+&lt;/blockquote>
+&lt;/blockquote>
+&lt;h2 id="一什么是僵尸进程">一、什么是僵尸进程&lt;/h2>
+&lt;p>通常来说就是，在 Unix-like 操作系统中已经完成执行（终止）但仍然保留在系统进程表中的进程记录。
+这种状态的进程实际上已经停止运行，不占用除进程表外的任何资源，比如CPU和内存，
+但它仍然保留了一个PID和终止状态信息，等待父进程通过调用&lt;code>wait()&lt;/code>或&lt;code>waitpid()&lt;/code>函数来进行回收。&lt;/p>
+&lt;h3 id="1-生命周期">1. 生命周期&lt;/h3>
+&lt;ul>
+&lt;li>
+&lt;p>子进程执行完毕后，会发送一个&lt;code>SIGCHLD&lt;/code>信号给父进程，并变为僵尸状态。&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>父进程通过&lt;code>wait()&lt;/code>或&lt;code>waitpid()&lt;/code>读取子进程的终止状态，此时操作系统会清理僵尸进程的记录，释放其PID供其他进程使用。&lt;/p>
+&lt;/li>
+&lt;/ul></description></item><item><title>【生产问题】在容器中运行多进程服务OOMKilled未能被K8s检测识别的解决方案</title><link>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%9C%A8%E5%AE%B9%E5%99%A8%E4%B8%AD%E8%BF%90%E8%A1%8C%E5%A4%9A%E8%BF%9B%E7%A8%8B%E6%9C%8D%E5%8A%A1oomkilled%E6%9C%AA%E8%83%BD%E8%A2%ABk8s%E6%A3%80%E6%B5%8B%E8%AF%86%E5%88%AB%E7%9A%84%E7%BB%93%E5%B1%80%E6%96%B9%E6%A1%88/</link><pubDate>Wed, 23 Nov 2022 16:17:10 +0800</pubDate><guid>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%9C%A8%E5%AE%B9%E5%99%A8%E4%B8%AD%E8%BF%90%E8%A1%8C%E5%A4%9A%E8%BF%9B%E7%A8%8B%E6%9C%8D%E5%8A%A1oomkilled%E6%9C%AA%E8%83%BD%E8%A2%ABk8s%E6%A3%80%E6%B5%8B%E8%AF%86%E5%88%AB%E7%9A%84%E7%BB%93%E5%B1%80%E6%96%B9%E6%A1%88/</guid><description>&lt;blockquote>
+&lt;p>这是两个月前公司的图片AI训练模型集群出现的一个生产问题，是这样的：&lt;/p>
+&lt;p>well-known, Python项目因为GIL普遍使用多进程代替多线程，使得container中存在1号进程之外的其他进程。&lt;/p>
+&lt;blockquote>
+&lt;ol>
+&lt;li>算法组的同学曾在群里反馈模型服务并没有问题，但多次跑出来的数据有缺失&lt;/li>
+&lt;li>开始运维方任务是算法代码问题，并没有在意，但随手发现相关的Pod内存曲线有断崖下降并且没有再回升&lt;/li>
+&lt;li>直觉告诉内部有进程挂了，在算法同学允许下重跑了一边服务，ps aux命令观察了一下果然若干小时候被强退，预计OOMKilled了&lt;/li>
+&lt;li>但主要问题是，监控系统并没有抓取到这一事件，无法发出OOMKilled告警&lt;/li>
+&lt;/ol>
+&lt;/blockquote>
+&lt;/blockquote>
+&lt;h2 id="一container以及pod的状态">一、container以及Pod的状态&lt;/h2>
+&lt;h3 id="1-container的异常指标">1. container的异常指标&lt;/h3>
+&lt;p>总所周知，这个异常指标可以用过kube-state-metrics获得&lt;/p>
+&lt;pre tabindex="0">&lt;code>kube_pod_container_status_terminated_reason{ container=&amp;#34;nginx&amp;#34;, namespace=&amp;#34;default&amp;#34;, node=&amp;#34;xxxx&amp;#34;, pod=&amp;#34;nginx-dep-123&amp;#34;, reason=&amp;#34;OOMKilled&amp;#34;, service=&amp;#34;kube-state-metrics&amp;#34;}
+&lt;/code>&lt;/pre>&lt;p>解读一下：意思是pod nginx-dep-123中的某个容器 nginx 的状态是terminated，并且它进入terminated状态的reason原因是因为OOMKilled&lt;/p>
+&lt;blockquote>
+&lt;p>值得注意的是，kubectl get展示的status即可能是容器也可能是pod的状态。&lt;/p>
+&lt;p>具体可以参考这两个官方文档&lt;a href="https://kubernetes.io/zh-cn/docs/concepts/workloads/pods/pod-lifecycle/#container-states">容器状态&lt;/a>和&lt;a href="https://kubernetes.io/zh-cn/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase">Pod阶段&lt;/a>&lt;/p>
+&lt;/blockquote>
+&lt;p>容器状态只有三种：&lt;/p>
+&lt;ul>
+&lt;li>Waiting（等待）处于Waiting状态的容器仍在运行它完成启动所需要的操作：例如从某个容器镜像仓库拉取容器镜像，或者向容器应用Secret数据等等&lt;/li>
+&lt;li>Running（运行中） 状态表明容器正在执行状态并且没有问题发生&lt;/li>
+&lt;li>Terminated（已终止） 处于 Terminated 状态的容器已经开始执行并且或者正常结束或者因为某些原因失败。&lt;/li>
+&lt;/ul>
+&lt;p>&lt;code>kubectl get&lt;/code>打印的源码可以在kubernetes\pkg\printers\internalversion\printers.go这里看&lt;code>printPod()&lt;/code>方法&lt;/p>
+&lt;h3 id="2-containerd如何获取容器状态的">2. containerd如何获取容器状态的&lt;/h3>
+&lt;p>我们都知道的Pod状态均来自于CRI，kubelet的pleg会通过cri接口获取containerd的状态信息，pleg是个大坑回头有精力可以讲。&lt;/p>
+&lt;p>可以直接定位到pod.Status.Reason获取的位置&lt;code>kubernetes\pkg\kubelet\pleg\generic.go&lt;/code>&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;span class="lnt">22
+&lt;/span>&lt;span class="lnt">23
+&lt;/span>&lt;span class="lnt">24
+&lt;/span>&lt;span class="lnt">25
+&lt;/span>&lt;span class="lnt">26
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-go" data-lang="go">&lt;span class="line">&lt;span class="cl">&lt;span class="kd">func&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">g&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="nx">GenericPLEG&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="nf">updateCache&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">ctx&lt;/span> &lt;span class="nx">context&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Context&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">pod&lt;/span> &lt;span class="o">*&lt;/span>&lt;span class="nx">kubecontainer&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Pod&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">pid&lt;/span> &lt;span class="nx">types&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">UID&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="kt">error&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="kt">bool&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="k">if&lt;/span> &lt;span class="nx">pod&lt;/span> &lt;span class="o">==&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">klog&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">V&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">4&lt;/span>&lt;span class="p">).&lt;/span>&lt;span class="nf">InfoS&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;PLEG: Delete status for pod&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s">&amp;#34;podUID&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nb">string&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">pid&lt;/span>&lt;span class="p">))&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">g&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">cache&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Delete&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">pid&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="k">return&lt;/span> &lt;span class="kc">nil&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="kc">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">g&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">podCacheMutex&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Lock&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="k">defer&lt;/span> &lt;span class="nx">g&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">podCacheMutex&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Unlock&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">timestamp&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">g&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">clock&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Now&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="c1">// 这里是pleg的非常重的逻辑就不展开了
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span> &lt;span class="c1">// 1. 用m.runtimeService.PodSandboxStatus获取sandbox的网络容器状态
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span> &lt;span class="c1">// 2. 再通过m.getPodContainerStatuses(uid, name, namespace)获取业务容器状态
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span> &lt;span class="c1">// a. 这里回去调用对应的CRI GRPC接口，即(r *remoteRuntimeService) ContainerStatus(containerID string)
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span> &lt;span class="c1">// 3. 最后拼装为&amp;amp;kubecontainer.PodStatus
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span> &lt;span class="nx">status&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">:=&lt;/span> &lt;span class="nx">g&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">runtime&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">GetPodStatus&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">ctx&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">pod&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">ID&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">pod&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Name&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">pod&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">Namespace&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="k">if&lt;/span> &lt;span class="nx">err&lt;/span> &lt;span class="o">!=&lt;/span> &lt;span class="kc">nil&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">}&lt;/span> &lt;span class="k">else&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="c1">// ...
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span> &lt;span class="nx">status&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">IPs&lt;/span> &lt;span class="p">=&lt;/span> &lt;span class="nx">g&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">getPodIPs&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">pid&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">status&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="c1">// ...
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="k">return&lt;/span> &lt;span class="nx">err&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">g&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">cache&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nf">Set&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">pod&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">ID&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">status&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">err&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">timestamp&lt;/span>&lt;span class="p">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item><item><title>【基础知识】Docker镜像存储原理及其优化方式</title><link>/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86docker%E9%95%9C%E5%83%8F%E5%AD%98%E5%82%A8%E5%8E%9F%E7%90%86%E5%8F%8A%E5%85%B6%E4%BC%98%E5%8C%96%E6%96%B9%E5%BC%8F/</link><pubDate>Thu, 24 Sep 2020 16:23:15 +0800</pubDate><guid>/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86docker%E9%95%9C%E5%83%8F%E5%AD%98%E5%82%A8%E5%8E%9F%E7%90%86%E5%8F%8A%E5%85%B6%E4%BC%98%E5%8C%96%E6%96%B9%E5%BC%8F/</guid><description>&lt;p>本文旨在通过Dockerfile的指令展开Docker镜像的原理，不再介绍Docker是什么了。&lt;/p>
+&lt;h2 id="一核心指令及其增强语法">一、核心指令及其增强语法&lt;/h2>
+&lt;h3 id="1-基础指令">1. 基础指令&lt;/h3>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;span class="lnt">22
+&lt;/span>&lt;span class="lnt">23
+&lt;/span>&lt;span class="lnt">24
+&lt;/span>&lt;span class="lnt">25
+&lt;/span>&lt;span class="lnt">26
+&lt;/span>&lt;span class="lnt">27
+&lt;/span>&lt;span class="lnt">28
+&lt;/span>&lt;span class="lnt">29
+&lt;/span>&lt;span class="lnt">30
+&lt;/span>&lt;span class="lnt">31
+&lt;/span>&lt;span class="lnt">32
+&lt;/span>&lt;span class="lnt">33
+&lt;/span>&lt;span class="lnt">34
+&lt;/span>&lt;span class="lnt">35
+&lt;/span>&lt;span class="lnt">36
+&lt;/span>&lt;span class="lnt">37
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-dockerfile" data-lang="dockerfile">&lt;span class="line">&lt;span class="cl">&lt;span class="c"># FROM 每个 Dockerfile 都必须以 FROM 指令开始&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">FROM&lt;/span>&lt;span class="s"> ubuntu:20.04&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># RUN 执行命令并将结果打包到镜像中，通常用于安装软件或执行某些配置操作&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> apt-get update &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> apt-get install -y nginx&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># CMD 指定容器启动时默认执行的命令。不同于 RUN，CMD 只在容器启动时执行。&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">CMD&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;nginx&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;-g&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;daemon off;&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># ENTRYPOINT 设置容器启动时要执行的主命令。与 CMD 类似，但更适合于设置不可更改的启动命令。&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># 一个Dockerfile只能有一个ENTRYPOINT，出现多个时，前面会被最后一个所覆盖&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># 通常来说可以和CMD配合使用，如&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># ENTRYPOINT [&amp;#34;nginx&amp;#34;]&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># CMD [&amp;#34;-g&amp;#34;, &amp;#34;daemon off;&amp;#34;]&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># 这样启动的时候，可以通过 docker run my_image -g &amp;#34;daemon on;&amp;#34; 这种方式覆盖CMD同时保留默认启动参数的效果&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">ENTRYPOINT&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;nginx&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;-g&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;daemon off;&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">WORKDIR&lt;/span>&lt;span class="s"> /app&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># COPY 从构建主机将文件或目录复制到镜像中&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># ADD 与 COPY 类似，但可以处理本地 tar 文件的自动解压以及 URL 的下载&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> . /app&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">ADD&lt;/span> https://example.com/app.tar.gz /app&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">ENV&lt;/span> APP_VERSION 1.0&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># 声明容器的外部端口，但不自动发布端口&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">EXPOSE&lt;/span>&lt;span class="s"> 80&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># VOLUME 声明挂载点，将容器的数据目录映射到宿主机目录或其他容器。&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># 即使不使用该指令，在docker run启动时，仍然可以使用-v或--mount进行挂载&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># docker run -v &amp;lt;宿主机目录&amp;gt;:&amp;lt;容器内目录&amp;gt; &amp;lt;镜像名&amp;gt;&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># docker run --mount type=bind,source=&amp;lt;宿主机目录&amp;gt;,target=&amp;lt;容器内目录&amp;gt; &amp;lt;镜像名&amp;gt;&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">VOLUME&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;/data&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># ONBUILD 用于定义`延迟执行`的构建指令，即当该镜像被用作基础镜像来构建其他镜像时才会执行。一般情况下，它不会在构建当前镜像时触发。&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># 举我用到的场景：&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># 1. 同步私有仓库管理的config文件，可能有因为不同项目或者语言导致相同的配置数据出现异构&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># 2. 安装依赖包搭建编译环境&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="c"># 一般来说都是在构建派生镜像时需要拉取最新配置或者依赖包时，可以通过ONBUILD降低派生镜像Dockerfile的复杂度&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">ONBUILD&lt;/span> &lt;span class="k">COPY&lt;/span> . /app&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">ONBUILD&lt;/span> &lt;span class="k">RUN&lt;/span> &lt;span class="nb">cd&lt;/span> /app &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> npm install&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>上面命令基本足够编写一个复杂的镜像构建脚本，但个别有一些高级选项，可以继续研究一下&lt;/p>
+&lt;h3 id="2基础指令上高阶用法">2.基础指令上高阶用法&lt;/h3>
+&lt;p>&lt;code>RUN&lt;/code>其实有两种缓存layer的方式，分别是&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-dockerfile" data-lang="dockerfile">&lt;span class="line">&lt;span class="cl">&lt;span class="k">RUN&lt;/span> --mount&lt;span class="o">=&lt;/span>&lt;span class="nv">type&lt;/span>&lt;span class="o">=&lt;/span>cache,target&lt;span class="o">=&lt;/span>/root/.cache/pip pip install -r requirements.txt&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> --mount&lt;span class="o">=&lt;/span>&lt;span class="nv">type&lt;/span>&lt;span class="o">=&lt;/span>bind,source&lt;span class="o">=&lt;/span>/path/to/local/.m2,target&lt;span class="o">=&lt;/span>/root/.m2 mvn install&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>&lt;code>COPY&lt;/code>和&lt;code>ADD&lt;/code>都有一个link选项，用于让Docker在将文件或目录从宿主机复制到镜像时，创建&lt;strong>硬链接&lt;/strong>而不是直接复制文件。&lt;/p>
+&lt;p>在普通Web项目里面很少用到，但在AI训练机器上会很常见，例如这里&lt;a href="https://depot.dev/blog/depot-ai">Depot AI&lt;/a>。
+因为AI的数据集非常庞大，不可能完全复制到镜像当中，这会导致构建的镜像过大而占用制品库空间，可以通过&lt;code>link&lt;/code>的形式将文件链接到镜像的文件系统中。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-dockerfile" data-lang="dockerfile">&lt;span class="line">&lt;span class="cl">&lt;span class="k">FROM&lt;/span>&lt;span class="s"> python:3.10&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> --link --from&lt;span class="o">=&lt;/span>depot.ai/runwayml/stable-diffusion-v1-5 /v1-inference.yaml .&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">COPY&lt;/span> --link --from&lt;span class="o">=&lt;/span>depot.ai/runwayml/stable-diffusion-v1-5 /v1-5-pruned.ckpt .&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="二镜像构建原理layers之间的关系">二、镜像构建原理，Layers之间的关系&lt;/h2>
+&lt;blockquote>
+&lt;p>我觉得需要搞明白一件事情就是，Docker不是VM，任意基础镜像都不存在安装一个完整的操作系统。&lt;/p>
+&lt;/blockquote>
+&lt;p>&lt;img src="/images/Docker-image.jpg" alt="docker-image.png">&lt;/p></description></item><item><title>【生产问题】如何将传统运维环境服务优雅地迁移至Kubernetes集群从而实现全量容器化</title><link>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%A6%82%E4%BD%95%E5%B0%86%E4%BC%A0%E7%BB%9F%E8%BF%90%E7%BB%B4%E7%8E%AF%E5%A2%83%E6%9C%8D%E5%8A%A1%E4%BC%98%E9%9B%85%E5%9C%B0%E8%BF%81%E7%A7%BB%E8%87%B3kubernetes%E9%9B%86%E7%BE%A4%E4%BB%8E%E8%80%8C%E5%AE%9E%E7%8E%B0%E5%85%A8%E9%87%8F%E5%AE%B9%E5%99%A8%E5%8C%96/</link><pubDate>Wed, 11 Sep 2024 18:13:39 +0800</pubDate><guid>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%A6%82%E4%BD%95%E5%B0%86%E4%BC%A0%E7%BB%9F%E8%BF%90%E7%BB%B4%E7%8E%AF%E5%A2%83%E6%9C%8D%E5%8A%A1%E4%BC%98%E9%9B%85%E5%9C%B0%E8%BF%81%E7%A7%BB%E8%87%B3kubernetes%E9%9B%86%E7%BE%A4%E4%BB%8E%E8%80%8C%E5%AE%9E%E7%8E%B0%E5%85%A8%E9%87%8F%E5%AE%B9%E5%99%A8%E5%8C%96/</guid><description>&lt;blockquote>
+&lt;p>最近尝试着面试几家公司，偶尔会被问到传统环境如何向Kubernetes迁移的方案。&lt;/p>
+&lt;p>坦白说，其实这方面并不缺简单可行性高的方案，我就以屈臣氏中国的迁移方案为例，给访问本博客的同行借鉴一下。&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="环境的迁移迁移的是什么">环境的迁移，迁移的是什么？&lt;/h2>
+&lt;p>&lt;strong>毋庸置疑，只要外网请求全量并正常地访问Kubernetes环境，我们就可以认为实现了容器化。&lt;/strong>&lt;/p>
+&lt;blockquote>
+&lt;p>流量导入可能还不够，有的公司可能想实现全面云原生，持久层也想迁移进来，涉及到数据库如何尽最大可能无缝迁移。&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="流量迁移">流量迁移&lt;/h3>
+&lt;p>我这里直接按照阿里云传统的ECS环境迁移到自建K8s环境为例&lt;/p></description></item><item><title>【问题小解决】无需重启，基于Prometheus对Pod进行垂直扩缩容</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E6%97%A0%E9%9C%80%E9%87%8D%E5%90%AF%E5%9F%BA%E4%BA%8Eprometheus%E5%AF%B9pod%E8%BF%9B%E8%A1%8C%E5%9E%82%E7%9B%B4%E6%89%A9%E7%BC%A9%E5%AE%B9/</link><pubDate>Thu, 07 Mar 2024 11:24:44 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E6%97%A0%E9%9C%80%E9%87%8D%E5%90%AF%E5%9F%BA%E4%BA%8Eprometheus%E5%AF%B9pod%E8%BF%9B%E8%A1%8C%E5%9E%82%E7%9B%B4%E6%89%A9%E7%BC%A9%E5%AE%B9/</guid><description>&lt;p>通常情况下，要修改 Pod 的资源定义，是需要重启 Pod 的。
+在&lt;strong>Kubernetes 1.27&lt;/strong>中，有一个 Alpha 状态的&lt;code>InPlacePodVerticalScaling&lt;/code>开关，开启这一特性，
+就能在不重启 Pod 的情况下，修改 Pod 的资源定义。&lt;/p>
+&lt;p>要使用这个功能，需要在&lt;code>kube-apiserver&lt;/code>的&lt;code>featureGates&lt;/code>中显式地设置启用，启用这一特性之后，就可以进行测试了。&lt;/p>
+&lt;h3 id="测试一下">测试一下&lt;/h3>
+&lt;p>假设下面的 Pod 定义：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="line">&lt;span class="cl">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Pod&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">stress&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">containers&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">stress&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">image&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">myimages/stress-ng:latest&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">resizePolicy&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>- &lt;span class="nt">resourceName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">cpu&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">restartPolicy&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">NotRequired&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>- &lt;span class="nt">resourceName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">memory&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">restartPolicy&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">RestartContainer &lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">command&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;sleep&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;3600&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">resources&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">limits&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">cpu&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">200m&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">memory&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">200M&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">requests&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">cpu&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">200m&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">memory&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">200M&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>可以看到，spec 中加入了&lt;code>resizePolicy&lt;/code>字段，用来指定对 CPU 和内存的扩缩容策略。内容很直白：&lt;/p>
+&lt;ul>
+&lt;li>CPU 的扩缩容策略是&lt;code>NotRequired&lt;/code>，即不重启 Pod；&lt;/li>
+&lt;li>内存的扩缩容策略是&lt;code>RestartContainer&lt;/code>，即重启 Pod。&lt;/li>
+&lt;/ul></description></item><item><title>【CKA专题】梳理RBAC权限构成，并创建一个用户及其权限</title><link>/cka%E4%B8%93%E9%A2%98%E6%A2%B3%E7%90%86rbac%E6%9D%83%E9%99%90%E6%9E%84%E6%88%90%E5%B9%B6%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E7%94%A8%E6%88%B7%E5%8F%8A%E5%85%B6%E6%9D%83%E9%99%90/</link><pubDate>Fri, 03 Nov 2023 15:34:55 +0800</pubDate><guid>/cka%E4%B8%93%E9%A2%98%E6%A2%B3%E7%90%86rbac%E6%9D%83%E9%99%90%E6%9E%84%E6%88%90%E5%B9%B6%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E7%94%A8%E6%88%B7%E5%8F%8A%E5%85%B6%E6%9D%83%E9%99%90/</guid><description>&lt;h2 id="为一个开发人员配置客户端证书">为一个开发人员配置客户端证书&lt;/h2>
+&lt;p>首先，为用户生成私钥和证书签名请求（CSR），然后使用Kubernetes集群的CA来签署证书&lt;/p>
+&lt;p>使用 OpenSSL 生成私钥和证书签名请求（CSR）：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 生成用户的私钥&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">openssl genrsa -out user.key &lt;span class="m">2048&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 生成CSR&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">openssl req -new -key user.key -out user.csr -subj &lt;span class="s2">&amp;#34;/CN=username/O=groupname&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>在这里：&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>/CN=username&lt;/code>：&lt;code>username&lt;/code>表示用户的名字&lt;/li>
+&lt;li>&lt;code>/O=groupname&lt;/code>：&lt;code>groupname&lt;/code>表示用户所在的组，可以帮助后续RBAC授权（例如管理员、开发者等不同组）&lt;/li>
+&lt;/ul>
+&lt;p>使用 Kubernetes 集群的 CA 签署 CSR，生成用户证书：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">openssl x509 -req -in user.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out user.crt -days &lt;span class="m">365&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ul>
+&lt;li>-CA /etc/kubernetes/pki/ca.crt 和 -CAkey /etc/kubernetes/pki/ca.key：指向 Kubernetes 集群的CA证书和CA密钥，用于签署用户的CSR&lt;/li>
+&lt;li>-out user.crt：生成的用户证书&lt;/li>
+&lt;/ul>
+&lt;h2 id="配置-kubeconfig-文件">配置 kubeconfig 文件&lt;/h2>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">kubectl config set-cluster kubernetes-cluster &lt;span class="se">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="se">&lt;/span> --certificate-authority&lt;span class="o">=&lt;/span>ca.crt &lt;span class="se">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="se">&lt;/span> --server&lt;span class="o">=&lt;/span>https://&amp;lt;API_SERVER_IP&amp;gt;:&amp;lt;PORT&amp;gt; &lt;span class="se">\
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="se">&lt;/span> --kubeconfig&lt;span class="o">=&lt;/span>&lt;span class="nv">$KUBECONFIG_FILE&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">## 添加用户的证书和私钥&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">kubectl config set-credentials username --client-certificate&lt;span class="o">=&lt;/span>user.crt --client-key&lt;span class="o">=&lt;/span>user.key --kubeconfig&lt;span class="o">=&lt;/span>&lt;span class="nv">$KUBECONFIG_FILE&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">## 为用户设置一个使用上下文，以便访问集群&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">kubectl config set-context username-context --cluster&lt;span class="o">=&lt;/span>kubernetes-cluster --namespace&lt;span class="o">=&lt;/span>default --user&lt;span class="o">=&lt;/span>username --kubeconfig&lt;span class="o">=&lt;/span>&lt;span class="nv">$KUBECONFIG_FILE&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">## 切换到新创建的上下文&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">kubectl config use-context username-context --kubeconfig&lt;span class="o">=&lt;/span>&lt;span class="nv">$KUBECONFIG_FILE&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>将文件给到开发同学即可&lt;/p></description></item><item><title>【问题小解决】如何解决多容器下修改hosts失效</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E5%A6%82%E4%BD%95%E8%A7%A3%E5%86%B3%E5%A4%9A%E5%AE%B9%E5%99%A8%E4%B8%8B%E4%BF%AE%E6%94%B9hosts%E5%A4%B1%E6%95%88/</link><pubDate>Thu, 22 Jun 2023 20:24:18 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E5%A6%82%E4%BD%95%E8%A7%A3%E5%86%B3%E5%A4%9A%E5%AE%B9%E5%99%A8%E4%B8%8B%E4%BF%AE%E6%94%B9hosts%E5%A4%B1%E6%95%88/</guid><description>&lt;h3 id="问题现象">问题现象&lt;/h3>
+&lt;p>业务容器启动的逻辑中，修改了&lt;code>/etc/hosts&lt;/code>文件，当 Pod 只存在这一个业务容器时，文件可以修改成功，
+但存在多个时 (比如注入了 istio 的 sidecar)，修改可能会失效。&lt;/p>
+&lt;h3 id="分析">分析&lt;/h3>
+&lt;ol>
+&lt;li>容器中的&lt;code>/etc/hosts&lt;/code>是由 kubelet 生成并挂载到 Pod 中所有容器，
+如果 Pod 有多个容器，它们挂载的&lt;code>/etc/hosts&lt;/code>文件都对应宿主机上同一个文件，
+路径通常为&lt;code>/var/lib/kubelet/pods/&amp;lt;pod-uid&amp;gt;/etc-hosts&lt;/code>。&lt;/li>
+&lt;/ol>
+&lt;blockquote>
+&lt;p>如果是 docker 运行时，可以通过&lt;code>docker inspect &amp;lt;container-id&amp;gt; -f {{.HostsPath}}&lt;/code>查看。&lt;/p>
+&lt;/blockquote>
+&lt;ol start="2">
+&lt;li>kubelet 在启动容器时，都会走如下的调用链&lt;code>（makeMounts-&amp;gt;makeHostsMount-&amp;gt;ensureHostsFile）&lt;/code>来给容器挂载 /etc/hosts，
+而在 ensureHostsFile 函数中都会重新创建一个新的 etc-hosts 文件，导致在其他容器中对 /etc/hosts 文件做的任何修改都被还原了。&lt;/li>
+&lt;/ol>
+&lt;p>所以，当 Pod 中存在多个容器时，容器内修改 /etc/hosts 的操作可能会被覆盖回去。&lt;/p>
+&lt;h3 id="解决方案">解决方案&lt;/h3>
+&lt;h4 id="使用-hostaliases">使用 HostAliases&lt;/h4>
+&lt;p>如果只是某一个 workload 需要 hosts，可以用 HostAliases:&lt;/p></description></item><item><title>【问题小解决】解决容器内时区不一致问题</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E8%A7%A3%E5%86%B3%E5%AE%B9%E5%99%A8%E5%86%85%E6%97%B6%E5%8C%BA%E4%B8%8D%E4%B8%80%E8%87%B4%E9%97%AE%E9%A2%98/</link><pubDate>Fri, 17 Mar 2023 13:37:56 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E8%A7%A3%E5%86%B3%E5%AE%B9%E5%99%A8%E5%86%85%E6%97%B6%E5%8C%BA%E4%B8%8D%E4%B8%80%E8%87%B4%E9%97%AE%E9%A2%98/</guid><description>&lt;blockquote>
+&lt;p>业务程序在使用时间的时候(比如打印日志)，没有指定时区，使用的系统默认时区，
+而基础镜像一般默认使用 UTC 时间，程序输出时间戳的时候，就与国内的时间相差 8 小时。&lt;/p>
+&lt;blockquote>
+&lt;p>游戏&lt;strong>全球对战服&lt;/strong>场景这个问题更要命，开发需要通过时间计算同步帧的偏移量，如果这个时候还要重新计算时区是非常浪费计算资源的（-_-）&lt;/p>
+&lt;/blockquote>
+&lt;/blockquote>
+&lt;h3 id="方案一指定-tz-环境变量">方案一：指定 TZ 环境变量&lt;/h3>
+&lt;p>很多编程语言都支持&lt;code>TZ&lt;/code>这个用于设置时区的环境变量，可以在部署工作负载的时候，为容器指定该环境变量，示例：&lt;/p></description></item><item><title>【学习记录】ArgoCD GitOps 实践三：Git 项目组织方法</title><link>/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95argocd-gitops-%E5%AE%9E%E8%B7%B5%E4%B8%89git-%E9%A1%B9%E7%9B%AE%E7%BB%84%E7%BB%87%E6%96%B9%E6%B3%95/</link><pubDate>Sun, 18 Sep 2022 17:43:26 +0800</pubDate><guid>/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95argocd-gitops-%E5%AE%9E%E8%B7%B5%E4%B8%89git-%E9%A1%B9%E7%9B%AE%E7%BB%84%E7%BB%87%E6%96%B9%E6%B3%95/</guid><description>&lt;h3 id="在根目录创建-applicationset">在根目录创建 ApplicationSet&lt;/h3>
+&lt;p>在 Git 仓库根目录下创建 argo-apps.yaml 的文件，定义 ArgoCD 的 ApplicationSet:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;span class="lnt">22
+&lt;/span>&lt;span class="lnt">23
+&lt;/span>&lt;span class="lnt">24
+&lt;/span>&lt;span class="lnt">25
+&lt;/span>&lt;span class="lnt">26
+&lt;/span>&lt;span class="lnt">27
+&lt;/span>&lt;span class="lnt">28
+&lt;/span>&lt;span class="lnt">29
+&lt;/span>&lt;span class="lnt">30
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="line">&lt;span class="cl">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">argoproj.io/v1alpha1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ApplicationSet&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">apps-mycluster&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># ApplicationSet 名称，建议带集群名称后缀&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">argocd&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">goTemplate&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">goTemplateOptions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;missingkey=error&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">generators&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>- &lt;span class="nt">git&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># 通过当前Git仓库的apps目录下的子目录自动生成Application&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">repoURL&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">git@yourgit.com:your-org/your-repo.git&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">revision&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">HEAD&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">directories&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>- &lt;span class="nt">path&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">apps/*&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">template&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;{{.path.basename}}-mycluster&amp;#34;&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># 自动创建的Application的名称格式为: 目录名-集群名&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">argocd&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">project&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">default&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">source&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">repoURL&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">git@yourgit.com:your-org/your-repo.git&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">targetRevision&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">HEAD&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">path&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;apps/{{.path.basename}}&amp;#34;&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c"># 自动生成的 Application 使用的 YAML 内容在对应子目录下&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">destination&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">mycluster # Application 被部署的目的集群&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">syncPolicy&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">automated&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">prune&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">selfHeal&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item><item><title>【学习笔记】ArgoCD GitOps 实践二：集群与 Git 仓库管理</title><link>/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0argocd-gitops-%E5%AE%9E%E8%B7%B5%E4%BA%8C%E9%9B%86%E7%BE%A4%E4%B8%8E-git-%E4%BB%93%E5%BA%93%E7%AE%A1%E7%90%86/</link><pubDate>Fri, 09 Sep 2022 20:43:26 +0800</pubDate><guid>/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0argocd-gitops-%E5%AE%9E%E8%B7%B5%E4%BA%8C%E9%9B%86%E7%BE%A4%E4%B8%8E-git-%E4%BB%93%E5%BA%93%E7%AE%A1%E7%90%86/</guid><description>&lt;h3 id="管理方法">管理方法&lt;/h3>
+&lt;p>推荐每个集群使用一个 Git 仓库来存储该集群所要部署的所有应用的 YAML 与配置。&lt;/p>
+&lt;p>如果多个集群要部署相同或相似的应用，可抽取成单独的 Git 仓库，作为 submodule 引用进来。&lt;/p>
+&lt;p>这样做的好处是既可以减少冗余配置，又可以控制爆炸半径。submodule 可能被多个 Git 仓库共享（即多个集群部署相同应用），
+但如果不执行&lt;code>git submodule update --remote&lt;/code>的话，引用的 commit id 是不会变的，
+所以也不会因为上游应用更新而使所有使用了该应用的集群一下子全部都更新。&lt;/p>
+&lt;h3 id="添加集群">添加集群&lt;/h3></description></item><item><title>【学习笔记】ArgoCD GitOps 实践一：ArgoCD 的安装与配置</title><link>/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0argocd-gitops-%E5%AE%9E%E8%B7%B5%E4%B8%80argocd-%E7%9A%84%E5%AE%89%E8%A3%85%E4%B8%8E%E9%85%8D%E7%BD%AE/</link><pubDate>Thu, 01 Sep 2022 23:43:26 +0800</pubDate><guid>/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0argocd-gitops-%E5%AE%9E%E8%B7%B5%E4%B8%80argocd-%E7%9A%84%E5%AE%89%E8%A3%85%E4%B8%8E%E9%85%8D%E7%BD%AE/</guid><description>&lt;h3 id="使用-kustomize-安装-argocd">使用 kustomize 安装 ArgoCD&lt;/h3>
+&lt;p>官方提供了安装 ArgoCD 的 YAML，可以使用 kubectl 一键安装，但我建议使用 kustomize 来安装，因为这样一来可以将自定义配置声明并持久化到文件中，避免直接集群中改配置，也利于后续 ArgoCD 的自举，即用 ArgoCD 自身来用 GitOps 管理自身。&lt;/p>
+&lt;p>准备一个目录：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">mkdir argocd
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nb">cd&lt;/span> argocd
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>下载 argocd 部署 YAML：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">wget -O install.yaml https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;blockquote>
+&lt;p>后续升级 argocd 时，可以用上面相同命令更新下 YAML 文件。&lt;/p>
+&lt;/blockquote>
+&lt;p>创建&lt;code>kustomization.yaml&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="line">&lt;span class="cl">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">kustomize.config.k8s.io/v1beta1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Kustomization&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">argocd&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">patches&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>- &lt;span class="nt">path&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">argocd-cm-patch.yaml&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">resources&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>- &lt;span class="l">install.yaml&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item><item><title>【深度解析】Kube Proxy如何监听Service和Endpoint以及更新策略规则</title><link>/kube-proxy%E5%A6%82%E4%BD%95%E7%9B%91%E5%90%ACservice%E5%92%8Cendpoint%E4%BB%A5%E5%8F%8A%E6%9B%B4%E6%96%B0%E7%AD%96%E7%95%A5%E8%A7%84%E5%88%99/</link><pubDate>Sat, 13 Aug 2022 22:36:08 +0800</pubDate><guid>/kube-proxy%E5%A6%82%E4%BD%95%E7%9B%91%E5%90%ACservice%E5%92%8Cendpoint%E4%BB%A5%E5%8F%8A%E6%9B%B4%E6%96%B0%E7%AD%96%E7%95%A5%E8%A7%84%E5%88%99/</guid><description>&lt;p>本文会探讨Kubernetes另一个核心网络组件Kube-Proxy，它承担着Service及其后端Pod对宿主机配置的影响。&lt;/p>
+&lt;h2 id="一-先聊一下三个核心api">一、 先聊一下三个核心API&lt;/h2>
+&lt;p>这三个API在不同版本下的Kube-Proxy发挥着主要作用，尤其是后两者。先上几个三个资源的常用配置一步步展开。&lt;/p>
+&lt;h3 id="1-service">1. Service&lt;/h3>
+&lt;p>&lt;code>Service&lt;/code>作用核心其实就是提供一个ClusterIP和域名的配置容器以及EP/EPS组织，并没有一个单独的controller进行管理，而是被endpointslice-controller所控制。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;span class="lnt">22
+&lt;/span>&lt;span class="lnt">23
+&lt;/span>&lt;span class="lnt">24
+&lt;/span>&lt;span class="lnt">25
+&lt;/span>&lt;span class="lnt">26
+&lt;/span>&lt;span class="lnt">27
+&lt;/span>&lt;span class="lnt">28
+&lt;/span>&lt;span class="lnt">29
+&lt;/span>&lt;span class="lnt">30
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="line">&lt;span class="cl">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Service&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">my-service&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">default&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">my-app&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">annotations&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">description&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;This is a demo service&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">spec&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">selector&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">app&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">my-app&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">tier&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">backend&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">type&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">ClusterIP&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>- &lt;span class="nt">protocol&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">TCP&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">port&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">80&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">targetPort&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">8080&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">http&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c">## 粘性会话，一般用于长连接并且开启ClusterIP的场景&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">sessionAffinity&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">None&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c">## Cluster和Local，默认前者，后者用于本地流量请求&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c">## 例如说，在Node1的PodA请求ServiceB，只能路由到Node1的ServiceB的Pod地址，如果本地没有则无法请求，报文会被iptables drop掉&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">externalTrafficPolicy&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Cluster&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c">## 控制NotReady的Pod是否要包含进Service，为true的话有可能导致流量损失&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">publishNotReadyAddresses&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">false&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">ipFamilyPolicy&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">SingleStack&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">ipFamilies&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>- &lt;span class="l">IPv4&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">healthCheckNodePort&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">30009&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="2-endpointsendpointslice">2. Endpoints、EndpointSlice&lt;/h3>
+&lt;p>&lt;code>EndpointSlice&lt;/code>是在k8s 1.19版本开始默认支持的，相较于&lt;code>Endpoints&lt;/code>能支持更大规模部署，受限于etcd的value值大小，ep即一个Service只能部署6000个节点，
+而eps理论上可以无上限，并且eps支持网络拓扑，它可以根据集群节点的资源信息，按需部署Pod数量。具体文档在这&lt;a href="https://kubernetes.io/zh-cn/docs/concepts/services-networking/endpoint-slices/">K8s文档-EndpointSlice&lt;/a>&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;span class="lnt">22
+&lt;/span>&lt;span class="lnt">23
+&lt;/span>&lt;span class="lnt">24
+&lt;/span>&lt;span class="lnt">25
+&lt;/span>&lt;span class="lnt">26
+&lt;/span>&lt;span class="lnt">27
+&lt;/span>&lt;span class="lnt">28
+&lt;/span>&lt;span class="lnt">29
+&lt;/span>&lt;span class="lnt">30
+&lt;/span>&lt;span class="lnt">31
+&lt;/span>&lt;span class="lnt">32
+&lt;/span>&lt;span class="lnt">33
+&lt;/span>&lt;span class="lnt">34
+&lt;/span>&lt;span class="lnt">35
+&lt;/span>&lt;span class="lnt">36
+&lt;/span>&lt;span class="lnt">37
+&lt;/span>&lt;span class="lnt">38
+&lt;/span>&lt;span class="lnt">39
+&lt;/span>&lt;span class="lnt">40
+&lt;/span>&lt;span class="lnt">41
+&lt;/span>&lt;span class="lnt">42
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-yaml" data-lang="yaml">&lt;span class="line">&lt;span class="cl">&lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">discovery.k8s.io/v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">EndpointSlice&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">metadata&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">annotations&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c">## 每一次Service或Pod改动都会update这个字段&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">endpoints.kubernetes.io/last-change-trigger-time&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;2022-08-19T03:32:20Z&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">generateName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">python-server-headless-&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">generation&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">27&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">labels&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">endpointslice.kubernetes.io/managed-by&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">endpointslice-controller.k8s.io&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">kubernetes.io/service-name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">python-server-headless&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">service.kubernetes.io/headless&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">python-server-headless-5xvm5&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">net-test&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">ownerReferences&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>- &lt;span class="nt">apiVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">v1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">blockOwnerDeletion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">controller&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Service&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">python-server-headless&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">uid&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">fb7d24b3-c7cb-4b1a-8bc2-7caf2cb32101&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">resourceVersion&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;6538663&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">uid&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">d7475629-ac4f-46bc-9aeb-479417162ec3&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">addressType&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">IPv4&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">endpoints&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>- &lt;span class="nt">addresses&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>- &lt;span class="m">10.100.58.221&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">conditions&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">ready&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">serving&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">terminating&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">false&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">nodeName&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">k8s-node02&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c">## 控制器基本上靠着这些信息对eps进行增删改查&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">targetRef&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">kind&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">Pod&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">python-server-65b886d59c-nnktx&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">namespace&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">net-test&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">uid&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">b3cf8828-5311-44cc-b9b1-6e8165f793f4&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nt">ports&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>- &lt;span class="nt">name&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s2">&amp;#34;&amp;#34;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">port&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="m">80&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nt">protocol&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="l">TCP&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="二kube-proxy的源码分析">二、Kube-Proxy的源码分析&lt;/h2>
+&lt;p>首先我们还是需要先认识一下Kube-Proxy的整体架构：&lt;/p>
+&lt;ul>
+&lt;li>cmd/kube-proxy/app/server.go 这是程序主入口，对宿主机的参数和启动参数进行注入
+&lt;ul>
+&lt;li>cmd/kube-proxy/app/server_linux.go 对应不同编译平台的代码，这里会继续设置部分协议栈的一些配置，如nf_conntrack、iptables等
+&lt;ul>
+&lt;li>这里就会应用到pkg/proxy中的各种 Proxy 创建器，根据不同设置有对应的代理
+&lt;ul>
+&lt;li>pkg/proxy/iptables/proxier.go&lt;/li>
+&lt;li>pkg/proxy/ipvs/proxier.go&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>pkg/util/async/bounded_frequency_runner.go 这是控制更新iptables/ipvs的核心组件，可以自定义更新的频率窗口&lt;/li>
+&lt;li>两个资源的同步器，被绑定在infomer的回调函数上，用来存储监听到的缓存
+&lt;ul>
+&lt;li>pkg/proxy/endpointschangetracker.go&lt;/li>
+&lt;li>pkg/proxy/servicechangetracker.go&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>下面是kube-proxy的代码主流程，没有太复杂的内容&lt;/p>
+&lt;p>&lt;img src="/images/kube-proxy.png" alt="kube-proxy.png">&lt;/p></description></item><item><title>【问题小解决】提供一个直接进入Pod网络命名空间的Shell脚本</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E6%8F%90%E4%BE%9B%E4%B8%80%E4%B8%AA%E7%9B%B4%E6%8E%A5%E8%BF%9B%E5%85%A5pod%E7%BD%91%E7%BB%9C%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4%E7%9A%84shell%E8%84%9A%E6%9C%AC/</link><pubDate>Thu, 07 Jul 2022 14:06:14 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E6%8F%90%E4%BE%9B%E4%B8%80%E4%B8%AA%E7%9B%B4%E6%8E%A5%E8%BF%9B%E5%85%A5pod%E7%BD%91%E7%BB%9C%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4%E7%9A%84shell%E8%84%9A%E6%9C%AC/</guid><description>我们使用 Kubernetes 时难免发生一些网络问题，往往需要进入容器的网络命名空间 (netns) 中，进行一些网络调试来定位问题，这里直接提供一个脚本，申请各种步骤
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 #!/bin/bash # 函数：进入网络命名空间并进行调试 enter_netns() { local pod_name=$1 local namespace=$2 local container_name=$3 # 获取指定 Pod 中指定容器的容器 ID container_id=$(kubectl -n $namespace get pod $pod_name -o jsonpath=&amp;#34;{.status.containerStatuses[?(@.name==\&amp;#34;$container_name\&amp;#34;)].containerID}&amp;#34; | sed &amp;#39;s|containerd://||&amp;#39;) if [ -z &amp;#34;$container_id&amp;#34; ]; then echo &amp;#34;未找到 Pod $pod_name 中容器 $container_name 在命名空间 $namespace 中的容器 ID&amp;#34; exit 1 fi # 获取容器进程的 PID pid=$(crictl inspect $container_id | grep -i &amp;#39;&amp;#34;pid&amp;#34;&amp;#39; | head -n 1 | awk &amp;#39;{print $2}&amp;#39; | sed &amp;#39;s/,//&amp;#39;) if [ -z &amp;#34;$pid&amp;#34; ]; then echo &amp;#34;未找到容器 $container_id 的 PID&amp;#34; exit 1 fi # 进入容器的网络命名空间 echo &amp;#34;进入 Pod $pod_name 中容器 $container_name 的网络命名空间，PID 为 $pid&amp;#34; nsenter -n --target $pid } # 检查是否提供了必要的参数 if [ $# -ne 3 ]; then echo &amp;#34;用法: $0 &amp;lt;pod_name&amp;gt; &amp;lt;namespace&amp;gt; &amp;lt;container_name&amp;gt;&amp;#34; exit 1 fi # 调用函数进入网络命名空间 enter_netns $1 $2 $3 调试网络 成功进入容器的 netns，可以使用节点上的网络工具进行调试网络，可以首先使用ip a验证下 ip 地址是否为 pod ip:</description></item><item><title>【公司分享学习】容器磁盘占满导致CPU飙高</title><link>/%E5%85%AC%E5%8F%B8%E5%88%86%E4%BA%AB%E5%AD%A6%E4%B9%A0%E5%AE%B9%E5%99%A8%E7%A3%81%E7%9B%98%E5%8D%A0%E6%BB%A1%E5%AF%BC%E8%87%B4cpu%E9%A3%99%E9%AB%98/</link><pubDate>Tue, 08 Mar 2022 09:17:32 +0800</pubDate><guid>/%E5%85%AC%E5%8F%B8%E5%88%86%E4%BA%AB%E5%AD%A6%E4%B9%A0%E5%AE%B9%E5%99%A8%E7%A3%81%E7%9B%98%E5%8D%A0%E6%BB%A1%E5%AF%BC%E8%87%B4cpu%E9%A3%99%E9%AB%98/</guid><description>&lt;blockquote>
+&lt;p>这是公司大佬的一次内部分享，我尝试简短总结一下&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="问题描述">问题描述&lt;/h3>
+&lt;p>某服务的其中两个副本异常，CPU 飙高。&lt;/p>
+&lt;h3 id="指标排查">指标排查&lt;/h3>
+&lt;ol>
+&lt;li>
+&lt;p>查看&lt;code>container_cpu_usage_seconds_total&lt;/code>监控，CPU 飙升，逼近 limit。&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>查看&lt;code>container_cpu_cfs_throttled_periods_total&lt;/code>监控，CPU 飙升伴随 CPU Throttle 飙升，所以服务异常应该是 CPU 被限流导致。&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>查看&lt;code>container_cpu_system_seconds_total&lt;/code>监控，发现 CPU 飙升主要是 CPU system 占用导致，容器内&lt;code>pidstat -u -t 5 1&lt;/code>可以看到进程&lt;code>%system&lt;/code>占用分布情况。&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>perf top&lt;/code>看 system 占用高主要是 vfs_write 写数据导致。&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>&lt;img src="/images/img.png" alt="img.png">&lt;/p></description></item><item><title>【问题小排查】关于device or Resource Busy如何排查</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%85%B3%E4%BA%8Edevice-or-resource-busy%E5%A6%82%E4%BD%95%E6%8E%92%E6%9F%A5/</link><pubDate>Fri, 09 Jul 2021 17:48:03 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%85%B3%E4%BA%8Edevice-or-resource-busy%E5%A6%82%E4%BD%95%E6%8E%92%E6%9F%A5/</guid><description>背景 在 kubernetes 环境中，可能会遇到因目录被占用导致 pod 一直 terminating:
+1 Aug 27 15:52:22 VM-244-70-centos kubelet[906978]: E0827 15:52:22.816125 906978 nestedpendingoperations.go:270] Operation for &amp;#34;\&amp;#34;kubernetes.io/secret/b45f3af4-3574-472e-b263-c2b71c3b2ea0-default-token-fltdk\&amp;#34; (\&amp;#34;b45f3af4-3574-472e-b263-c2b71c3b2ea0\&amp;#34;)&amp;#34; failed. No retries permitted until 2021-08-27 15:54:24.816098325 +0800 CST m=+108994.575932846 (durationBeforeRetry 2m2s). Error: &amp;#34;UnmountVolume.TearDown failed for volume \&amp;#34;default-token-fltdk\&amp;#34; (UniqueName: \&amp;#34;kubernetes.io/secret/b45f3af4-3574-472e-b263-c2b71c3b2ea0-default-token-fltdk\&amp;#34;) pod \&amp;#34;b45f3af4-3574-472e-b263-c2b71c3b2ea0\&amp;#34; (UID: \&amp;#34;b45f3af4-3574-472e-b263-c2b71c3b2ea0\&amp;#34;) : unlinkat /var/lib/kubelet/pods/b45f3af4-3574-472e-b263-c2b71c3b2ea0/volumes/kubernetes.io~secret/default-token-fltdk: device or resource busy&amp;#34; 本文记录下排查方法。
+找出目录被谁占用的 看下目录哪个进程 mount 了:
+1 2 $ find /proc/*/mounts -exec grep /var/lib/kubelet/pods/0104ab85-d0ea-4ac5-a5f9-5bdd12cca589/volumes/kubernetes.io~secret/kube-proxy-token-nvthm {} + 2&amp;gt;/dev/null /proc/6076/mounts:tmpfs /var/lib/kubelet/pods/0104ab85-d0ea-4ac5-a5f9-5bdd12cca589/volumes/kubernetes.io~secret/kube-proxy-token-nvthm tmpfs rw,relatime 0 0 根据找出的进程号，看看是谁干的:</description></item><item><title>【问题小排查】针对containerd V1.4.3拉取镜像的问题</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E9%92%88%E5%AF%B9containerd-v1.4.3%E6%8B%89%E5%8F%96%E9%95%9C%E5%83%8F%E7%9A%84%E9%97%AE%E9%A2%98/</link><pubDate>Fri, 11 Jun 2021 15:06:48 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E9%92%88%E5%AF%B9containerd-v1.4.3%E6%8B%89%E5%8F%96%E9%95%9C%E5%83%8F%E7%9A%84%E9%97%AE%E9%A2%98/</guid><description>&lt;h3 id="问题描述">问题描述&lt;/h3>
+&lt;p>在 containerd 运行时的 kubernetes 线上环境中，出现了镜像无法下载的情况，具体报错如下：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">Failed to pull image&lt;span class="p">&amp;amp;&lt;/span>nbsp&lt;span class="p">;&lt;/span>&lt;span class="sb">`&lt;/span> &lt;span class="sb">`&lt;/span>&lt;span class="s2">&amp;#34;ccr.ccs.tencentyun.com/tkeimages/tke-hpc-controller:v1.0.0&amp;#34;&lt;/span>&lt;span class="sb">`&lt;/span> &lt;span class="sb">`&lt;/span>: rpc error: &lt;span class="nv">code&lt;/span> &lt;span class="o">=&lt;/span> NotFound &lt;span class="nv">desc&lt;/span> &lt;span class="o">=&lt;/span> failed to pull and unpack image&lt;span class="p">&amp;amp;&lt;/span>nbsp&lt;span class="p">;&lt;/span>&lt;span class="sb">`&lt;/span> &lt;span class="sb">`&lt;/span>&lt;span class="s2">&amp;#34;ccr.ccs.tencentyun.com/tkeimages/tke-hpc-controller:v1.0.0&amp;#34;&lt;/span>&lt;span class="sb">`&lt;/span> &lt;span class="sb">`&lt;/span>: failed to unpack image on snapshotter overlayfs: failed to extract layer sha256:d72a74c56330b347f7d18b64d2effd93edd695fde25dc301d52c37efbcf4844e: failed to get reader from content store: content digest sha256:2bf487c4beaa6fa7ea6e46ec1ff50029024ebf59f628c065432a16a940792b58: not found
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>containerd 的日志中也有相关日志：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">containerd&lt;span class="o">[&lt;/span>136&lt;span class="o">]&lt;/span>: &lt;span class="nv">time&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;2020-11-19T16:11:56.975489200Z&amp;#34;&lt;/span> &lt;span class="nv">level&lt;/span>&lt;span class="o">=&lt;/span>info &lt;span class="nv">msg&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;PullImage \&amp;#34;redis:2.8.23\&amp;#34;&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">containerd&lt;span class="o">[&lt;/span>136&lt;span class="o">]&lt;/span>: &lt;span class="nv">time&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;2020-11-19T16:12:00.140053300Z&amp;#34;&lt;/span> &lt;span class="nv">level&lt;/span>&lt;span class="o">=&lt;/span>warning &lt;span class="nv">msg&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;reference for unknown type: application/octet-stream&amp;#34;&lt;/span> &lt;span class="nv">digest&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s2">&amp;#34;sha256:481995377a044d40ca3358e4203fe95eca1d58b98a1d4c2d9cec51c0c4569613&amp;#34;&lt;/span> &lt;span class="nv">mediatype&lt;/span>&lt;span class="o">=&lt;/span>application/octet-stream &lt;span class="nv">size&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="m">5946&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="尝试复现">尝试复现&lt;/h3>
+&lt;p>分析环境信息:&lt;/p>
+&lt;ul>
+&lt;li>container v1.4.3 运行时。&lt;/li>
+&lt;li>基于 1.10 版本的 docker 制作的镜像（比如 dockerhub 镜像仓库中的 redis:2.8.23）。&lt;/li>
+&lt;/ul>
+&lt;p>然后根据以上版本信息构造相同环境，通过如下命令拉取镜像：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">$ crictl pull docker.io/libraryredis:2.8.23
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">FATA&lt;span class="o">[&lt;/span>0001&lt;span class="o">]&lt;/span> pulling image failed: rpc error: &lt;span class="nv">code&lt;/span> &lt;span class="o">=&lt;/span> NotFound &lt;span class="nv">desc&lt;/span> &lt;span class="o">=&lt;/span> failed to pull and unpack image &lt;span class="s2">&amp;#34;docker.io/library/redis:2.8.23&amp;#34;&lt;/span>: failed to unpack image on snapshotter overlayfs: failed to extract layer sha256:4dcab49015d47e8f300ec33400a02cebc7b54cadd09c37e49eccbc655279da90: failed to get reader from content store: content digest sha256:51f5c6a04d83efd2d45c5fd59537218924bc46705e3de6ffc8bc07b51481610b: not found
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>问题复现，基本确认跟 containerd 版本与打包镜像的 docker 版本有关。&lt;/p></description></item><item><title>【学习记录】如何在不容器进行抓包，学习使用ksniff</title><link>/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95%E5%A6%82%E4%BD%95%E5%9C%A8%E4%B8%8D%E5%AE%B9%E5%99%A8%E8%BF%9B%E8%A1%8C%E6%8A%93%E5%8C%85%E5%AD%A6%E4%B9%A0%E4%BD%BF%E7%94%A8ksniff/</link><pubDate>Sun, 16 May 2021 19:29:59 +0800</pubDate><guid>/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95%E5%A6%82%E4%BD%95%E5%9C%A8%E4%B8%8D%E5%AE%B9%E5%99%A8%E8%BF%9B%E8%A1%8C%E6%8A%93%E5%8C%85%E5%AD%A6%E4%B9%A0%E4%BD%BF%E7%94%A8ksniff/</guid><description>Kubernetes 环境中遇到网络问题需要抓包排查怎么办？ 传统做法是登录 Pod 所在节点，然后 进入容器 netns，最后使用节点上 tcpdump 工具进行抓包。 整个过程比较繁琐，好在社区出现了 ksniff 这个小工具， 它是一个 kubectl 插件，可以让我们在 Kubernetes 中抓包变得更简单快捷。
+本文将介绍如何使用 ksniff 这个工具来对 Pod 进行抓包。
+安装</description></item><item><title>【学习记录】在容器中使用crontab</title><link>/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95%E5%9C%A8%E5%AE%B9%E5%99%A8%E4%B8%AD%E4%BD%BF%E7%94%A8crontab/</link><pubDate>Fri, 07 May 2021 15:38:15 +0800</pubDate><guid>/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95%E5%9C%A8%E5%AE%B9%E5%99%A8%E4%B8%AD%E4%BD%BF%E7%94%A8crontab/</guid><description>&lt;h3 id="准备-crontab-配置文件">准备 crontab 配置文件&lt;/h3>
+&lt;p>新建一个名为&lt;code>crontab&lt;/code>的配置文件，写定时任务规则:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">* * * * * &lt;span class="nb">echo&lt;/span> &lt;span class="s2">&amp;#34;Crontab is working&amp;#34;&lt;/span> &amp;gt; /proc/1/fd/1
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;blockquote>
+&lt;p>&lt;code>/proc/1/fd/1&lt;/code>表示输出到容器主进程的标准输出，这样我们可以利用 kubectl logs 来查看到执行日志。&lt;/p>
+&lt;/blockquote>
+&lt;h4 id="准备-dockerfile">准备 Dockerfile&lt;/h4>
+&lt;ul>
+&lt;li>CentOS 镜像&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;span class="lnt">8
+&lt;/span>&lt;span class="lnt">9
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-dockerfile" data-lang="dockerfile">&lt;span class="line">&lt;span class="cl">&lt;span class="k">FROM&lt;/span>&lt;span class="s"> docker.io/centos:7&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> yum -y install crontabs &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> rm -rf /etc/cron.*/*&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">ADD&lt;/span> crontab /etc/crontab&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> chmod &lt;span class="m">0644&lt;/span> /etc/crontab&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">RUN&lt;/span> crontab /etc/crontab&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="err">&lt;/span>&lt;span class="k">CMD&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s2">&amp;#34;crond&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s2">&amp;#34;-n&amp;#34;&lt;/span>&lt;span class="p">]&lt;/span>&lt;span class="err">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item><item><title>【JRaft源码分析03】成员变化</title><link>/jraft%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%9003%E6%88%90%E5%91%98%E5%8F%98%E5%8C%96/</link><pubDate>Wed, 17 Mar 2021 10:14:50 +0800</pubDate><guid>/jraft%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%9003%E6%88%90%E5%91%98%E5%8F%98%E5%8C%96/</guid><description>&lt;p>第三篇说成员变化，有了对选举和日志复制的认识，这个模块就很轻松简单了。&lt;/p>
+&lt;p>成员变化就两种情况，增加删除更换节点，和转移领导人。&lt;/p>
+&lt;h2 id="1更改一般节点">1、更改一般节点&lt;/h2>
+&lt;p>&lt;img src="https://raw.githubusercontent.com/zehonghuang/github_blog_bak/master/source/image/%E4%B8%80%E8%88%AC%E8%8A%82%E7%82%B9%E6%88%90%E5%91%98%E5%8F%98%E5%8C%96.png" alt="一般成员节点变化">&lt;/p></description></item><item><title>【JRaft源码分析02】心跳机制以及日志复制</title><link>/jraft%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%9002%E5%BF%83%E8%B7%B3%E6%9C%BA%E5%88%B6%E4%BB%A5%E5%8F%8A%E6%97%A5%E5%BF%97%E5%A4%8D%E5%88%B6/</link><pubDate>Sun, 14 Mar 2021 10:17:55 +0800</pubDate><guid>/jraft%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%9002%E5%BF%83%E8%B7%B3%E6%9C%BA%E5%88%B6%E4%BB%A5%E5%8F%8A%E6%97%A5%E5%BF%97%E5%A4%8D%E5%88%B6/</guid><description>&lt;p>日志复制是所有分布式共识算法最重要也是最复杂的部分，需要考虑各种各样安全性，比如机器挂了持久化没做、网络分区导致term&amp;amp;logindex不一致、成员变化带来两个任期相同的leader、异步网络出现日志乱序等等。&lt;/p>
+&lt;p>很多个细节，我边看源码边照着论文理解，一个异常判断反复推敲它的作用，想象发生的场景。这是源码级熟悉raft的好处，多多少少能身临其境，获取更多的实战校验。&lt;/p>
+&lt;p>后面至少还有两篇，成员变化和日志压缩。&lt;/p>
+&lt;p>花了点时间做张较为直观的简化流程图，红色箭头是日志复制的过程。还是挺复杂的，包括不限于Node、LogManager、Replicator、BallotBox、StateMachine之间的调用，其实还有快照，以后再讲。&lt;/p>
+&lt;p>本文会分为三部分讲，写请求日志落盘、日志复制、commit执行StateMachine。
+&lt;img src="https://raw.githubusercontent.com/zehonghuang/github_blog_bak/master/source/image/jraft%E6%97%A5%E5%BF%97%E5%A4%8D%E5%88%B6%E7%8A%B6%E6%80%81%E6%9C%BA.png" alt="日志复制状态机">&lt;/p></description></item><item><title>【JRaft源码分析01】启用以及选举过程</title><link>/jraft%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%9001%E5%90%AF%E7%94%A8%E4%BB%A5%E5%8F%8A%E9%80%89%E4%B8%BE%E8%BF%87%E7%A8%8B/</link><pubDate>Thu, 04 Mar 2021 10:18:15 +0800</pubDate><guid>/jraft%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%9001%E5%90%AF%E7%94%A8%E4%BB%A5%E5%8F%8A%E9%80%89%E4%B8%BE%E8%BF%87%E7%A8%8B/</guid><description>&lt;p>最近潜心cap理论和raft算法，选用了蚂蚁金服的sofa-jraft，深入研究具体的实现。该框架参考自百度的BRAFT，可以说是非常优秀的分布式通用框架，很值得学习。&lt;/p>
+&lt;p>Raft算法的理论就不再多说了，感性认识的话可以看这个&lt;a href="http://thesecretlivesofdata.com/raft/">动画&lt;/a>，非常好懂。&lt;/p>
+&lt;h2 id="1启动入口">1、启动入口&lt;/h2>
+&lt;p>示例在github的&lt;a href="https://github.com/zehonghuang/sofa-jraft/tree/master/jraft-example">jraft-example&lt;/a>&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-java" data-lang="java">&lt;span class="line">&lt;span class="cl">&lt;span class="n">RaftGroupService&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">raftGroupService&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">new&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">RaftGroupService&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">groupId&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">serverId&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">nodeOptions&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">rpcServer&lt;/span>&lt;span class="p">);&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="c1">//依次实例化NodeManager、NodeImpl、RpcServer&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="n">Node&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">node&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">raftGroupService&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">start&lt;/span>&lt;span class="p">();&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="kd">public&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kd">synchronized&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">Node&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nf">start&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kd">final&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kt">boolean&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">startRpcServer&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="n">NodeManager&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">getInstance&lt;/span>&lt;span class="p">().&lt;/span>&lt;span class="na">addAddress&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">serverId&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">getEndpoint&lt;/span>&lt;span class="p">());&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">node&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">RaftServiceFactory&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">createAndInitRaftNode&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">groupId&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">serverId&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">nodeOptions&lt;/span>&lt;span class="p">);&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">if&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">startRpcServer&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">this&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">rpcServer&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">startup&lt;/span>&lt;span class="p">();&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="2包罗万象的node">2、包罗万象的Node&lt;/h2>
+&lt;p>分布式系统关键单体就是节点Node，它包括raft分布式算法中需要的所有行为，不限于选举、投票、日志、复制、接收rpc请求等，梦开始的地方。&lt;/p>
+&lt;p>&lt;img src="https://raw.githubusercontent.com/zehonghuang/github_blog_bak/master/source/image/Node%E7%BB%93%E6%9E%84%E5%9B%BE.png" alt="Node结构图">&lt;/p></description></item><item><title>【问题小排查】Pod状态一直Terminating</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5pod%E7%8A%B6%E6%80%81%E4%B8%80%E7%9B%B4terminating/</link><pubDate>Thu, 11 Feb 2021 16:50:46 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5pod%E7%8A%B6%E6%80%81%E4%B8%80%E7%9B%B4terminating/</guid><description>&lt;h2 id="need-to-kill-pod">Need to kill Pod&lt;/h2>
+&lt;blockquote>
+&lt;p>$ kubectl describe pod/apigateway-6dc48bf8b6-clcwk -n cn-staging&lt;/p>
+&lt;p>Normal Killing 39s (x735 over 15h) kubelet, 10.179.80.31 Killing container with id docker://apigateway:Need to kill Pod&lt;/p>
+&lt;/blockquote>
+&lt;p>可能是磁盘满了，无法创建和删除 pod&lt;/p>
+&lt;p>处理建议是参考Kubernetes 最佳实践：&lt;a href="https://tencentcloudcontainerteam.github.io/tke-handbook/best-practice/kubernetes-best-practice-handle-disk-full.html">处理容器数据磁盘被写满&lt;/a>&lt;/p></description></item><item><title>【生产问题】时隔大半年，分享一次Nginx反向代理的需求</title><link>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E6%97%B6%E9%9A%94%E5%A4%A7%E5%8D%8A%E5%B9%B4%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E5%8F%8D%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/</link><pubDate>Fri, 13 Nov 2020 01:03:28 +0800</pubDate><guid>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E6%97%B6%E9%9A%94%E5%A4%A7%E5%8D%8A%E5%B9%B4%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E5%8F%8D%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/</guid><description>&lt;blockquote>
+&lt;p>博客前面分享了一篇&lt;a href="https://huangzehong.me/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E6%AD%A3%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/">《分享一个 Nginx 正向代理的另类应用案例》&lt;/a>，时隔不久，身为救火队员、万金油的博主又再一次接到了一个奇葩需求：&lt;/p>
+&lt;/blockquote>
+&lt;blockquote>
+&lt;p>场景和上次有些类似，也是部门引进的第三方应用，部署在各个网络区域，从 OA 办公区域无法直接访问。目前，运营人员都需要登陆 Windows 跳板机，才能打开这些应用的 WEB 控制台。既不方便，而且还有一定 Windows 服务器的维护工作量，于是找到我们团队，希望通过运维手段来解决。&lt;/p>
+&lt;/blockquote>
+&lt;p>拿到这个需求后，我先问了下各个应用的基本情况，得知每个应用的框架基本是一样的，都是通过 IP+端口直接访问，页面 path 也基本一样，没有唯一性。然后拿到了一个应用 WEB 控制台地址看了下，发现 html 引用的地址都是相对路径。&lt;/p>
+&lt;p>乍一想，这用 Nginx 代理不好弄吧？页面 path 一样，没法根据 location 来反代到不同的后端，只能通过不同 Nginx 端口来区分，那就太麻烦了！每次他们新上一个应用，我们就得多加一个新端口来映射，这种的尾大不掉、绵绵不绝事情坚决不干，Say pass。&lt;/p>
+&lt;p>再一想，我就想到了上次那个正向代理另类应用方案，感觉可以拿过来改改做动态代理。原理也简单：先和用户约定一个访问形式，比如:&lt;/p>
+&lt;blockquote>
+&lt;p>Nginx 代理地址为 myproxy.oa.com，需要代理到 IP 为 192.168.2.100:8080 的控制器，用户需要访问 &lt;a href="http://myproxy.oa.com/192.168.2.100:8080/path">http://myproxy.oa.com/192.168.2.100:8080/path&lt;/a>。&lt;/p>
+&lt;/blockquote></description></item><item><title>【问题小排查】排查 CLOSE_WAIT 堆积</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E6%8E%92%E6%9F%A5-close_wait-%E5%A0%86%E7%A7%AF/</link><pubDate>Wed, 21 Oct 2020 17:35:23 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E6%8E%92%E6%9F%A5-close_wait-%E5%A0%86%E7%A7%AF/</guid><description>&lt;blockquote>
+&lt;p>TCP 连接的 CLOSE_WAIT 状态，正常情况下是短暂的，如果出现堆积，一般说明应用有问题。&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="close_wait-堆积的危害">CLOSE_WAIT 堆积的危害&lt;/h3>
+&lt;p>每个&lt;code>CLOSE_WAIT&lt;/code>连接会占据一个文件描述，堆积大量的&lt;code>CLOSE_WAIT&lt;/code>可能造成文件描述符不够用，导致建连或打开文件失败，报错&lt;code>too many open files&lt;/code>:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">dial udp 9.215.0.48:9073: socket: too many open files
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="如何判断">如何判断?&lt;/h3>
+&lt;p>检查系统&lt;code>CLOSE_WAIT&lt;/code>连接数:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">lsof &lt;span class="p">|&lt;/span> grep CLOSE_WAIT &lt;span class="p">|&lt;/span> wc -l
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>检查指定进程&lt;code>CLOSE_WAIT&lt;/code>连接数:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">lsof -p &lt;span class="nv">$PID&lt;/span> &lt;span class="p">|&lt;/span> grep CLOSE_WAIT &lt;span class="p">|&lt;/span> wc -l
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="为什么会产生大量-close_wait">为什么会产生大量 CLOSE_WAIT?&lt;/h3>
+&lt;p>我们看下 TCP 四次挥手过程:&lt;/p>
+&lt;p>&lt;img src="/images/tcp_established.png" alt="tcp_established">&lt;/p></description></item><item><title>【问题小排查】Service无法解析</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5service%E6%97%A0%E6%B3%95%E8%A7%A3%E6%9E%90/</link><pubDate>Tue, 29 Sep 2020 17:21:23 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5service%E6%97%A0%E6%B3%95%E8%A7%A3%E6%9E%90/</guid><description>&lt;h3 id="检查kube-dns或coredns服务是否正常">检查kube-dns或CoreDNS服务是否正常&lt;/h3>
+&lt;ol>
+&lt;li>kubelet 启动参数 &amp;ndash;cluster-dns 可以看到 dns 服务的 cluster ip:&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">$ ps -ef &lt;span class="p">|&lt;/span> grep kubelet
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">... /usr/bin/kubelet --cluster-dns&lt;span class="o">=&lt;/span>172.16.14.217 ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ol start="2">
+&lt;li>找到 dns 的 service:&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">$ kubectl get svc -n kube-system &lt;span class="p">|&lt;/span> grep 172.16.14.217
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">kube-dns ClusterIP 172.16.14.217 &amp;lt;none&amp;gt; 53/TCP,53/UDP 47d
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ol start="3">
+&lt;li>看是否存在 endpoint:&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">$ kubectl -n kube-system describe svc kube-dns &lt;span class="p">|&lt;/span> grep -i endpoints
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Endpoints: 172.16.0.156:53,172.16.0.167:53
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Endpoints: 172.16.0.156:53,172.16.0.167:53
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ol start="4">
+&lt;li>检查 endpoint 的 对应 pod 是否正常:&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">$ kubectl -n kube-system get pod -o wide &lt;span class="p">|&lt;/span> grep 172.16.0.156
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">kube-dns-898dbbfc6-hvwlr 3/3 Running &lt;span class="m">0&lt;/span> 8d 172.16.0.156 10.0.0.3
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item><item><title>【问题小排查】关于怎么查IO高负载</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%85%B3%E4%BA%8E%E6%80%8E%E4%B9%88%E6%9F%A5io%E9%AB%98%E8%B4%9F%E8%BD%BD/</link><pubDate>Fri, 11 Sep 2020 21:51:34 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%85%B3%E4%BA%8E%E6%80%8E%E4%B9%88%E6%9F%A5io%E9%AB%98%E8%B4%9F%E8%BD%BD/</guid><description>&lt;blockquote>
+&lt;p>系统如果出现 IO WAIT 高，说明 IO 设备的速度跟不上 CPU 的处理速度，CPU 需要在那里干等，
+这里的等待实际也占用了 CPU 时间，导致系统负载升高，可能就会影响业务进程的处理速度，导致业务超时。&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="如何判断-">如何判断 ？&lt;/h3>
+&lt;p>使用&lt;code>top&lt;/code>命令看下当前负载：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">top - 19:42:06 up 23:59, &lt;span class="m">2&lt;/span> users, load average: 34.64, 35.80, 35.76
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Tasks: &lt;span class="m">679&lt;/span> total, &lt;span class="m">1&lt;/span> running, &lt;span class="m">678&lt;/span> sleeping, &lt;span class="m">0&lt;/span> stopped, &lt;span class="m">0&lt;/span> zombie
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Cpu&lt;span class="o">(&lt;/span>s&lt;span class="o">)&lt;/span>: 15.6%us, 1.7%sy, 0.0%ni, 74.7%id, 7.9%wa, 0.0%hi, 0.1%si, 0.0%st
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Mem: 32865032k total, 30989168k used, 1875864k free, 370748k buffers
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Swap: 8388604k total, 5440k used, 8383164k free, 7982424k cached
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> PID USER PR NI VIRT RES SHR S %CPU %MEM TIME+ COMMAND
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="m">9783&lt;/span> mysql &lt;span class="m">20&lt;/span> &lt;span class="m">0&lt;/span> 17.3g 16g &lt;span class="m">8104&lt;/span> S 186.9 52.3 3752:33 mysqld
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="m">5700&lt;/span> nginx &lt;span class="m">20&lt;/span> &lt;span class="m">0&lt;/span> 1330m 66m &lt;span class="m">9496&lt;/span> S 8.9 0.2 0:20.82 php-fpm
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="m">6424&lt;/span> nginx &lt;span class="m">20&lt;/span> &lt;span class="m">0&lt;/span> 1330m 65m &lt;span class="m">8372&lt;/span> S 8.3 0.2 0:04.97 php-fpm
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>&lt;code>%wa&lt;/code>(wait) 表示 IO WAIT 的 cpu 占用，默认看到的是所有核的平均值，要看每个核的&lt;code>%wa&lt;/code>值需要按下 &amp;ldquo;1&amp;rdquo;:&lt;/p></description></item><item><title>【问题小排查】处理容器数据磁盘被写满</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%A4%84%E7%90%86%E5%AE%B9%E5%99%A8%E6%95%B0%E6%8D%AE%E7%A3%81%E7%9B%98%E8%A2%AB%E5%86%99%E6%BB%A1/</link><pubDate>Thu, 03 Sep 2020 17:01:34 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%A4%84%E7%90%86%E5%AE%B9%E5%99%A8%E6%95%B0%E6%8D%AE%E7%A3%81%E7%9B%98%E8%A2%AB%E5%86%99%E6%BB%A1/</guid><description/></item><item><title>【问题小排查】Linux任务计划crontab不执行的问题排查</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5linux%E4%BB%BB%E5%8A%A1%E8%AE%A1%E5%88%92crontab%E4%B8%8D%E6%89%A7%E8%A1%8C%E7%9A%84%E9%97%AE%E9%A2%98%E6%8E%92%E6%9F%A5/</link><pubDate>Mon, 03 Aug 2020 09:49:18 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5linux%E4%BB%BB%E5%8A%A1%E8%AE%A1%E5%88%92crontab%E4%B8%8D%E6%89%A7%E8%A1%8C%E7%9A%84%E9%97%AE%E9%A2%98%E6%8E%92%E6%9F%A5/</guid><description>&lt;p>朋友弄了一个小项目，要我帮忙做下 Linux 系统运维，上线一段时间后，发现项目偶尔会挂掉导致服务不可用。
+开发朋友一时之间也没空去研究项目奔溃的根因，只好由我这个运维先写一个项目进程自拉起脚本，
+通过 Linux 任务计划每分钟检查一下进程是否存在来避免项目挂了没人管的情况。&lt;/p>
+&lt;p>自拉起脚本很简单，随便写几行就搞定了：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">&lt;span class="cp">#!/bin/bash
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="cp">&lt;/span>&lt;span class="nv">processcount&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="k">$(&lt;/span>pgrep my_app&lt;span class="p">|&lt;/span>wc -l&lt;span class="k">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nb">cd&lt;/span> &lt;span class="k">$(&lt;/span>&lt;span class="nb">cd&lt;/span> &lt;span class="k">$(&lt;/span>dirname &lt;span class="nv">$0&lt;/span>&lt;span class="k">)&lt;/span> &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> &lt;span class="nb">pwd&lt;/span>&lt;span class="k">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">if&lt;/span> &lt;span class="o">[[&lt;/span> &lt;span class="m">0&lt;/span> -eq &lt;span class="nv">$processcount&lt;/span> &lt;span class="o">]]&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">then&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nb">echo&lt;/span> &lt;span class="s2">&amp;#34;[ &lt;/span>&lt;span class="k">$(&lt;/span>date&lt;span class="k">)&lt;/span>&lt;span class="s2"> ] : my_app is down, start it!&amp;#34;&lt;/span> &lt;span class="p">|&lt;/span> tee -ai ./checkprocess.log
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> bash ./start.sh &lt;span class="c1">#这里是项目的重启脚本&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">else&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nb">echo&lt;/span> my_app is OK!
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="k">fi&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>然后丢到 crontab，1 分钟执行一次：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">* * * * * bash /data/app_server/checkprocess.sh &amp;gt;/dev/null 2&amp;gt;&lt;span class="p">&amp;amp;&lt;/span>&lt;span class="m">1&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>-_-不过进程还是挂了&lt;/p></description></item><item><title>【Redis源码分析】Redis真的不是单线程，后台IO服务 BIO</title><link>/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E7%9C%9F%E7%9A%84%E4%B8%8D%E6%98%AF%E5%8D%95%E7%BA%BF%E7%A8%8B%E5%90%8E%E5%8F%B0io%E6%9C%8D%E5%8A%A1-bio/</link><pubDate>Fri, 24 Jul 2020 10:18:33 +0800</pubDate><guid>/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E7%9C%9F%E7%9A%84%E4%B8%8D%E6%98%AF%E5%8D%95%E7%BA%BF%E7%A8%8B%E5%90%8E%E5%8F%B0io%E6%9C%8D%E5%8A%A1-bio/</guid><description>&lt;p>面试总喜欢被问Redis是单线程还是多线程，千篇一律的回答单线程却不知所以然，严格来说Redis是多线程多进程、单线程处理请求，本文说的就是多线程下的BIO(Background I/O service)。&lt;/p></description></item><item><title>【Redis源码分析】Redis启动过程是这样的！</title><link>/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B%E6%98%AF%E8%BF%99%E6%A0%B7%E7%9A%84/</link><pubDate>Tue, 21 Jul 2020 10:18:45 +0800</pubDate><guid>/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B%E6%98%AF%E8%BF%99%E6%A0%B7%E7%9A%84/</guid><description>&lt;p>redis的源码确实是比我想象中要好读，本身是过程式编程，所以很多核心逻辑已经包含在main函数的调用链，流程非常长，耐心看下去还是能get到些东西的。&lt;/p></description></item><item><title>【问题小解决】PID耗尽的危害</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3pid%E8%80%97%E5%B0%BD%E7%9A%84%E5%8D%B1%E5%AE%B3/</link><pubDate>Thu, 21 May 2020 18:14:19 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3pid%E8%80%97%E5%B0%BD%E7%9A%84%E5%8D%B1%E5%AE%B3/</guid><description>&lt;h3 id="如何判断-pid-耗尽">如何判断 PID 耗尽&lt;/h3>
+&lt;p>首先要确认当前的 PID 限制，检查全局 PID 最大限制:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">cat /proc/sys/kernel/pid_max
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>也检查下线程数限制：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">cat /proc/sys/kernel/threads-max
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>再检查下当前用户是否还有&lt;code>ulimit&lt;/code>限制最大进程数。&lt;/p>
+&lt;p>确认当前实际 PID 数量，检查当前用户的 PID 数量:&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">ps -eLf &lt;span class="p">|&lt;/span> wc -l
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>如果发现实际 PID 数量接近最大限制说明 PID 就可能会爆满导致经常有进程无法启动，
+低版本内核可能报错:&lt;code>Cannot allocate memory&lt;/code>，这个报错信息不准确，
+在内核 4.1 以后改进了: &lt;a href="https://github.com/torvalds/linux/commit/35f71bc0a09a45924bed268d8ccd0d3407bc476f">https://github.com/torvalds/linux/commit/35f71bc0a09a45924bed268d8ccd0d3407bc476f&lt;/a>&lt;/p></description></item><item><title>【问题小解决】MySQL高可用集群之双主多从</title><link>/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3mysql%E9%AB%98%E5%8F%AF%E7%94%A8%E9%9B%86%E7%BE%A4%E4%B9%8B%E5%8F%8C%E4%B8%BB%E5%A4%9A%E4%BB%8E/</link><pubDate>Thu, 14 May 2020 21:03:49 +0800</pubDate><guid>/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3mysql%E9%AB%98%E5%8F%AF%E7%94%A8%E9%9B%86%E7%BE%A4%E4%B9%8B%E5%8F%8C%E4%B8%BB%E5%A4%9A%E4%BB%8E/</guid><description>&lt;p>通常MySQL主从复制主要用来解决读写分离，分担服务器压力。MySQL互为主备实现服务的高可用；这里同时基于高可用和负载均衡。&lt;/p>
+&lt;p>&lt;img src="/images/mysql-ha.png" alt="mysql-ha">&lt;/p>
+&lt;p>环境准备&lt;/p>
+&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th>主机名/角色&lt;/th>
+&lt;th>VIP&lt;/th>
+&lt;th>IP地址&lt;/th>
+&lt;th>操作系统&lt;/th>
+&lt;th>MySQL版本&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td>Node0/master1&lt;/td>
+&lt;td>172.16.10.100&lt;/td>
+&lt;td>172.16.10.10&lt;/td>
+&lt;td>CentOS8.1.1911&lt;/td>
+&lt;td>8.0.17&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Node1/master2&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>172.16.10.11&lt;/td>
+&lt;td>CentOS8.1.1911&lt;/td>
+&lt;td>8.0.17&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td>Node2/slave1&lt;/td>
+&lt;td>&lt;/td>
+&lt;td>172.16.10.12&lt;/td>
+&lt;td>CentOS8.1.1911&lt;/td>
+&lt;td>8.0.17&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;h3 id="安装mysql">安装MySQL&lt;/h3>
+&lt;p>在所有节点上执行&lt;code>dnf -y install mysql mysql-server&lt;/code>，并在master节点上配置server-id并开启bin-log&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">vi /etc/my.cnf.d/mysql-server.cnf
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>mysqld&lt;span class="o">]&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 主数据库端ID号，全局唯一，通常用IP地址最后一位&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nv">server_id&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">10&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 开启二进制日志&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">log-bin &lt;span class="o">=&lt;/span> mysql-bin
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 需要复制的数据库名，如果复制多个数据库，重复设置这个选项即可&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">binlog-do-db &lt;span class="o">=&lt;/span> &lt;span class="nb">test&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 将从服务器从主服务器收到的更新记入到从服务器自己的二进制日志文件中&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">log-slave-updates
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 控制binlog的写入频率。每执行多少次事务写入一次(这个参数性能消耗很大，但可减小MySQL崩溃造成的损失)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nv">sync_binlog&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">1&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 下面这两个参数非常重要&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 这个参数一般用在主主同步中，用来错开自增值, 防止键值冲突，master2上面改为2&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nv">auto_increment_offset&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">1&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 这个参数一般用在主主同步中，用来错开自增值, 防止键值冲突&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nv">auto_increment_increment&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">2&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 二进制日志自动删除的天数，默认值为0,表示“没有自动删除”，启动时和二进制日志循环时可能删除&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nv">expire_logs_days&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">7&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 将函数复制到slave&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nv">log_bin_trust_function_creators&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="m">1&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>执行&lt;code>systemctl enable --now mysqld&lt;/code>运行Mysql&lt;/p></description></item><item><title>【生产问题】分享一次Nginx正向代理的需求</title><link>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E6%AD%A3%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/</link><pubDate>Fri, 17 Apr 2020 11:26:41 +0800</pubDate><guid>/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%88%86%E4%BA%AB%E4%B8%80%E6%AC%A1nginx%E6%AD%A3%E5%90%91%E4%BB%A3%E7%90%86%E7%9A%84%E9%9C%80%E6%B1%82/</guid><description>&lt;blockquote>
+&lt;p>最近接到了一个需求：通过 Nginx 代理把现网一个自研代理程序给替换掉，感觉有点意思，也有所收益，简单分享下。&lt;/p>
+&lt;/blockquote>
+&lt;h3 id="需求背景">需求背景&lt;/h3>
+&lt;p>部门的生产环境异常复杂，有部分第三方引入的系统位于特殊网络隔离区域，请求这些系统需要通过 2 层网络代理，如图所示：&lt;/p>
+&lt;p>&lt;img src="/images/12.png" alt="12">&lt;/p>
+&lt;p>中心源系统请求目标系统 API 的形式各异，我简单收集了下，至少有如下 3 种：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">curl --digest -u admin:xxxxxx &lt;span class="s1">&amp;#39;http://10.xxx.xxx.xxx:8080/foo/boo?Id=123456789&amp;amp;vId=1234&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">curl -d &lt;span class="s1">&amp;#39;{&amp;#34;eventId&amp;#34;: 20171116, &amp;#34;timestamp&amp;#34;: 123456, &amp;#34;caller&amp;#34;: &amp;#34;XXP&amp;#34;, &amp;#34;version&amp;#34;: &amp;#34;1.0&amp;#34;, &amp;#34;interface&amp;#34;: {&amp;#34;interfaceName&amp;#34;: &amp;#34;XXPVC&amp;#34;, &amp;#34;para&amp;#34;: {&amp;#34;detail&amp;#34;: {&amp;#34;owner&amp;#34;: &amp;#34;xxxxxxx&amp;#34;}}}, &amp;#34;password&amp;#34;: &amp;#34;xxxxxx&amp;#34;, &amp;#34;callee&amp;#34;: &amp;#34;XXPVC&amp;#34;}&amp;#39;&lt;/span> http://10.x.x.x:8080/t/api
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">curl -X PUT -H &lt;span class="s2">&amp;#34;Content-Type: application/json&amp;#34;&lt;/span> -d&lt;span class="s1">&amp;#39;{&amp;#34;vp&amp;#34;:{&amp;#34;id&amp;#34;:&amp;#34;ab27adc8-xxx-xxxx-a732-fbde162ebdd3&amp;#34;}}&amp;#39;&lt;/span> &lt;span class="s2">&amp;#34;http://10.x.x.x/v1.0/peers/show_connectioninfos&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item><item><title>【基础知识】Linux的xargs命令</title><link>/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86linux%E7%9A%84xargs%E5%91%BD%E4%BB%A4/</link><pubDate>Tue, 14 Jan 2020 18:05:35 +0800</pubDate><guid>/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86linux%E7%9A%84xargs%E5%91%BD%E4%BB%A4/</guid><description>&lt;p>昨天在给服务器做年终“大扫除”整理时，发现有个目录下因为文件过多而删除失败，最终使用&lt;code>xargs&lt;/code>才搞定，于是顺便来记录下。&lt;/p>
+&lt;p>在执行某些命令时，当 Linux 某个目录下文件过多就会因为“参数列表过长”而报错无法执行。比如，我要清空&lt;code>/var/spool/clientmqueue/&lt;/code>下的庞大数量的临时文件，
+如果直接执行&lt;code>rm -f *&lt;/code>，有时就会会出现“参数列表过长”的错误提示，因为 linux 下一般的命令的参数的总长度不能超过 4096 个字节。&lt;/p>
+&lt;p>这时，&lt;code>xargs&lt;/code>就应该上场了了，由于服务器数量很多，我直接在每台服务器上执行如下命令，即可清理此文件夹内的所有文件：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">&lt;span class="c1">#代码中的$8，不通系统发行版本可能有所区别，具体使用 ls -l 查看文件名在那一列即可&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nb">cd&lt;/span> /var/spool/clientmqueue/ &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> ls -l /var/spool/clientmqueue/ &lt;span class="p">|&lt;/span> awk &lt;span class="o">{&lt;/span>&lt;span class="s1">&amp;#39;print $8&amp;#39;&lt;/span>&lt;span class="o">}&lt;/span> &lt;span class="p">|&lt;/span> xargs rm -f
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item><item><title>【网络编程】从Linux角度以及JVM源码，深入NIO的细节</title><link>/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B%E4%BB%8Elinux%E8%A7%92%E5%BA%A6%E4%BB%A5%E5%8F%8Ajvm%E6%BA%90%E7%A0%81%E6%B7%B1%E5%85%A5nio%E7%9A%84%E7%BB%86%E8%8A%82/</link><pubDate>Tue, 07 Jan 2020 10:51:17 +0800</pubDate><guid>/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B%E4%BB%8Elinux%E8%A7%92%E5%BA%A6%E4%BB%A5%E5%8F%8Ajvm%E6%BA%90%E7%A0%81%E6%B7%B1%E5%85%A5nio%E7%9A%84%E7%BB%86%E8%8A%82/</guid><description>&lt;p>最近一段时间都在啃Linux内核， 也给了自己机会再度深入理解Java的NIO实现，希望能获得更多东西，尝试理解以前未能理解的，会涉及少量OpenJDK源码。&lt;/p>
+&lt;p>因为NIO本身的实现很多牵扯到操作系统，所以需要先稍微过一下，有理解不对的地方，请指出。&lt;/p>
+&lt;h2 id="1涉及的linux知识">1、涉及的Linux知识&lt;/h2>
+&lt;h3 id="11文件描述符">1.1、文件描述符&lt;/h3>
+&lt;p>对于Linux来说，一切皆为文件，设备文件、IO文件还是普通文件，都可以通过一个叫做文件描述符（FileDescriptor）的东西来进行操作，其涉及的数据结构可以自行了解VFS。&lt;/p>
+&lt;h4 id="111设备阻塞与非阻塞">1.1.1、设备阻塞与非阻塞&lt;/h4>
+&lt;p>任意对设备的操作都是默认为阻塞的，如果没有或有不可操作的资源，会被添加到&lt;code>wait_queue_head_t&lt;/code>中进行等待，直到被&lt;code>semaphore&lt;/code>通知允许执行。此时可以通过&lt;code>fcntl()&lt;/code>函数将文件描述符设置为非阻塞，若没有或有不可操作的资源，立即返回错误信息。&lt;/p>
+&lt;h3 id="12jvm内存结构--虚拟地址空间">1.2、JVM内存结构 &amp;amp; 虚拟地址空间&lt;/h3>
+&lt;p>众所周知，Linux下的每一进程都有自己的虚拟内存地址，而JVM也是一个进程，且JVM有自己的内存结构。既然如此，两者之间必有对应关系，OracleJDK7提供了NMT，用&lt;code>jcmd pid VM.native_memory detail&lt;/code>可以查看各类区域的reserved，被committed的内存大小及其地址区间，再通过&lt;code>pmap -p&lt;/code>可以看到进程内存信息。&lt;/p>
+&lt;p>肉眼对比地址区间可以发现，JVM heap是通过mmap分配内存的，位于进程的映射区内，而进程堆区可以被malloc进行分配，对应关系如图。
+&lt;img src="https://raw.githubusercontent.com/zehonghuang/github_blog_bak/master/source/image/jvm%E8%99%9A%E6%8B%9F%E5%86%85%E5%AD%98%E5%9C%B0%E5%9D%80.png" alt="jvm内存虚拟地址">&lt;/p></description></item><item><title>Linux常用命令详解</title><link>/linux%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4%E8%AF%A6%E8%A7%A3/</link><pubDate>Thu, 02 May 2019 16:56:47 +0800</pubDate><guid>/linux%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4%E8%AF%A6%E8%A7%A3/</guid><description>&lt;ul>
+&lt;li>ls&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">ls &lt;span class="c1"># 显示当前目录的内容&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">ls -la &lt;span class="c1"># 显示当前目录的所有文件（包括隐藏文件），并显示详细信息&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">ls /home/user &lt;span class="c1"># 显示指定目录的内容&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">ls -R &lt;span class="c1"># 递归地列出目录内容，包括子目录及其内容&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">ls -h &lt;span class="c1"># 与 -l 结合使用，显示文件大小以可读形式（如 KB、MB）&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ul>
+&lt;li>touch&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">touch newfile.txt &lt;span class="c1"># 创建一个名为 newfile.txt 的空文件&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">touch file1 file2 &lt;span class="c1"># 创建多个文件（file1 和 file2）&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">touch -c existingfile.txt &lt;span class="c1"># 如果文件存在，则更新时间戳；如果不存在，不会创建新文件&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ul>
+&lt;li>cat&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;span class="lnt">22
+&lt;/span>&lt;span class="lnt">23
+&lt;/span>&lt;span class="lnt">24
+&lt;/span>&lt;span class="lnt">25
+&lt;/span>&lt;span class="lnt">26
+&lt;/span>&lt;span class="lnt">27
+&lt;/span>&lt;span class="lnt">28
+&lt;/span>&lt;span class="lnt">29
+&lt;/span>&lt;span class="lnt">30
+&lt;/span>&lt;span class="lnt">31
+&lt;/span>&lt;span class="lnt">32
+&lt;/span>&lt;span class="lnt">33
+&lt;/span>&lt;span class="lnt">34
+&lt;/span>&lt;span class="lnt">35
+&lt;/span>&lt;span class="lnt">36
+&lt;/span>&lt;span class="lnt">37
+&lt;/span>&lt;span class="lnt">38
+&lt;/span>&lt;span class="lnt">39
+&lt;/span>&lt;span class="lnt">40
+&lt;/span>&lt;span class="lnt">41
+&lt;/span>&lt;span class="lnt">42
+&lt;/span>&lt;span class="lnt">43
+&lt;/span>&lt;span class="lnt">44
+&lt;/span>&lt;span class="lnt">45
+&lt;/span>&lt;span class="lnt">46
+&lt;/span>&lt;span class="lnt">47
+&lt;/span>&lt;span class="lnt">48
+&lt;/span>&lt;span class="lnt">49
+&lt;/span>&lt;span class="lnt">50
+&lt;/span>&lt;span class="lnt">51
+&lt;/span>&lt;span class="lnt">52
+&lt;/span>&lt;span class="lnt">53
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 使用 -n 选项：为每行添加行号，包括空行&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">cat -n file.txt
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 输出示例：&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 1 This is a line.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 2 &lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 3 This is indented.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 4 Another line.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：此选项为文件中的每一行编号，从 1 开始计数。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 使用 -b 选项：为非空行添加行号，空行不编号&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">cat -b file.txt
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 输出示例：&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 1 This is a line.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># &lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 2 This is indented.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 3 Another line.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：与 -n 类似，但只为非空行编号。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 使用 -s 选项：压缩连续的空行，只显示一个空行&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">cat -s file.txt
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 输出示例：&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># This is a line.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># &lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># This is indented.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># Another line.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：多个连续空行会被压缩为一个空行。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 使用 -E 选项：显示每行末尾的 $ 符号，标示行的结束&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">cat -E file.txt
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 输出示例：&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># This is a line.$&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># $&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># This is indented.$&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># Another line.$&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：在每一行的末尾加上 &amp;#34;$&amp;#34; 以标示行结束，有助于确认行尾换行符的位置。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 使用 -T 选项：将 Tab 字符显示为 ^I&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">cat -T file.txt
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 输出示例：&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># This is a line.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># &lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># ^IThis is indented.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># Another line.&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：将 Tab 字符用 ^I 进行可视化显示，这样方便辨认文件中的制表符。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 使用 -A 选项：显示所有不可见字符，等同于 -vET&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">cat -A file.txt
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 输出示例：&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># This is a line.$&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># $&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># ^IThis is indented.$&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># Another line.$&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：显示不可见字符、换行符 ($) 和制表符 (^I)，有助于检查文件中所有控制字符和隐藏字符。&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ul>
+&lt;li>kill&lt;/li>
+&lt;/ul>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">&lt;span class="nb">kill&lt;/span> -l
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 输出示例：&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 1) SIGHUP 2) SIGINT 3) SIGQUIT 4) SIGILL 5) SIGTRAP ...&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：列出系统支持的所有信号，以及信号的编号。每个信号都有不同的作用，例如 `SIGHUP` 代表挂起、`SIGKILL` 表示强制终止等。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nb">kill&lt;/span> -9 &lt;span class="m">1234&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：向进程 ID 为 1234 的进程发送 `SIGKILL` 信号（9），强制终止该进程。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 该信号会立即结束进程，无法被捕获或忽略，通常用于无法响应 `SIGTERM` 的进程。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 没有 -9，默认终止信号 (SIGTERM)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nb">kill&lt;/span> -HUP &lt;span class="m">1234&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 注：向进程 ID 为 1234 的进程发送 `SIGHUP` 信号（1）。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 通常用于让守护进程重新加载配置，而不是完全终止。&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># SIGHUP (1)：挂起信号，通常用于让进程重新读取配置文件，比如 nginx、cron&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># SIGINT (2)：中断信号，通常由 Ctrl+C 发送&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># SIGQUIT (3)：退出信号，产生核心转储&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># SIGKILL (9)：强制终止信号，不能被忽略或捕获&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># SIGTERM (15)：请求终止信号，进程可以捕获并自行处理&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># SIGSTOP：停止进程，类似于 Ctrl+Z，不能被捕获&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item><item><title>Oh My Zsh自动补全</title><link>/oh-my-zsh%E8%87%AA%E5%8A%A8%E8%A1%A5%E5%85%A8/</link><pubDate>Tue, 22 Jan 2019 11:04:04 +0800</pubDate><guid>/oh-my-zsh%E8%87%AA%E5%8A%A8%E8%A1%A5%E5%85%A8/</guid><description>shell 有多种，大多数人接触比较多的是 bash， 不管是 mac 还是各个 linux 发行版，默认的 shell 基本都是 bash， 虽然 bash 功能已经丰富了，但对于极客们来说，界面不够炫，提示功能也不够强大。而 zsh 功能及其强大，只是配置过于复杂， 后来就有了 oh-my-zsh 开源项目，配置难度大大降低。
+Github地址: https://github.com/robbyrussell/oh-my-zsh
+安装 1 sh -c &amp;#34;$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)&amp;#34; 更改系统默认 shell 1 chsh -s /bin/zsh 更改zsh配置文件 1 vim ~/.zshrc 修改主题 1 ZSH_THEME=&amp;#34;robbyrussell&amp;#34; 配置插件 oh-my-zsh 还支持插件，插件存放目录为：
+1 ~/.oh-my-zsh/plugins 这个目录中每个子目录都是一个插件，目录名即为插件名，默认不开启，需要在~/.zshrc中该配置开启，比如:
+1 2 3 4 5 6 7 8 9 10 11 plugins=( git git-flow docker kubectl brew npm helm zsh-autosuggestions zsh-syntax-highlighting ) 这些插件可以给你常用的命令做用法提示，使用 tab 键触发。我这里再推荐另外三个不是内置的插件， 需要将它们单独下载到~/.</description></item><item><title>Grep无法查找shell传过来的变量？</title><link>/grep%E6%97%A0%E6%B3%95%E6%9F%A5%E6%89%BEshell%E4%BC%A0%E8%BF%87%E6%9D%A5%E7%9A%84%E5%8F%98%E9%87%8F/</link><pubDate>Thu, 23 Aug 2018 10:24:55 +0800</pubDate><guid>/grep%E6%97%A0%E6%B3%95%E6%9F%A5%E6%89%BEshell%E4%BC%A0%E8%BF%87%E6%9D%A5%E7%9A%84%E5%8F%98%E9%87%8F/</guid><description>&lt;p>差不多两周前，同事告诉我发现一个诡异的问题，grep 无法搜索 shell 中的变量，着实很惊讶。到他所说的服务器上试了下，还真是不行！&lt;/p>
+&lt;p>大概就是这样一个要求：&lt;/p>
+&lt;ol>
+&lt;li>有个文本为 userid.txt，里面每一行一个用户 id，类似如下：&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">&lt;span class="m">0001&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="m">0003&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="m">0005&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="m">0007&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="m">0009&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ol start="2">
+&lt;li>另外还有一个文本为 record.txt，里面是所有用户的操作记录，一行一条，并且包含有 id，类似如下：&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;span class="lnt">8
+&lt;/span>&lt;span class="lnt">9
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-shell" data-lang="shell">&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 11:03,198 INFO&lt;span class="o">]&lt;/span> userId:0001 gilettype:3
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 12:12,198 INFO&lt;span class="o">]&lt;/span> userId:0002 gilettype:3
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 13:02,198 INFO&lt;span class="o">]&lt;/span> userId:0003 gilettype:1
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 14:33,198 INFO&lt;span class="o">]&lt;/span> userId:0001 gilettype:3
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 15:13,198 INFO&lt;span class="o">]&lt;/span> userId:0002 gilettype:2
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 16:43,198 INFO&lt;span class="o">]&lt;/span> userId:0003 gilettype:1
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 17:32,198 INFO&lt;span class="o">]&lt;/span> userId:0001 gilettype:3
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 18:16,198 INFO&lt;span class="o">]&lt;/span> userId:0002 gilettype:1
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="o">[&lt;/span>&lt;span class="m">12&lt;/span> &lt;span class="m">11&lt;/span> &lt;span class="m">2014&lt;/span> 19:25,198 INFO&lt;span class="o">]&lt;/span> userId:0003 gilettype:2
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item><item><title>用cat命令查看不可见字符</title><link>/%E7%94%A8cat%E5%91%BD%E4%BB%A4%E6%9F%A5%E7%9C%8B%E4%B8%8D%E5%8F%AF%E8%A7%81%E5%AD%97%E7%AC%A6/</link><pubDate>Thu, 02 Aug 2018 00:47:00 +0800</pubDate><guid>/%E7%94%A8cat%E5%91%BD%E4%BB%A4%E6%9F%A5%E7%9C%8B%E4%B8%8D%E5%8F%AF%E8%A7%81%E5%AD%97%E7%AC%A6/</guid><description>时常，某个程序或软件并没有语法错误，并且你检查它的相关内容也确实没有发现问题。 这是因为你用普通文本编辑器软件来查看的时候，有许多字符没有显示出来，但在终端使用 cat 命令可以很容易地检测出是否存在这些字符。
+首先，我们创建一个简单的文本文件，写入一些特殊字符。打开终端，运行命令：
+1 printf &amp;#39;testing\012\011\011testing\014\010\012more testing\012\011\000\013\000even more testing\012\011\011\011\012&amp;#39; &amp;gt; /tmp/testing.txt 现在用不同的编辑器软件打开，显示的结果会不同。用简单的 cat 打开将显示：
+1 2 3 4 5 $ cat /tmp/testing.txt testing testing more testing even more testing 如果用 nano 或者 vim 打开，将会看到：
+1 2 3 4 testing testing^L^H more testing ^@^K^@even more testing 现在我们给 cat 加上一些选项参数，以便能显示出特殊字符来。
+用 cat -T 命令来显示 TAB 键的字符^I
+1 2 3 4 5 6 cat -T /tmp/testing.txt testing ^I^Itesting more testing ^I even more testing ^I^I^I 用 cat -E 命令来显示行尾的结束字符$</description></item><item><title>初学awk编程</title><link>/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95%E5%88%9D%E5%AD%A6awk%E7%BC%96%E7%A8%8B/</link><pubDate>Mon, 11 Jun 2018 22:27:29 +0800</pubDate><guid>/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95%E5%88%9D%E5%AD%A6awk%E7%BC%96%E7%A8%8B/</guid><description>&lt;ul>
+&lt;li>
+&lt;h3 id="awk命令">awk命令&lt;/h3>
+&lt;/li>
+&lt;/ul>
+&lt;p>基本格式就这两种&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">awk -F&lt;span class="s1">&amp;#39;&amp;lt;默认是空格，这里可正则表达式也可字符&amp;gt;&amp;#39;&lt;/span> &lt;span class="s1">&amp;#39;commands&amp;#39;&lt;/span> file&lt;span class="o">(&lt;/span>s&lt;span class="o">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 也可以用管道，&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">ll -t &lt;span class="p">|&lt;/span> awk -F&lt;span class="s1">&amp;#39;:&amp;#39;&lt;/span> &lt;span class="s1">&amp;#39;{print $2}&amp;#39;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>通常awk做文本处理前还需要做一次过滤。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">awk -F&lt;span class="s1">&amp;#39;:&amp;#39;&lt;/span> &lt;span class="s1">&amp;#39;/&amp;lt;正则表达式or普通字符串&amp;gt;/{print $1}&amp;#39;&lt;/span> /ect/passwd
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 例如，我先用SQL为关键字做一次过滤&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">awk -F&lt;span class="s1">&amp;#39;:&amp;#39;&lt;/span> &lt;span class="s1">&amp;#39;/SQL/{print $1, $5}&amp;#39;&lt;/span> /etc/passwd
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">#_mysql MySQL Server&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">#_postgres PostgreSQL Server&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 现在匹配有zF字符的文本&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">awk -F&lt;span class="s1">&amp;#39;:&amp;#39;&lt;/span> &lt;span class="s1">&amp;#39;/[zF]/{print $1, $5}&amp;#39;&lt;/span> /etc/passwd
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">#_ftp FTP Daemon&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">#_timezone AutoTimeZoneDaemon&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">#_krbfast Kerberos FAST Account&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div></description></item></channel></rss>

@@ -1,0 +1,220 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>【问题小解决】无需重启，基于Prometheus对Pod进行垂直扩缩容 - 维修区刷紫</title>
+<meta property="og:title" content="【问题小解决】无需重启，基于Prometheus对Pod进行垂直扩缩容 - 维修区刷紫"><meta name=twitter:title content="【问题小解决】无需重启，基于Prometheus对Pod进行垂直扩缩容 - 维修区刷紫"><meta name=description content="通常情况下，要修改 Pod 的资源定义，是需要重启 Pod 的。
+在Kubernetes 1.27中，有一个 Alpha 状态的InPlacePodVerticalScaling开关，开启这一特性，
+就能在不重启 Pod 的情况下，修改 Pod 的资源定义。
+要使用这个功能，需要在kube-apiserver的featureGates中显式地设置启用，启用这一特性之后，就可以进行测试了。
+测试一下
+假设下面的 Pod 定义：
+
+
+ 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: stress
+spec:
+  containers:
+  - name: stress
+    image: myimages/stress-ng:latest
+    resizePolicy:
+    - resourceName: cpu
+      restartPolicy: NotRequired
+    - resourceName: memory
+      restartPolicy: RestartContainer    
+    command: [&#34;sleep&#34;, &#34;3600&#34;]
+    resources:
+      limits:
+        cpu: 200m
+        memory: 200M
+      requests:
+        cpu: 200m
+        memory: 200M
+
+
+可以看到，spec 中加入了resizePolicy字段，用来指定对 CPU 和内存的扩缩容策略。内容很直白：
+
+CPU 的扩缩容策略是NotRequired，即不重启 Pod；
+内存的扩缩容策略是RestartContainer，即重启 Pod。
+"><meta property="og:description" content="通常情况下，要修改 Pod 的资源定义，是需要重启 Pod 的。
+在Kubernetes 1.27中，有一个 Alpha 状态的InPlacePodVerticalScaling开关，开启这一特性，
+就能在不重启 Pod 的情况下，修改 Pod 的资源定义。
+要使用这个功能，需要在kube-apiserver的featureGates中显式地设置启用，启用这一特性之后，就可以进行测试了。
+测试一下
+假设下面的 Pod 定义：
+
+
+ 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: stress
+spec:
+  containers:
+  - name: stress
+    image: myimages/stress-ng:latest
+    resizePolicy:
+    - resourceName: cpu
+      restartPolicy: NotRequired
+    - resourceName: memory
+      restartPolicy: RestartContainer    
+    command: [&#34;sleep&#34;, &#34;3600&#34;]
+    resources:
+      limits:
+        cpu: 200m
+        memory: 200M
+      requests:
+        cpu: 200m
+        memory: 200M
+
+
+可以看到，spec 中加入了resizePolicy字段，用来指定对 CPU 和内存的扩缩容策略。内容很直白：
+
+CPU 的扩缩容策略是NotRequired，即不重启 Pod；
+内存的扩缩容策略是RestartContainer，即重启 Pod。
+"><meta name=twitter:description content="通常情况下，要修改 Pod 的资源定义，是需要重启 Pod 的。
+在Kubernetes 1.27中，有一个 Alpha 状态的InPlacePodVerticalScaling开关，开启这一特性，
+就能在不重启 Pod 的情况下，修改 Pod 的资源定义。
+要使用这个功能，需要在kube-apiserver的featureGates中显式地设置启用，启用这一特性之后，就可以进行测试了。 …"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3%E6%97%A0%E9%9C%80%E9%87%8D%E5%90%AF%E5%9F%BA%E4%BA%8Eprometheus%E5%AF%B9pod%E8%BF%9B%E8%A1%8C%E5%9E%82%E7%9B%B4%E6%89%A9%E7%BC%A9%E5%AE%B9/"><meta property="og:type" content="article"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><article class=article><h1 class=article-title>【问题小解决】无需重启，基于Prometheus对Pod进行垂直扩缩容</h1><hr class=article-title-bottom><ul class=article-meta><li class=article-meta-date><time>2024-03-07</time></li><li class=article-meta-categories><a href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E8%A7%A3%E5%86%B3/><i class="fa-solid fa-folder"></i>
+问题小解决
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/kubernetes/><i class="fa-solid fa-folder"></i>
+Kubernetes
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/prometheus/><i class="fa-solid fa-folder"></i>
+Prometheus
+</a>&nbsp;</li></ul><p>通常情况下，要修改 Pod 的资源定义，是需要重启 Pod 的。
+在<strong>Kubernetes 1.27</strong>中，有一个 Alpha 状态的<code>InPlacePodVerticalScaling</code>开关，开启这一特性，
+就能在不重启 Pod 的情况下，修改 Pod 的资源定义。</p><p>要使用这个功能，需要在<code>kube-apiserver</code>的<code>featureGates</code>中显式地设置启用，启用这一特性之后，就可以进行测试了。</p><h3 id=测试一下>测试一下</h3><p>假设下面的 Pod 定义：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>apiVersion</span><span class=p>:</span><span class=w> </span><span class=l>v1</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>kind</span><span class=p>:</span><span class=w> </span><span class=l>Pod</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>metadata</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>stress</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nt>spec</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>containers</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span>- <span class=nt>name</span><span class=p>:</span><span class=w> </span><span class=l>stress</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>image</span><span class=p>:</span><span class=w> </span><span class=l>myimages/stress-ng:latest</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>resizePolicy</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>resourceName</span><span class=p>:</span><span class=w> </span><span class=l>cpu</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>restartPolicy</span><span class=p>:</span><span class=w> </span><span class=l>NotRequired</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span>- <span class=nt>resourceName</span><span class=p>:</span><span class=w> </span><span class=l>memory</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>restartPolicy</span><span class=p>:</span><span class=w> </span><span class=l>RestartContainer    </span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>command</span><span class=p>:</span><span class=w> </span><span class=p>[</span><span class=s2>&#34;sleep&#34;</span><span class=p>,</span><span class=w> </span><span class=s2>&#34;3600&#34;</span><span class=p>]</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>resources</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>limits</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>cpu</span><span class=p>:</span><span class=w> </span><span class=l>200m</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>memory</span><span class=p>:</span><span class=w> </span><span class=l>200M</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>requests</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>cpu</span><span class=p>:</span><span class=w> </span><span class=l>200m</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=nt>memory</span><span class=p>:</span><span class=w> </span><span class=l>200M</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>可以看到，spec 中加入了<code>resizePolicy</code>字段，用来指定对 CPU 和内存的扩缩容策略。内容很直白：</p><ul><li>CPU 的扩缩容策略是<code>NotRequired</code>，即不重启 Pod；</li><li>内存的扩缩容策略是<code>RestartContainer</code>，即重启 Pod。</li></ul><p>将上述内容提交到 Kubernetes 中运行。启动之后，如果运行<code>kubectl get po stress -o yaml</code>，会发现状态字段中加入了如下内容：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl>- <span class=nt>allocatedResources</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>cpu</span><span class=p>:</span><span class=w> </span><span class=l>200m</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>memory</span><span class=p>:</span><span class=w> </span><span class=l>200Mi</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>说明此时分配给容器的资源。如果这时候对 CPU 进行修改，例如修改为：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl><span class=nt>resources</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>limits</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>cpu</span><span class=p>:</span><span class=w> </span><span class=l>800m</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>memory</span><span class=p>:</span><span class=w> </span><span class=l>200Mi</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>requests</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>cpu</span><span class=p>:</span><span class=w> </span><span class=l>100m</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>memory</span><span class=p>:</span><span class=w> </span><span class=l>100Mi</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>修改后查看 Pod 列表，会发现 Pod 没有重启：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>$ kubectl get pods
+</span></span><span class=line><span class=cl>NAME    READY   STATUS    RESTARTS   AGE
+</span></span><span class=line><span class=cl>stress   1/1     Running   <span class=m>0</span>          4m14s
+</span></span></code></pre></td></tr></table></div></div><p>重新获取 YAML，会看到状态字段的一些变化：</p><ol><li><code>resize: InProgress</code>：表示正在扩缩容；</li><li>当前分配的资源也发生了变化</li></ol><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl>- <span class=nt>allocatedResources</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>cpu</span><span class=p>:</span><span class=w> </span><span class=l>100m</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>  </span><span class=nt>memory</span><span class=p>:</span><span class=w> </span><span class=l>100Mi</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=自动纵向扩缩容>自动纵向扩缩容</h3><p>到目前为止，VPA 还没有支持这一特性。我们可以简地使用 Prometheus 对 Pod 资源压力进行监控，然后使用 Shell Operator 来实现自动扩缩容。总体思路就是，定期读取 Prometheus，获取指定 Pod 的 CPU 和使用情况，如果 CPU 使用率超过 80%，则将其 CPU 上限扩容一倍。</p><h3 id=prometheus-监控指标>Prometheus 监控指标</h3><p><a href=https://samber.github.io/awesome-prometheus-alerts/rules#kubernetes><strong>Awesome Prometheus alerts</strong></a>提供了如下的告警定义，用于表达 CPU 用量和其 Limit 的关系：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-yaml data-lang=yaml><span class=line><span class=cl>- <span class=nt>alert</span><span class=p>:</span><span class=w> </span><span class=l>ContainerHighCpuUtilization</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>expr</span><span class=p>:</span><span class=w> </span><span class=l>(sum(rate(container_cpu_usage_seconds_total{container!=&#34;&#34;}[5m])) by (pod, container) / sum(container_spec_cpu_quota{container!=&#34;&#34;}/container_spec_cpu_period{container!=&#34;&#34;}) by (pod, container) * 100) &gt; 80</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>for</span><span class=p>:</span><span class=w> </span><span class=l>2m</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>labels</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>severity</span><span class=p>:</span><span class=w> </span><span class=l>warning</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nt>annotations</span><span class=p>:</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>summary</span><span class=p>:</span><span class=w> </span><span class=l>Container High CPU utilization (instance {{ $labels.instance }})</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>      </span><span class=nt>description</span><span class=p>:</span><span class=w> </span><span class=s2>&#34;Container CPU utilization is above 80%\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}&#34;</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>最后再用代码进行<code>Patch</code>即可</p></article><ul class=article-share><li><a class=resp-sharing-button__link href="https://facebook.com/sharer/sharer.php?u=/%25E9%2597%25AE%25E9%25A2%2598%25E5%25B0%258F%25E8%25A7%25A3%25E5%2586%25B3%25E6%2597%25A0%25E9%259C%2580%25E9%2587%258D%25E5%2590%25AF%25E5%259F%25BA%25E4%25BA%258Eprometheus%25E5%25AF%25B9pod%25E8%25BF%259B%25E8%25A1%258C%25E5%259E%2582%25E7%259B%25B4%25E6%2589%25A9%25E7%25BC%25A9%25E5%25AE%25B9/" target=_blank rel=noopener aria-label=Facebook><div class="resp-sharing-button resp-sharing-button--facebook resp-sharing-button--medium"><div aria-hidden=true class="resp-sharing-button__icon resp-sharing-button__icon--solid"><i class="fa-brands fa-facebook-f"></i></div>Facebook</div></a></li><li><a class=resp-sharing-button__link href="https://x.com/intent/tweet/?text=%e3%80%90%e9%97%ae%e9%a2%98%e5%b0%8f%e8%a7%a3%e5%86%b3%e3%80%91%e6%97%a0%e9%9c%80%e9%87%8d%e5%90%af%ef%bc%8c%e5%9f%ba%e4%ba%8ePrometheus%e5%af%b9Pod%e8%bf%9b%e8%a1%8c%e5%9e%82%e7%9b%b4%e6%89%a9%e7%bc%a9%e5%ae%b9%20-%20%e7%bb%b4%e4%bf%ae%e5%8c%ba%e5%88%b7%e7%b4%ab&amp;url=/%25E9%2597%25AE%25E9%25A2%2598%25E5%25B0%258F%25E8%25A7%25A3%25E5%2586%25B3%25E6%2597%25A0%25E9%259C%2580%25E9%2587%258D%25E5%2590%25AF%25E5%259F%25BA%25E4%25BA%258Eprometheus%25E5%25AF%25B9pod%25E8%25BF%259B%25E8%25A1%258C%25E5%259E%2582%25E7%259B%25B4%25E6%2589%25A9%25E7%25BC%25A9%25E5%25AE%25B9/" target=_blank rel=noopener aria-label=Twitter><div class="resp-sharing-button resp-sharing-button--x resp-sharing-button--medium"><i class="fa-brands fa-x-twitter"></i></div></a></li></ul><ul class="pager article-pager"><li class=pager-newer><a href=/%E7%94%9F%E4%BA%A7%E9%97%AE%E9%A2%98%E5%A6%82%E4%BD%95%E5%B0%86%E4%BC%A0%E7%BB%9F%E8%BF%90%E7%BB%B4%E7%8E%AF%E5%A2%83%E6%9C%8D%E5%8A%A1%E4%BC%98%E9%9B%85%E5%9C%B0%E8%BF%81%E7%A7%BB%E8%87%B3kubernetes%E9%9B%86%E7%BE%A4%E4%BB%8E%E8%80%8C%E5%AE%9E%E7%8E%B0%E5%85%A8%E9%87%8F%E5%AE%B9%E5%99%A8%E5%8C%96/ data-toggle=tooltip data-placement=top title=【生产问题】如何将传统运维环境服务优雅地迁移至Kubernetes集群从而实现全量容器化>&lt; Newer</a></li><li class=pager-older><a href=/cka%E4%B8%93%E9%A2%98%E6%A2%B3%E7%90%86rbac%E6%9D%83%E9%99%90%E6%9E%84%E6%88%90%E5%B9%B6%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E7%94%A8%E6%88%B7%E5%8F%8A%E5%85%B6%E6%9D%83%E9%99%90/ data-toggle=tooltip data-placement=top title=【CKA专题】梳理RBAC权限构成，并创建一个用户及其权限>Older ></a></li></ul></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

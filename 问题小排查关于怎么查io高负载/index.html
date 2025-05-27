@@ -1,0 +1,196 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>【问题小排查】关于怎么查IO高负载 - 维修区刷紫</title>
+<meta property="og:title" content="【问题小排查】关于怎么查IO高负载 - 维修区刷紫"><meta name=twitter:title content="【问题小排查】关于怎么查IO高负载 - 维修区刷紫"><meta name=description content="
+系统如果出现 IO WAIT 高，说明 IO 设备的速度跟不上 CPU 的处理速度，CPU 需要在那里干等，
+这里的等待实际也占用了 CPU 时间，导致系统负载升高，可能就会影响业务进程的处理速度，导致业务超时。
+
+如何判断 ？
+使用top命令看下当前负载：
+
+
+ 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+
+
+top - 19:42:06 up 23:59,  2 users,  load average: 34.64, 35.80, 35.76
+Tasks: 679 total,   1 running, 678 sleeping,   0 stopped,   0 zombie
+Cpu(s): 15.6%us,  1.7%sy,  0.0%ni, 74.7%id,  7.9%wa,  0.0%hi,  0.1%si,  0.0%st
+Mem:  32865032k total, 30989168k used,  1875864k free,   370748k buffers
+Swap:  8388604k total,     5440k used,  8383164k free,  7982424k cached
+
+  PID USER      PR  NI  VIRT  RES  SHR S %CPU %MEM    TIME+  COMMAND
+ 9783 mysql     20   0 17.3g  16g 8104 S 186.9 52.3   3752:33 mysqld
+ 5700 nginx     20   0 1330m  66m 9496 S  8.9  0.2   0:20.82 php-fpm
+ 6424 nginx     20   0 1330m  65m 8372 S  8.3  0.2   0:04.97 php-fpm
+
+
+%wa(wait) 表示 IO WAIT 的 cpu 占用，默认看到的是所有核的平均值，要看每个核的%wa值需要按下 &ldquo;1&rdquo;:"><meta property="og:description" content="
+系统如果出现 IO WAIT 高，说明 IO 设备的速度跟不上 CPU 的处理速度，CPU 需要在那里干等，
+这里的等待实际也占用了 CPU 时间，导致系统负载升高，可能就会影响业务进程的处理速度，导致业务超时。
+
+如何判断 ？
+使用top命令看下当前负载：
+
+
+ 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+
+
+top - 19:42:06 up 23:59,  2 users,  load average: 34.64, 35.80, 35.76
+Tasks: 679 total,   1 running, 678 sleeping,   0 stopped,   0 zombie
+Cpu(s): 15.6%us,  1.7%sy,  0.0%ni, 74.7%id,  7.9%wa,  0.0%hi,  0.1%si,  0.0%st
+Mem:  32865032k total, 30989168k used,  1875864k free,   370748k buffers
+Swap:  8388604k total,     5440k used,  8383164k free,  7982424k cached
+
+  PID USER      PR  NI  VIRT  RES  SHR S %CPU %MEM    TIME+  COMMAND
+ 9783 mysql     20   0 17.3g  16g 8104 S 186.9 52.3   3752:33 mysqld
+ 5700 nginx     20   0 1330m  66m 9496 S  8.9  0.2   0:20.82 php-fpm
+ 6424 nginx     20   0 1330m  65m 8372 S  8.3  0.2   0:04.97 php-fpm
+
+
+%wa(wait) 表示 IO WAIT 的 cpu 占用，默认看到的是所有核的平均值，要看每个核的%wa值需要按下 &ldquo;1&rdquo;:"><meta name=twitter:description content="
+系统如果出现 IO WAIT 高，说明 IO 设备的速度跟不上 CPU 的处理速度，CPU 需要在那里干等，
+这里的等待实际也占用了 CPU 时间，导致系统负载升高，可能就会影响业务进程的处理速度，导致业务超时。
+
+如何判断 ？
+使用top命令看下当前负载：
+
+
+ 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+
+
+top - 19:42:06 up 23:59,  2 users, …"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%85%B3%E4%BA%8E%E6%80%8E%E4%B9%88%E6%9F%A5io%E9%AB%98%E8%B4%9F%E8%BD%BD/"><meta property="og:type" content="article"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><article class=article><h1 class=article-title>【问题小排查】关于怎么查IO高负载</h1><hr class=article-title-bottom><ul class=article-meta><li class=article-meta-date><time>2020-09-11</time></li><li class=article-meta-categories><a href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5/><i class="fa-solid fa-folder"></i>
+问题小排查
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li></ul><aside class=toc><nav id=TableOfContents><ul><li><ul><li><a href=#如何判断->如何判断 ？</a></li></ul></li><li><a href=#如何排查->如何排查 ？</a><ul><li><a href=#观察高-io-的磁盘读写情况>观察高 IO 的磁盘读写情况</a></li><li><a href=#查看哪些进程占住磁盘>查看哪些进程占住磁盘</a></li><li><a href=#查找-d-状态的进程>查找 D 状态的进程</a></li><li><a href=#观察高-io-进程>观察高 IO 进程</a></li></ul></li></ul></nav></aside><blockquote><p>系统如果出现 IO WAIT 高，说明 IO 设备的速度跟不上 CPU 的处理速度，CPU 需要在那里干等，
+这里的等待实际也占用了 CPU 时间，导致系统负载升高，可能就会影响业务进程的处理速度，导致业务超时。</p></blockquote><h3 id=如何判断->如何判断 ？</h3><p>使用<code>top</code>命令看下当前负载：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>top - 19:42:06 up 23:59,  <span class=m>2</span> users,  load average: 34.64, 35.80, 35.76
+</span></span><span class=line><span class=cl>Tasks: <span class=m>679</span> total,   <span class=m>1</span> running, <span class=m>678</span> sleeping,   <span class=m>0</span> stopped,   <span class=m>0</span> zombie
+</span></span><span class=line><span class=cl>Cpu<span class=o>(</span>s<span class=o>)</span>: 15.6%us,  1.7%sy,  0.0%ni, 74.7%id,  7.9%wa,  0.0%hi,  0.1%si,  0.0%st
+</span></span><span class=line><span class=cl>Mem:  32865032k total, 30989168k used,  1875864k free,   370748k buffers
+</span></span><span class=line><span class=cl>Swap:  8388604k total,     5440k used,  8383164k free,  7982424k cached
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>  PID USER      PR  NI  VIRT  RES  SHR S %CPU %MEM    TIME+  COMMAND
+</span></span><span class=line><span class=cl> <span class=m>9783</span> mysql     <span class=m>20</span>   <span class=m>0</span> 17.3g  16g <span class=m>8104</span> S 186.9 52.3   3752:33 mysqld
+</span></span><span class=line><span class=cl> <span class=m>5700</span> nginx     <span class=m>20</span>   <span class=m>0</span> 1330m  66m <span class=m>9496</span> S  8.9  0.2   0:20.82 php-fpm
+</span></span><span class=line><span class=cl> <span class=m>6424</span> nginx     <span class=m>20</span>   <span class=m>0</span> 1330m  65m <span class=m>8372</span> S  8.3  0.2   0:04.97 php-fpm
+</span></span></code></pre></td></tr></table></div></div><p><code>%wa</code>(wait) 表示 IO WAIT 的 cpu 占用，默认看到的是所有核的平均值，要看每个核的<code>%wa</code>值需要按下 &ldquo;1&rdquo;:</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>top - 19:42:08 up 23:59,  <span class=m>2</span> users,  load average: 34.64, 35.80, 35.76
+</span></span><span class=line><span class=cl>Tasks: <span class=m>679</span> total,   <span class=m>1</span> running, <span class=m>678</span> sleeping,   <span class=m>0</span> stopped,   <span class=m>0</span> zombie
+</span></span><span class=line><span class=cl>Cpu0  : 29.5%us,  3.7%sy,  0.0%ni, 48.7%id, 17.9%wa,  0.0%hi,  0.1%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu1  : 29.3%us,  3.7%sy,  0.0%ni, 48.9%id, 17.9%wa,  0.0%hi,  0.1%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu2  : 26.1%us,  3.1%sy,  0.0%ni, 64.4%id,  6.0%wa,  0.0%hi,  0.3%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu3  : 25.9%us,  3.1%sy,  0.0%ni, 65.5%id,  5.4%wa,  0.0%hi,  0.1%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu4  : 24.9%us,  3.0%sy,  0.0%ni, 66.8%id,  5.0%wa,  0.0%hi,  0.3%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu5  : 24.9%us,  2.9%sy,  0.0%ni, 67.0%id,  4.8%wa,  0.0%hi,  0.3%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu6  : 24.2%us,  2.7%sy,  0.0%ni, 68.3%id,  4.5%wa,  0.0%hi,  0.3%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu7  : 24.3%us,  2.6%sy,  0.0%ni, 68.5%id,  4.2%wa,  0.0%hi,  0.3%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu8  : 23.8%us,  2.6%sy,  0.0%ni, 69.2%id,  4.1%wa,  0.0%hi,  0.3%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu9  : 23.9%us,  2.5%sy,  0.0%ni, 69.3%id,  4.0%wa,  0.0%hi,  0.3%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu10 : 23.3%us,  2.4%sy,  0.0%ni, 68.7%id,  5.6%wa,  0.0%hi,  0.0%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu11 : 23.3%us,  2.4%sy,  0.0%ni, 69.2%id,  5.1%wa,  0.0%hi,  0.0%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu12 : 21.8%us,  2.4%sy,  0.0%ni, 60.2%id, 15.5%wa,  0.0%hi,  0.0%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu13 : 21.9%us,  2.4%sy,  0.0%ni, 60.6%id, 15.2%wa,  0.0%hi,  0.0%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu14 : 21.4%us,  2.3%sy,  0.0%ni, 72.6%id,  3.7%wa,  0.0%hi,  0.0%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu15 : 21.5%us,  2.2%sy,  0.0%ni, 73.2%id,  3.1%wa,  0.0%hi,  0.0%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu16 : 21.2%us,  2.2%sy,  0.0%ni, 73.6%id,  3.0%wa,  0.0%hi,  0.0%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu17 : 21.2%us,  2.1%sy,  0.0%ni, 73.8%id,  2.8%wa,  0.0%hi,  0.0%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu18 : 20.9%us,  2.1%sy,  0.0%ni, 74.1%id,  2.9%wa,  0.0%hi,  0.0%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu19 : 21.0%us,  2.1%sy,  0.0%ni, 74.4%id,  2.5%wa,  0.0%hi,  0.0%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu20 : 20.7%us,  2.0%sy,  0.0%ni, 73.8%id,  3.4%wa,  0.0%hi,  0.0%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu21 : 20.8%us,  2.0%sy,  0.0%ni, 73.9%id,  3.2%wa,  0.0%hi,  0.0%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu22 : 20.8%us,  2.0%sy,  0.0%ni, 74.4%id,  2.8%wa,  0.0%hi,  0.0%si,  0.0%st
+</span></span><span class=line><span class=cl>Cpu23 : 20.8%us,  1.9%sy,  0.0%ni, 74.4%id,  2.8%wa,  0.0%hi,  0.0%si,  0.0%st
+</span></span><span class=line><span class=cl>Mem:  32865032k total, 30209248k used,  2655784k free,   370748k buffers
+</span></span><span class=line><span class=cl>Swap:  8388604k total,     5440k used,  8383164k free,  7986552k cached
+</span></span></code></pre></td></tr></table></div></div><p><code>%wa</code>通常是 0%，如果经常在 1% 之上，说明存储设备的速度已经太慢，无法跟上 cpu 的处理速度。</p><h2 id=如何排查->如何排查 ？</h2><p>使用 iostat 检查设备是否<strong>夯</strong>住</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>iostat -xhd <span class=m>2</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果有100%的<code>%util</code>的设备，说明该设备基本<strong>夯</strong>住了
+<img src=/images/IO-util.png alt=IO-util></p><h3 id=观察高-io-的磁盘读写情况>观察高 IO 的磁盘读写情况</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=c1># 捕获 %util 超过 90 时 vdb 盘的读写指标，每秒检查一次</span>
+</span></span><span class=line><span class=cl><span class=k>while</span> true<span class=p>;</span> <span class=k>do</span> iostat -xhd <span class=p>|</span> grep -A1 vdb <span class=p>|</span> grep -v vdb <span class=p>|</span> awk <span class=s1>&#39;{if ($NF &gt; 90){print $0}}&#39;</span><span class=p>;</span> sleep 1s<span class=p>;</span> <span class=k>done</span>
+</span></span></code></pre></td></tr></table></div></div><p>如果读写流量或IOPS不高，但<code>%util</code>不高，通常是磁盘本身有问题了，需要检查下磁盘。
+在云上托管的 k8s 集群通常就使用的云厂商的云盘(比如腾讯云CBS)，可以拿到磁盘 ID 反馈下。</p><p>如果读写流量或 IOPS 高，继续下面的步骤排查出哪些进程导致的 IO 高负载。</p><h3 id=查看哪些进程占住磁盘>查看哪些进程占住磁盘</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>fuser -v -m /dev/vdb
+</span></span></code></pre></td></tr></table></div></div><h3 id=查找-d-状态的进程>查找 D 状态的进程</h3><p><code>D 状态 (Disk Sleep)</code>表示进程正在等待 IO，不可中断，正常情况下不会保持太久，如果进程长时间处于 D 状态，通常是设备故障</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>ps -eo pid,ppid,stat,command
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1>## 捕获 D 状态的进程</span>
+</span></span><span class=line><span class=cl><span class=k>while</span> true<span class=p>;</span> <span class=k>do</span> ps -eo pid,ppid,stat,command <span class=p>|</span> awk <span class=s1>&#39;{if ($3 ~ /D/) {print $0}}&#39;</span><span class=p>;</span> sleep 0.5s<span class=p>;</span> <span class=k>done</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=观察高-io-进程>观察高 IO 进程</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>iotop -oP
+</span></span><span class=line><span class=cl><span class=c1># 展示 I/O 统计，每秒更新一次</span>
+</span></span><span class=line><span class=cl>pidstat -d <span class=m>1</span>
+</span></span><span class=line><span class=cl><span class=c1># 只看某个进程</span>
+</span></span><span class=line><span class=cl>pidstat -d <span class=m>1</span> -p <span class=m>3394470</span>
+</span></span></code></pre></td></tr></table></div></div></article><ul class=article-share><li><a class=resp-sharing-button__link href="https://facebook.com/sharer/sharer.php?u=/%25E9%2597%25AE%25E9%25A2%2598%25E5%25B0%258F%25E6%258E%2592%25E6%259F%25A5%25E5%2585%25B3%25E4%25BA%258E%25E6%2580%258E%25E4%25B9%2588%25E6%259F%25A5io%25E9%25AB%2598%25E8%25B4%259F%25E8%25BD%25BD/" target=_blank rel=noopener aria-label=Facebook><div class="resp-sharing-button resp-sharing-button--facebook resp-sharing-button--medium"><div aria-hidden=true class="resp-sharing-button__icon resp-sharing-button__icon--solid"><i class="fa-brands fa-facebook-f"></i></div>Facebook</div></a></li><li><a class=resp-sharing-button__link href="https://x.com/intent/tweet/?text=%e3%80%90%e9%97%ae%e9%a2%98%e5%b0%8f%e6%8e%92%e6%9f%a5%e3%80%91%e5%85%b3%e4%ba%8e%e6%80%8e%e4%b9%88%e6%9f%a5IO%e9%ab%98%e8%b4%9f%e8%bd%bd%20-%20%e7%bb%b4%e4%bf%ae%e5%8c%ba%e5%88%b7%e7%b4%ab&amp;url=/%25E9%2597%25AE%25E9%25A2%2598%25E5%25B0%258F%25E6%258E%2592%25E6%259F%25A5%25E5%2585%25B3%25E4%25BA%258E%25E6%2580%258E%25E4%25B9%2588%25E6%259F%25A5io%25E9%25AB%2598%25E8%25B4%259F%25E8%25BD%25BD/" target=_blank rel=noopener aria-label=Twitter><div class="resp-sharing-button resp-sharing-button--x resp-sharing-button--medium"><i class="fa-brands fa-x-twitter"></i></div></a></li></ul><ul class="pager article-pager"><li class=pager-newer><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5service%E6%97%A0%E6%B3%95%E8%A7%A3%E6%9E%90/ data-toggle=tooltip data-placement=top title=【问题小排查】Service无法解析>&lt; Newer</a></li><li class=pager-older><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%A4%84%E7%90%86%E5%AE%B9%E5%99%A8%E6%95%B0%E6%8D%AE%E7%A3%81%E7%9B%98%E8%A2%AB%E5%86%99%E6%BB%A1/ data-toggle=tooltip data-placement=top title=【问题小排查】处理容器数据磁盘被写满>Older ></a></li></ul></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>

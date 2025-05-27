@@ -1,0 +1,230 @@
+<!doctype html><html lang=ja><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1"><title>【问题小排查】Linux任务计划crontab不执行的问题排查 - 维修区刷紫</title>
+<meta property="og:title" content="【问题小排查】Linux任务计划crontab不执行的问题排查 - 维修区刷紫"><meta name=twitter:title content="【问题小排查】Linux任务计划crontab不执行的问题排查 - 维修区刷紫"><meta name=description content="朋友弄了一个小项目，要我帮忙做下 Linux 系统运维，上线一段时间后，发现项目偶尔会挂掉导致服务不可用。
+开发朋友一时之间也没空去研究项目奔溃的根因，只好由我这个运维先写一个项目进程自拉起脚本，
+通过 Linux 任务计划每分钟检查一下进程是否存在来避免项目挂了没人管的情况。
+自拉起脚本很简单，随便写几行就搞定了：
+
+
+ 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+
+
+#!/bin/bash
+processcount=$(pgrep my_app|wc -l)
+cd $(cd $(dirname $0) && pwd)
+if [[ 0 -eq $processcount ]]
+then
+        echo &#34;[ $(date) ] : my_app is down, start it!&#34; | tee -ai ./checkprocess.log
+        bash ./start.sh #这里是项目的重启脚本
+else
+        echo my_app is OK!
+fi
+
+
+然后丢到 crontab，1 分钟执行一次：
+
+
+1
+
+
+* * * * * bash /data/app_server/checkprocess.sh >/dev/null 2>&amp;1
+
+
+-_-不过进程还是挂了"><meta property="og:description" content="朋友弄了一个小项目，要我帮忙做下 Linux 系统运维，上线一段时间后，发现项目偶尔会挂掉导致服务不可用。
+开发朋友一时之间也没空去研究项目奔溃的根因，只好由我这个运维先写一个项目进程自拉起脚本，
+通过 Linux 任务计划每分钟检查一下进程是否存在来避免项目挂了没人管的情况。
+自拉起脚本很简单，随便写几行就搞定了：
+
+
+ 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+
+
+#!/bin/bash
+processcount=$(pgrep my_app|wc -l)
+cd $(cd $(dirname $0) && pwd)
+if [[ 0 -eq $processcount ]]
+then
+        echo &#34;[ $(date) ] : my_app is down, start it!&#34; | tee -ai ./checkprocess.log
+        bash ./start.sh #这里是项目的重启脚本
+else
+        echo my_app is OK!
+fi
+
+
+然后丢到 crontab，1 分钟执行一次：
+
+
+1
+
+
+* * * * * bash /data/app_server/checkprocess.sh >/dev/null 2>&amp;1
+
+
+-_-不过进程还是挂了"><meta name=twitter:description content="朋友弄了一个小项目，要我帮忙做下 Linux 系统运维，上线一段时间后，发现项目偶尔会挂掉导致服务不可用。
+开发朋友一时之间也没空去研究项目奔溃的根因，只好由我这个运维先写一个项目进程自拉起脚本，
+通过 Linux 任务计划每分钟检查一下进程是否存在来避免项目挂了没人管的情况。
+自拉起脚本很简单，随便写几行就搞定了：
+
+
+ 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 …"><meta name=author content="金汤力"><link rel=icon type=image/x-icon href=/images/favicon.ico><meta property="og:site_name" content="维修区刷紫"><meta property="og:url" content="/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5linux%E4%BB%BB%E5%8A%A1%E8%AE%A1%E5%88%92crontab%E4%B8%8D%E6%89%A7%E8%A1%8C%E7%9A%84%E9%97%AE%E9%A2%98%E6%8E%92%E6%9F%A5/"><meta property="og:type" content="article"><meta name=twitter:card content="summary"><meta name=generator content="Hugo 0.120.2"><script src=https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js></script><script src=https://cdnjs.cloudflare.com/ajax/libs/Base64/1.3.0/base64.min.js integrity="sha512-IFxgh3q1bUsg/sL6qotMkJZTOvPyYSS6mRSSIVnJndN5j9vWcQ+oJyHkelIkRAOaKgdU1ibHJOs4HX15sPtZKw==" crossorigin=anonymous referrerpolicy=no-referrer></script><script>var _hmt=_hmt||[];(function(){var e,t=document.createElement("script");t.src="https://hm.baidu.com/hm.js?4b5f7da576488071eb46ec9fe633fa64",e=document.getElementsByTagName("script")[0],e.parentNode.insertBefore(t,e)})()</script><link rel=stylesheet href=/css/style.css media=all><link rel=stylesheet href=/css/style-dark.css media="all and (prefers-color-scheme: dark)"><link rel=stylesheet href=/css/syntax.css media=all><link rel=stylesheet href=/css/custom.css media=all><script src=/js/script.js></script><script src=/js/custom.js></script><script defer src=/fontawesome/all.min.js></script></head><body><header class=site-header><nav class=site-navi><h1 class=site-title><a href=/>维修区刷紫</a></h1><ul class=site-navi-items><li class=site-navi-item-archives><a href=/archives/ title=所有文章>所有文章</a></li><li class=site-navi-item-categories><a href=/categories/ title=类别>类别</a></li><li class=site-navi-item-about><a href=/about/ title=关于我>关于我</a></li></ul></nav></header><hr class=site-header-bottom><div class=main role=main><article class=article><h1 class=article-title>【问题小排查】Linux任务计划crontab不执行的问题排查</h1><hr class=article-title-bottom><ul class=article-meta><li class=article-meta-date><time>2020-08-03</time></li><li class=article-meta-categories><a href=/categories/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5/><i class="fa-solid fa-folder"></i>
+问题小排查
+</a>&nbsp;</li><li class=article-meta-categories><a href=/categories/linux/><i class="fa-solid fa-folder"></i>
+Linux
+</a>&nbsp;</li></ul><aside class=toc><nav id=TableOfContents><ul><li><ul><li><a href=#检查日志>检查日志</a></li><li><a href=#检查脚本>检查脚本</a></li><li><a href=#最终解决>最终解决</a></li><li><a href=#分析总结>分析总结</a></li></ul></li></ul></nav></aside><p>朋友弄了一个小项目，要我帮忙做下 Linux 系统运维，上线一段时间后，发现项目偶尔会挂掉导致服务不可用。
+开发朋友一时之间也没空去研究项目奔溃的根因，只好由我这个运维先写一个项目进程自拉起脚本，
+通过 Linux 任务计划每分钟检查一下进程是否存在来避免项目挂了没人管的情况。</p><p>自拉起脚本很简单，随便写几行就搞定了：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=cp>#!/bin/bash
+</span></span></span><span class=line><span class=cl><span class=cp></span><span class=nv>processcount</span><span class=o>=</span><span class=k>$(</span>pgrep my_app<span class=p>|</span>wc -l<span class=k>)</span>
+</span></span><span class=line><span class=cl><span class=nb>cd</span> <span class=k>$(</span><span class=nb>cd</span> <span class=k>$(</span>dirname <span class=nv>$0</span><span class=k>)</span> <span class=o>&amp;&amp;</span> <span class=nb>pwd</span><span class=k>)</span>
+</span></span><span class=line><span class=cl><span class=k>if</span> <span class=o>[[</span> <span class=m>0</span> -eq <span class=nv>$processcount</span> <span class=o>]]</span>
+</span></span><span class=line><span class=cl><span class=k>then</span>
+</span></span><span class=line><span class=cl>        <span class=nb>echo</span> <span class=s2>&#34;[ </span><span class=k>$(</span>date<span class=k>)</span><span class=s2> ] : my_app is down, start it!&#34;</span> <span class=p>|</span> tee -ai ./checkprocess.log
+</span></span><span class=line><span class=cl>        bash ./start.sh <span class=c1>#这里是项目的重启脚本</span>
+</span></span><span class=line><span class=cl><span class=k>else</span>
+</span></span><span class=line><span class=cl>        <span class=nb>echo</span> my_app is OK!
+</span></span><span class=line><span class=cl><span class=k>fi</span>
+</span></span></code></pre></td></tr></table></div></div><p>然后丢到 crontab，1 分钟执行一次：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>* * * * * bash /data/app_server/checkprocess.sh &gt;/dev/null 2&gt;<span class=p>&amp;</span><span class=m>1</span>
+</span></span></code></pre></td></tr></table></div></div><p>-_-不过进程还是挂了</p><h3 id=检查日志>检查日志</h3><p>根据经验，先看一下 crontab 的日志：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>tail /var/log/messages
+</span></span></code></pre></td></tr></table></div></div><p>没发现相关日志，看来不是打印到了这，于是查看了下 crontab 的默认日志位置：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>tail /var/log/cron
+</span></span><span class=line><span class=cl>Mar <span class=m>25</span> 21:40:01 li733-135 CROND<span class=o>[</span>1959<span class=o>]</span>: <span class=o>(</span>root<span class=o>)</span> CMD <span class=o>(</span>sh /data/app_server/checkprocess.sh &gt;/dev/null 2&gt;<span class=p>&amp;</span>1<span class=o>)</span>
+</span></span><span class=line><span class=cl>Mar <span class=m>25</span> 21:40:01 li733-135 CROND<span class=o>[</span>1960<span class=o>]</span>: <span class=o>(</span>root<span class=o>)</span> CMD <span class=o>(</span>/usr/lib64/sa/sa1 <span class=m>1</span> 1<span class=o>)</span>
+</span></span><span class=line><span class=cl>Mar <span class=m>25</span> 21:40:01 li733-135 CROND<span class=o>[</span>1961<span class=o>]</span>: <span class=o>(</span>root<span class=o>)</span> CMD <span class=o>(</span>/usr/sbin/ntpdate pool.ntp.org &gt; /dev/null 2&gt;<span class=p>&amp;</span>1<span class=o>)</span>
+</span></span><span class=line><span class=cl>Mar <span class=m>25</span> 21:41:01 li733-135 CROND<span class=o>[</span>2066<span class=o>]</span>: <span class=o>(</span>root<span class=o>)</span> CMD <span class=o>(</span>sh /data/app_server/checkprocess.sh &gt;/dev/null 2&gt;<span class=p>&amp;</span>1<span class=o>)</span>
+</span></span></code></pre></td></tr></table></div></div><p>很明显，任务计划确实在正常执行着，看来问题在脚本上了。</p><h3 id=检查脚本>检查脚本</h3><ol><li>直接执行</li></ol><p>检查脚本第一步，直接按照 crontab 里面的命令行，执行脚本：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>sh /data/app_server/checkprocess.sh
+</span></span><span class=line><span class=cl><span class=o>[</span> Fri Mar <span class=m>25</span> 21:25:01 CST <span class=m>2016</span> <span class=o>]</span> : my_app is down, start it!
+</span></span><span class=line><span class=cl> 
+</span></span><span class=line><span class=cl>sh /data/app_server/checkprocess.sh
+</span></span><span class=line><span class=cl>my_app is OK!
+</span></span></code></pre></td></tr></table></div></div><p>结果进程正常拉起了！</p><p>直接执行成功，而放到 crontab 就失败，经验告诉我肯定的脚本环境变量有问题了！</p><ol start=2><li>环境变量</li></ol><p>于是在脚本里面载入环境变量：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl><span class=cp>#!/bin/bash
+</span></span></span><span class=line><span class=cl><span class=cp></span><span class=c1>#先载入环境变量</span>
+</span></span><span class=line><span class=cl><span class=nb>source</span> /etc/profile
+</span></span><span class=line><span class=cl><span class=c1>#其他代码不变</span>
+</span></span></code></pre></td></tr></table></div></div><p>然后手动把进程杀死，等待自拉起，结果&mldr; 还是不行！</p><ol start=3><li>系统邮件</li></ol><p>经验告诉我，crontab 执行失败，如果没有屏蔽错误的话，会产生一个系统邮件，</p><p>位置在<code>/var/spool/mail/root</code></p><p>所以，我把 crontab 里面的 2>&amp;1 这个屏蔽错误先取消掉，等待几分钟查看邮件。</p><p><code>cat /var/spool/mail/root</code>发现有如下报错：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>From root@free-node-us.localdomain  Fri Mar <span class=m>25</span> 21:30:02 <span class=m>2016</span>
+</span></span><span class=line><span class=cl>Return-Path: &lt;root@app_server.localdomain&gt;
+</span></span><span class=line><span class=cl>X-Original-To: root
+</span></span><span class=line><span class=cl>Delivered-To: root@app_server.localdomain
+</span></span><span class=line><span class=cl>Received: by app_server.localdomain <span class=o>(</span>Postfix, from userid 0<span class=o>)</span>
+</span></span><span class=line><span class=cl>        id 78DB5403E2<span class=p>;</span> Fri, <span class=m>25</span> Mar <span class=m>2016</span> 21:19:02 +0800 <span class=o>(</span>CST<span class=o>)</span>
+</span></span><span class=line><span class=cl>From: root@app_server.localdomain <span class=o>(</span>Cron Daemon<span class=o>)</span>
+</span></span><span class=line><span class=cl>To: root@app_server.localdomain
+</span></span><span class=line><span class=cl>Subject: Cron &lt;root@app_server&gt; bash /data/app_server/checkprocess.sh &gt;/dev/null
+</span></span><span class=line><span class=cl>Content-Type: text/plain<span class=p>;</span> <span class=nv>charset</span><span class=o>=</span>UTF-8
+</span></span><span class=line><span class=cl>Auto-Submitted: auto-generated
+</span></span><span class=line><span class=cl>X-Cron-Env: &lt;<span class=nv>LANG</span><span class=o>=</span>en_US.UTF-8&gt;
+</span></span><span class=line><span class=cl>X-Cron-Env: &lt;<span class=nv>SHELL</span><span class=o>=</span>/bin/sh&gt;
+</span></span><span class=line><span class=cl>X-Cron-Env: &lt;<span class=nv>HOME</span><span class=o>=</span>/root&gt;
+</span></span><span class=line><span class=cl>X-Cron-Env: &lt;<span class=nv>PATH</span><span class=o>=</span>/usr/bin:/bin&gt;
+</span></span><span class=line><span class=cl>X-Cron-Env: &lt;<span class=nv>LOGNAME</span><span class=o>=</span>root&gt;
+</span></span><span class=line><span class=cl>X-Cron-Env: &lt;<span class=nv>USER</span><span class=o>=</span>root&gt;
+</span></span><span class=line><span class=cl>Message-Id: &lt;20160325131902.78DB5403E2@app_server.localdomain&gt;
+</span></span><span class=line><span class=cl>Date: Fri, <span class=m>25</span> Mar <span class=m>2016</span> 21:19:02 +0800 <span class=o>(</span>CST<span class=o>)</span>
+</span></span><span class=line><span class=cl> 
+</span></span><span class=line><span class=cl>start.sh: line 4: /sbin/sudo: No such file or directory <span class=c1>#sudo 命令找不到！</span>
+</span></span></code></pre></td></tr></table></div></div><p>居然是脚本里面的 sudo 执行失败了，找不到这个文件。看来单纯的载入 profile 不一定靠谱啊！</p><ol start=3><li>修复脚本</li></ol><p>知道问题所在，解决就简单了，粗暴点，直接写入sudo的绝对路径<code>/usr/bin/sudo</code></p><p>继续测试自拉起，结果&mldr; 还是不行！R 了 G 了！！</p><h3 id=最终解决>最终解决</h3><p>继续查看了下系统邮件，发现如下信息：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>Subject: Cron &lt;root@free-node-us&gt; <span class=nb>source</span> /etc/profile<span class=p>;</span>bash /data/app_server/checkprocess.sh &gt;/dev/null
+</span></span><span class=line><span class=cl>Content-Type: text/plain<span class=p>;</span> <span class=nv>charset</span><span class=o>=</span>UTF-8
+</span></span><span class=line><span class=cl>Auto-Submitted: auto-generated
+</span></span><span class=line><span class=cl>X-Cron-Env: &lt;<span class=nv>LANG</span><span class=o>=</span>en_US.UTF-8&gt;
+</span></span><span class=line><span class=cl>X-Cron-Env: &lt;<span class=nv>SHELL</span><span class=o>=</span>/bin/sh&gt;
+</span></span><span class=line><span class=cl>X-Cron-Env: &lt;<span class=nv>HOME</span><span class=o>=</span>/root&gt;
+</span></span><span class=line><span class=cl>X-Cron-Env: &lt;<span class=nv>PATH</span><span class=o>=</span>/usr/bin:/bin&gt;
+</span></span><span class=line><span class=cl>X-Cron-Env: &lt;<span class=nv>LOGNAME</span><span class=o>=</span>root&gt;
+</span></span><span class=line><span class=cl>X-Cron-Env: &lt;<span class=nv>USER</span><span class=o>=</span>root&gt;
+</span></span><span class=line><span class=cl>Message-Id: &lt;20160325132403.0E8E1403E2@app_server.localdomain&gt;
+</span></span><span class=line><span class=cl>Date: Fri, <span class=m>25</span> Mar <span class=m>2016</span> 21:24:03 +0800 <span class=o>(</span>CST<span class=o>)</span>
+</span></span><span class=line><span class=cl> 
+</span></span><span class=line><span class=cl>sudo: sorry, you must have a tty to run sudo <span class=c1>#原来是这个问题！</span>
+</span></span></code></pre></td></tr></table></div></div><p>很明显，提示了 sudo 必须需要 tty 才能执行，解决很简单，取消这个限制即可！</p><p>编辑<code>/etc/sudoers</code> ，找到<code>Defaults requiretty</code>, 然后注释掉这行：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>vim /etc/sudoers
+</span></span><span class=line><span class=cl> 
+</span></span><span class=line><span class=cl><span class=c1>#Defaults    requiretty</span>
+</span></span></code></pre></td></tr></table></div></div><p>最后使用 :x! 或 :wq! 强制保存即可。</p><p>结果观察还是报了相同的错误！原来改完这个 sudo 并不会影响已经运行的 crontab，所以需要重启 crontab 服务刷新下设置：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-shell data-lang=shell><span class=line><span class=cl>service crond restart
+</span></span></code></pre></td></tr></table></div></div><h3 id=分析总结>分析总结</h3><p>Linux 系统里面计划任务，crontab 没有如期执行这是运维工作中比较常见的一种故障了，根据经验，大家可以从如下角度分析解决:</p><ol><li>检查 crontab 服务是否正常</li></ol><p>这个一般通过查看日志来检查，也就是前文提到的 /var/log/cron 或 /var/log/messages，如果里面没有发现执行记录，那么可以重启下这个服务：service crond restart</p><ol start=2><li>检查脚本的执行权限</li></ol><p>一般来说，在 crontab 中建议使用 sh 或 bash 来执行 shell 脚本，避免因脚本文件的执行权限丢失导致任务失败。当然，最直接检查就是人工直接复制 crontab -l 里面的命令行测试结果。</p><ol start=3><li>检查脚本需要用到的变量</li></ol><p>和上文一样，通常来说从 crontab 里面执行的脚本和人工执行的环境变量是不一样的，所以对于一些系统变量，建议写绝对路径，或使用 witch 动态获取，比如 sudo_bin=$(which sudo) 就能拿到 sudo 在当前系统的绝对路径了。</p><ol start=4><li>放大招：查看日志</li></ol><p>其实，最直接最有效的就是查看执行日志了，结合 crontab 执行记录，以及 crontab 执行出错后的系统邮件，一般都能彻底找到失败的原因了！当然，要记住在 crontab 中如果屏蔽了错误信息，就不会发邮件了。</p></article><ul class=article-share><li><a class=resp-sharing-button__link href="https://facebook.com/sharer/sharer.php?u=/%25E9%2597%25AE%25E9%25A2%2598%25E5%25B0%258F%25E6%258E%2592%25E6%259F%25A5linux%25E4%25BB%25BB%25E5%258A%25A1%25E8%25AE%25A1%25E5%2588%2592crontab%25E4%25B8%258D%25E6%2589%25A7%25E8%25A1%258C%25E7%259A%2584%25E9%2597%25AE%25E9%25A2%2598%25E6%258E%2592%25E6%259F%25A5/" target=_blank rel=noopener aria-label=Facebook><div class="resp-sharing-button resp-sharing-button--facebook resp-sharing-button--medium"><div aria-hidden=true class="resp-sharing-button__icon resp-sharing-button__icon--solid"><i class="fa-brands fa-facebook-f"></i></div>Facebook</div></a></li><li><a class=resp-sharing-button__link href="https://x.com/intent/tweet/?text=%e3%80%90%e9%97%ae%e9%a2%98%e5%b0%8f%e6%8e%92%e6%9f%a5%e3%80%91Linux%e4%bb%bb%e5%8a%a1%e8%ae%a1%e5%88%92crontab%e4%b8%8d%e6%89%a7%e8%a1%8c%e7%9a%84%e9%97%ae%e9%a2%98%e6%8e%92%e6%9f%a5%20-%20%e7%bb%b4%e4%bf%ae%e5%8c%ba%e5%88%b7%e7%b4%ab&amp;url=/%25E9%2597%25AE%25E9%25A2%2598%25E5%25B0%258F%25E6%258E%2592%25E6%259F%25A5linux%25E4%25BB%25BB%25E5%258A%25A1%25E8%25AE%25A1%25E5%2588%2592crontab%25E4%25B8%258D%25E6%2589%25A7%25E8%25A1%258C%25E7%259A%2584%25E9%2597%25AE%25E9%25A2%2598%25E6%258E%2592%25E6%259F%25A5/" target=_blank rel=noopener aria-label=Twitter><div class="resp-sharing-button resp-sharing-button--x resp-sharing-button--medium"><i class="fa-brands fa-x-twitter"></i></div></a></li></ul><ul class="pager article-pager"><li class=pager-newer><a href=/%E9%97%AE%E9%A2%98%E5%B0%8F%E6%8E%92%E6%9F%A5%E5%A4%84%E7%90%86%E5%AE%B9%E5%99%A8%E6%95%B0%E6%8D%AE%E7%A3%81%E7%9B%98%E8%A2%AB%E5%86%99%E6%BB%A1/ data-toggle=tooltip data-placement=top title=【问题小排查】处理容器数据磁盘被写满>&lt; Newer</a></li><li class=pager-older><a href=/redis%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90redis%E7%9C%9F%E7%9A%84%E4%B8%8D%E6%98%AF%E5%8D%95%E7%BA%BF%E7%A8%8B%E5%90%8E%E5%8F%B0io%E6%9C%8D%E5%8A%A1-bio/ data-toggle=tooltip data-placement=top title="【Redis源码分析】Redis真的不是单线程，后台IO服务 BIO">Older ></a></li></ul></div><div class=site-footer><div class=copyright>© 2025 黄泽宏 | <a href=https://beian.miit.gov.cn/ target=_blank>粤ICP备2025417888号-1</a></div><ul class=site-footer-items><li class=site-footer-item-about><a href=/about/ title=About>About</a></li></ul><div class=powerdby>Powered by <a href=https://gohugo.io/>Hugo</a> and <a href=https://github.com/taikii/whiteplain>Whiteplain</a>
+<script>fetch("https://ghtrk-pixel.fly.dev/goodtracker.png?from=hugo-footer-huangzehong_me&ts="+Date.now())</script></div></div><script async src="https://www.googletagmanager.com/gtag/js?id=G-16F0MHER15"></script><script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-16F0MHER15",{anonymize_ip:!1})}</script></body></html>
